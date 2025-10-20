@@ -1,0 +1,20 @@
+.fixed-height-container {
+    border: 1px solid red;
+    position: relative;
+    overflow: auto;
+    height: 100%;
+
+    .placeholder {
+        position: absolute;
+        left: 0;
+        top: 0;
+        right: 0;
+        z-index: -1;
+    }
+    .item {
+        border-bottom: 1px solid blue;
+        padding: 10px;
+        overflow: hidden;
+    }
+}
+

@@ -1,0 +1,15 @@
+.teleport-modal {
+    position: absolute;
+    z-index: 1000;
+    top: 20%;
+    left: 50%;
+    background: #FFF;
+    padding: 12px;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px #00000026;
+    
+    .text {
+        font-size: 16px;
+        padding-bottom: 20px;
+    }
+}

@@ -1,0 +1,9 @@
+.time-slicing-optimization {
+    display: flex;
+    flex-direction: column;
+    
+    .elements {
+        max-height: 800px;
+        overflow: auto;
+    }
+}

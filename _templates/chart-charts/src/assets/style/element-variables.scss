@@ -1,0 +1,8 @@
+
+/* 自定义主题色 */
+$--color-primary: #2578ed;
+$--color-success: #13ce66;
+$--color-warning: #ffba00;
+$--color-danger: #ff4949;
+
+@use "element-plus/theme-chalk/src/index.scss" as *;

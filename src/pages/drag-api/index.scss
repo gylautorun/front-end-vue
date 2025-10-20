@@ -1,0 +1,52 @@
+.drag-api {
+
+    .drag-container {
+        display: flex;
+    }
+
+    .drag-left {
+        padding: 12px;
+        background: #CCC;
+        border: 1px solid #999;
+        .drag-item {
+            width: 60px;
+            height: 24px;
+            margin-bottom: 10px;
+            text-align: center;
+            cursor: pointer;
+            &:last-child {
+                margin-bottom: 0;
+            }
+        }
+    }
+
+    .time-slot {
+        background: #CCC;
+    }
+
+    .drag-right {
+        padding-left: 20px;
+        table {
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 2px solid #fff;
+            padding: 12px;
+            text-align: center;
+            height: 44px;
+        }
+        th {
+            background-color: #CCC;
+            color: #333;
+            font-weight: bold;
+        }
+        .gap td,
+        .gap th {
+            height: 12px;
+            background: #fff;
+        }
+    }
+    .drag-over {
+        background: #999 !important;
+    }
+}

@@ -1,0 +1,107 @@
+@import '../style/variable.scss';
+
+.placeholder-info-wrap {
+    margin: 0 10px;
+}
+// $margin: 20px;
+// .box {
+//   width: calc(100% + #{$margin}); /* 正确插值写法 */
+// }
+.person-info-wrap {
+    height: $card-height;
+    margin: 0 10px;
+    background: #FFF;
+    position: relative;
+    flex-shrink: 0;
+    &.last-person-info-wrap,
+    &:last-of-type {
+        .tree-horizontal-line {
+            display: none;
+        }
+    }
+    &:hover {
+        .card-wrap {
+            border-color: $blue;
+        }
+    }
+    &.person-active {
+        .card-wrap {
+            border: 2px solid $blue;
+            box-shadow: 0 0 8px $shadow-color;
+        }
+    }
+    .connect-line {
+        position: absolute;
+        left: 50%;
+        margin-left: -.5px;
+        top: -$connect-line-height;
+        height: $connect-line-height;
+        width: 100%;
+        .tree-vertical-line {
+            height: $connect-line-height;
+            background: transparent;
+            border-left: 1px solid $border-color;
+        }
+        .tree-horizontal-line {
+            width: calc(100% + 20px);
+            height: $connect-line-height;
+            background: transparent;
+            border-top: 1px solid $border-color;
+            position: absolute;
+            top: 0;
+        }
+        &.line-right-angle {
+            .tree-horizontal-line,
+            .tree-vertical-line {
+                border-radius: 0!important;
+            }
+        }
+        &.only-one {
+            display: block!important;
+        }
+        &.line-right-radius {
+            .tree-horizontal-line {
+                border-top-right-radius: 5px!important;
+            }
+            .tree-vertical-line,
+            .tree-horizontal-line {
+                border-top-left-radius: 0!important;
+            }
+        }
+        &.line-left-radius {
+            .tree-vertical-line,
+            .tree-horizontal-line {
+                border-top-right-radius: 0!important;
+            }
+        }
+    }
+    .show-btn {
+        display: inline-block;
+        height: 16px;
+        position: absolute;
+        z-index: 100;
+        bottom: -8px;
+        left: 50%;
+        margin-left: -8px;
+        cursor: pointer;
+        svg {
+            position: relative;
+            z-index: 2;
+            width: 16px;
+            height: 16px;
+            vertical-align: top;
+        }
+        &.minus-btn {
+            .tree-vertical-line {
+                height: $connect-line-height - 7;
+                width: 100%;
+                background: transparent;
+                border-left: 1px solid $border-color;
+                position: absolute;
+                top: 16px;
+                left: 50%;
+                margin-left: -.5px;
+            }
+        }
+    }
+}

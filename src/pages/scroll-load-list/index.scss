@@ -1,0 +1,19 @@
+.scroll-load-list {
+	width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    .scroll-load-item {
+        width: 100%;
+        padding: 5px 0;
+        .value {
+            padding: 5px;
+            background-color: #E5E5E5;
+        }
+    }
+
+    .loading {
+        background-color: #BEE915;
+        padding: 12px;
+        text-align: center;
+    }
+}

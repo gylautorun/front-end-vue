@@ -1,0 +1,17 @@
+:root {
+	--color-background: #111;
+    --font-size-normal: 100px;
+	
+	
+	/* @media only screen and (min-width: 800px) {
+		--font-size-large: 64px;
+		--font-size-medium: 32px;
+		--font-size-normal: 16px;
+	}
+	
+	@media only screen and (max-width: 500px) {
+		--font-size-large: 40px;
+		--font-size-medium: 20px;
+		--font-size-normal: 14px;
+	} */
+}

@@ -1,0 +1,29 @@
+@import "variables";
+
+* {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+html, body {
+	height: 100%;
+	margin: 0;
+	font-size: 14px;
+	line-height: 1.5;
+	color: #333;
+	background-color: #FFF;
+}
+
+#app {
+	height: 100%;
+	overflow: hidden;
+}
+
+ul {
+	list-style: none;
+}
+
+.clearfix {
+    zoom: 1;
+}

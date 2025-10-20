@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "vue.volar",
+    "vue.vscode-typescript-vue-plugin",
+    "bradlc.vscode-tailwindcss",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "stylelint.vscode-stylelint"
+  ],
+  "unwantedRecommendations": [
+    "octref.vetur"
+  ]
+}

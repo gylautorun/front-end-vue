@@ -1,0 +1,19 @@
+.org-tree {
+
+    .control {
+        display: flex;
+        padding: 10px;
+        > div {
+            margin-right: 10px;
+        }
+    }
+    .colors {
+        padding: 0 10px 10px;
+    }
+    .tree-content {
+        height: 500px;
+        width: 100%;
+    }
+}
+
+

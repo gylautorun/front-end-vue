@@ -1,0 +1,50 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "strict": false,
+    "jsx": "preserve",
+    // "importHelpers": true,
+    "experimentalDecorators": true,
+    "strictFunctionTypes": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "allowJs": true, /* allowJs设置的值为true或false，用来指定是否允许编译js文件，默认是false，即不编译js文件 */
+    "resolveJsonModule": true,
+    "lib": ["dom", "esnext"],
+    "incremental": true,
+    "paths": {
+      "/@/*": ["src/*"],
+      "/store/*": ["src/store/*"],
+      "/components/*": ["src/components/*"],
+      // "@build/*": ["build/*"],
+      // "/#/*": ["types/*"]
+    },
+    "types": [
+      "node", 
+      "vite/client", 
+      "element-plus/global",
+      "unplugin-vue-define-options/index",
+    ],
+    "typeRoots": ["./node_modules/","./types"]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue",
+    "types/*.d.ts",
+    "mock/*.ts",
+    "vite.config.ts"
+  ],
+  "exclude": [
+    "dist", 
+    "**/*.js", 
+    "./node_modules"
+  ]
+}

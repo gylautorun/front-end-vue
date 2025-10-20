@@ -1,0 +1,30 @@
+@import "./styles/index.scss";
+
+.ant-layout-content.main-wrapper {
+    .main-content,
+    .ant-layout-content,
+    .main-container {
+        height: 100%;
+    }
+}
+#app .ant-layout {
+    .ant-layout-footer {
+        padding: 12px;
+    }
+    .ant-layout-header {
+        height: 56px;
+        line-height: 56px;
+        padding: 5px 12px;
+    }
+    .ant-layout-sider.antd-sider .logo {
+        margin: 12px;
+    }
+
+    .ant-layout-sider-trigger {
+        height: 46px;
+    }
+}
+
+.w-60 {
+    width: 60%;
+}
