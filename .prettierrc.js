@@ -23,6 +23,7 @@ module.exports = {
     requirePragma: false,
     // 结尾添加分号
     semi: true,
+    // "semi": ["error", "always"]
     // 使用单引号 (true:单引号;false:双引号)
     singleQuote: false,
     // 缩进空格数，默认2个空格
