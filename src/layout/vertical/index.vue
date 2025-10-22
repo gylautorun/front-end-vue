@@ -1,6 +1,7 @@
 <template>
 	<a-layout class="layout">
 		<a-layout-sider
+			v-if="!shouldHideSider"
 			v-model:collapsed="isCollapse"
 			class="aside"
 			:trigger="null"
@@ -23,7 +24,10 @@
 			</div>
 		</a-layout-sider>
 		<a-layout>
-			<a-layout-header class="header">
+			<a-layout-header 
+				v-if="!shouldHideHeader"
+				class="header"
+			>
 				<ToolBarLeft />
 				<ToolBarRight />
 			</a-layout-header>
@@ -45,16 +49,25 @@ import Main from '@/layout/components/main/index.vue';
 const route = useRoute();
 const authStore = useAuthStore();
 const globalStore = useGlobalStore();
-const activeMenu = ref<Array<string>>([]);
 const isCollapse = computed(() => globalStore.isCollapse);
 const menuList = computed(() => authStore.showMenuListGet);
 const theme = computed(() => {
 	return globalStore.styleSetting === 'realDark' ? 'dark' : globalStore.styleSetting;
 });
 
-watchEffect(() => {
-	let key = route.meta.activeMenu ? route.meta.activeMenu : route.path;
-	activeMenu.value = [key + ''];
+// 根据路由元数据控制布局组件显示
+const shouldHideSider = computed(() => {
+    return route.meta?.hideSider || false;
+});
+
+const shouldHideHeader = computed(() => {
+    return route.meta?.hideHeader || false;
+});
+
+// 从路由元数据中获取当前激活的菜单项
+const activeMenu = computed(() => {
+    const key = route.meta.activeMenu ? route.meta.activeMenu : route.path;
+    return [key as string];
 });
 </script>
 

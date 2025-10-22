@@ -1,7 +1,6 @@
-import {createApp} from 'vue';
+import { createApp } from 'vue';
 // pinia store
-import {setupPiniaStore, pinia} from '@/stores/index';
-
+import { setupPiniaStore, pinia } from '@/stores/index';
 
 // antd icons
 import * as Icons from '@ant-design/icons-vue';
@@ -13,8 +12,9 @@ import App from './app.vue';
 // custom directives
 import directives from '@/directives/index';
 
-import { registerGlobComp } from './register';
+import * as EChart from '@/components/echarts';
 
+import { registerGlobComp } from './register';
 
 import { registerVendor } from './register-vendor';
 
@@ -28,7 +28,6 @@ import 'virtual:svg-icons-register';
 // font css
 // import '@/assets/fonts/font.scss';
 
-
 const app = createApp(App);
 // 全局注册 自定义指令(directive)
 // setupDirective(app);
@@ -36,8 +35,8 @@ const app = createApp(App);
 // xxx
 
 // 注册antd Icons组件
-Object.keys(Icons).forEach(key => {
-	app.component(key, Icons[key as keyof typeof Icons]);
+Object.keys(Icons).forEach((key) => {
+    app.component(key, Icons[key as keyof typeof Icons]);
 });
 // 注册全局组件
 registerGlobComp(app);
@@ -48,7 +47,8 @@ setupPiniaStore(app);
 // 注册 第三方插件
 registerVendor(app);
 
-app.use(directives)
+app.use(EChart)
+    .use(directives)
     .use(router)
     .use(I18n)
     // .use(pinia)

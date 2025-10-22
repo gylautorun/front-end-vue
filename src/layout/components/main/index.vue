@@ -12,7 +12,9 @@
 			</transition>
 		</router-view>
 	</a-layout-content>
-	<a-layout-footer v-if="footer">
+	<a-layout-footer 
+		v-if="!shouldHideFooter && footer"
+	>
 		<Footer />
 	</a-layout-footer>
 	<!-- 主题设置按钮 -->
@@ -21,6 +23,7 @@
 
 <script setup lang="ts">
 import { computed, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useGlobalStore } from '@/stores/modules/global';
 import { useKeepAliveStore } from '@/stores/modules/keep-alive';
@@ -29,8 +32,14 @@ import Tabs from '@/layout/components/tabs/index.vue';
 import Footer from '@/layout/components/footer/index.vue';
 import ThemeButton from '@/layout/components/theme-button/index.vue';
 
+const route = useRoute();
 const globalStore = useGlobalStore();
 const { maximize, tabs, footer } = storeToRefs(globalStore);
+
+// 根据路由元数据控制布局组件显示
+const shouldHideFooter = computed(() => {
+    return route.meta?.hideFooter || false;
+});
 
 const keepAliveStore = useKeepAliveStore();
 const { keepAliveName } = storeToRefs(keepAliveStore);

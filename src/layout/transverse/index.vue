@@ -1,7 +1,10 @@
 <!-- 横向布局 -->
 <template>
 	<a-layout class="layout">
-		<a-layout-header class="transverse-header">
+		<a-layout-header 
+			v-if="!shouldHideHeader"
+			class="transverse-header"
+		>
 			<!-- logo -->
 			<div class="logo flx-center">
 				<img class="logo-img" src="@/assets/images/logo.svg" alt="logo" />
@@ -49,6 +52,15 @@ const route = useRoute();
 const authStore = useAuthStore();
 const activeMenu = ref<Array<string>>([]);
 const menuList = computed(() => authStore.showMenuListGet);
+
+// 根据路由元数据控制布局组件显示
+const shouldHideHeader = computed(() => {
+    return route.meta?.hideHeader || false;
+});
+
+const shouldHideFooter = computed(() => {
+    return route.meta?.hideFooter || false;
+});
 
 watchEffect(() => {
 	let key = route.meta.activeMenu ? route.meta.activeMenu : route.path;
