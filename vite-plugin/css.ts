@@ -1,36 +1,41 @@
-import {CSSOptions} from 'vite';
+import { CSSOptions } from 'vite';
 import path from 'path';
 import { env } from 'node:process';
 // css 自动加前缀和polyfill
 import postcssPresetEnv from 'postcss-preset-env';
 // import { postcssPxToViewportConfig } from './postcss-px-to-viewport-config';
+import { postcssPxToRemConfig } from './postcss-px-to-rem-config';
 
 export function createViteCss(): CSSOptions {
     return {
         // 对css的行为进行配置
         preprocessorOptions: {
-          // key + config key代表预处理器的名
-          scss: {
-              // 整个的配置对象都会最终给到scss的执行参数（全局参数）中去
-              // math: 'always',
-              // globalVars: {
-              //     // 全局变量
-              //     // mainColor: 'red'
-              // },
-              javascriptEnabled: true,
-              additionalData: '@import "@/styles/variables.scss";',
-          }
+            // key + config key代表预处理器的名
+            scss: {
+                // 整个的配置对象都会最终给到scss的执行参数（全局参数）中去
+                // math: 'always',
+                // globalVars: {
+                //     // 全局变量
+                //     // mainColor: 'red'
+                // },
+                javascriptEnabled: true,
+                additionalData: '@import "@/styles/variables.scss";'
+            }
         },
         postcss: {
-          plugins: [
-            postcssPresetEnv(),
-            // 配置px-vw等插件
-            // postcssPxToViewportConfig({}),
-          ],
+            plugins: [
+                postcssPresetEnv()
+                // 配置px-vw等插件
+                // postcssPxToViewportConfig({}),
+                // 配置px-rem等插件
+                // postcssPxToRemConfig({
+                //     // include: /src\/pages\/data-visualization\/rem\//
+                // })
+            ]
         },
         modules: {
             // 配置当前的模块化行为是模块化还是全局化 (有hash就是开启了模块化的一个标志, 因为他可以保证产生不同的hash值来控制我们的样式类名不被覆盖)
-            scopeBehaviour: 'local', 
+            scopeBehaviour: 'local',
             // 自定义生成哈希名称的规则，例如：更改哈希名称的长度等
             generateScopedName: '[name]_[local]_[hash:base64:5]',
             // generateScopedName: (name, filename, css) => {
@@ -43,13 +48,13 @@ export function createViteCss(): CSSOptions {
             // },
             // 是对css模块化的默认行为进行覆盖
             // 修改生成的配置对象的key的展示形式(驼峰还是中划线形式)
-            localsConvention: 'camelCase',
+            localsConvention: 'camelCase'
 
             // 生成hash会根据类名 + 一些其他的字符串(文件名 + 他内部随机生成一个字符串)去进行生成, 如果想要生成hash更加的独特一点, 可以配置hashPrefix, 配置的这个字符串会参与到最终的hash生成, （hash: 只要字符串有一个字不一样, 那么生成的hash就完全不一样, 但是只要字符串完全一样, 生成的hash就会一样）
             // hashPrefix: 'hello',
 
             // 代表不想参与到css模块化的路径
-            // globalModulePaths: ['./component.module.css'], 
-        },
+            // globalModulePaths: ['./component.module.css'],
+        }
     };
-};
+}

@@ -38,6 +38,6 @@ export const routes = Object.entries(pages).map(([path, meta]) => {
     };
 }) as RouteItem[];
 export const menuRoutes = routesToTree(routes);
-// console.log('routes', routes);
+console.log('routes', routes);
 export const firstRoute = menuRoutes.find(({ meta }) => meta?.isRedirect) || menuRoutes[0];
 export default routes;

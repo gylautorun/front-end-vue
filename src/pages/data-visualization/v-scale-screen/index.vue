@@ -5,17 +5,18 @@
             <p>响应式图表展示不同屏幕尺寸下的自适应效果</p>
         </div>
 
-        <div class="charts-container">
+        <v-scale-screen class="charts-container" width="1920" height="1080">
             <div class="chart-wrapper" v-for="item in chartList" :key="item.id">
                 <component :is="item.component" class="chart"></component>
             </div>
-        </div>
+        </v-scale-screen>
     </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue';
-import { IndexChart, BarChart, PieChart, LineChart, AreaChart } from './components';
+import VScaleScreen from 'v-scale-screen';
+import { IndexChart, BarChart, PieChart, LineChart, AreaChart } from '../components';
 
 const chartList = [
     {
