@@ -82,6 +82,8 @@ declare module 'vue' {
     ElSelect: typeof import('element-plus/es')['ElSelect']
     ElSwitch: typeof import('element-plus/es')['ElSwitch']
     ElUpload: typeof import('element-plus/es')['ElUpload']
+    FloatingLayoutController: typeof import('./src/components/floating-layout-controller/index.vue')['default']
+    GlobalControl: typeof import('./src/components/global-control/index.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SvgIcon: typeof import('./src/components/svg-icon.vue')['default']

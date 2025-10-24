@@ -11,21 +11,6 @@
         <el-button slot="trigger" type="primary">选取文件</el-button>
         <el-button @click="submitUpload">上传</el-button>
     </el-upload>
-    <div class="control-buttons">
-        <h3>布局控制</h3>
-        <div class="button-group">
-            <h4>单独控制</h4>
-            <a-button type="primary" @click="toggleSider()">切换侧边栏</a-button>
-            <a-button type="primary" @click="toggleHeader()">切换顶部导航</a-button>
-            <a-button type="primary" @click="toggleFooter()">切换底部信息</a-button>
-        </div>
-        <div class="button-group">
-            <h4>预设模式</h4>
-            <a-button type="default" @click="setFullscreen()">全屏模式</a-button>
-            <a-button type="default" @click="setNoSider()">无侧边栏</a-button>
-            <a-button type="default" @click="resetLayout()">标准模式</a-button>
-        </div>
-    </div>
 </template>
 
 <script setup lang="ts">
@@ -34,8 +19,6 @@ import { useHome } from '@/stores/home';
 import { storeToRefs } from 'pinia';
 import { ref, reactive } from 'vue';
 import CryptoJS from 'crypto-js';
-import { useGlobalStore } from '@/stores/modules/global';
-import { setLayoutPreset, setLayoutState } from '@/router/guards/layout';
 
 interface RawFile {
     raw: File;
@@ -142,77 +125,6 @@ const beforeUpload = (file: RawFile['raw']) => {
     calculateHash(file);
     return false;
 };
-
-// 控制全局
-const globalStore = useGlobalStore();
-
-// 切换侧边栏显示
-function toggleSider() {
-    setLayoutState({ showSider: !globalStore.showSider });
-    console.log('侧边栏状态:', globalStore.showSider);
-}
-
-// 切换顶部导航显示
-function toggleHeader() {
-    setLayoutState({ showHeader: !globalStore.showHeader });
-    console.log('顶部导航状态:', globalStore.showHeader);
-}
-
-// 切换底部信息显示
-function toggleFooter() {
-    setLayoutState({ showFooter: !globalStore.showFooter });
-    console.log('底部信息状态:', globalStore.showFooter);
-}
-
-// 重置布局到默认状态
-function resetLayout() {
-    setLayoutPreset('standard');
-    console.log('布局已重置为标准模式');
-}
-
-// 设置为全屏模式
-function setFullscreen() {
-    setLayoutPreset('fullscreen');
-    console.log('已设置为全屏模式');
-}
-
-// 设置为无侧边栏模式
-function setNoSider() {
-    setLayoutPreset('noSider');
-    console.log('已设置为无侧边栏模式');
-}
 </script>
 
-<style scoped lang="scss">
-.control-buttons {
-    margin-top: 20px;
-
-    h3 {
-        text-align: center;
-        margin-bottom: 20px;
-        color: #333;
-        font-size: 18px;
-    }
-
-    .button-group {
-        margin-bottom: 20px;
-
-        h4 {
-            text-align: center;
-            margin-bottom: 10px;
-            color: #666;
-            font-size: 14px;
-            font-weight: normal;
-        }
-
-        display: flex;
-        justify-content: center;
-        gap: 12px;
-        flex-wrap: wrap;
-
-        .ant-btn {
-            margin: 0 4px;
-        }
-    }
-}
-</style>
+<style scoped lang="scss"></style>
