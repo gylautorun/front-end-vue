@@ -1,34 +1,35 @@
-import {createRouter, createWebHistory, RouteRecordRaw} from 'vue-router';
+import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import NProgress from '@/utils/nprogress';
 import { LOGIN_URL, ROUTER_WHITE_LIST } from '@/config';
 import { useAuthStore } from '@/stores/modules/auth';
 import { useUserStore } from '@/stores/modules/user';
 // import { initDynamicRouter } from './dynamic';
-import pagesRoutes, {firstRoute} from './pages';
+import pagesRoutes, { firstRoute } from './pages';
 import errorRoutes from './error';
+import { setupLayoutGuard } from './guards/layout';
+import { RouteItem } from './type';
 
-
-const routes: RouteRecordRaw[] = [...pagesRoutes, ...errorRoutes].concat([
+const routes: RouteItem[] = [...pagesRoutes, ...errorRoutes].concat([
     {
         path: '/',
         key: 'redirect',
-        redirect: firstRoute.path,
+        redirect: firstRoute.path
     },
     // 路由未匹配到，进入这个
-	{
+    {
         path: '/:currentPath(.*)*',
         key: 'path-all',
-        redirect: errorRoutes[0].path,
+        redirect: errorRoutes[0].path
         // redirect: () => {
         //     return {path: '/404'};
         // }
-    },
+    }
     // 解决刷新页面，路由警告
-	// {
-	// 	path: '/:pathMatch(.*)*',
+    // {
+    // 	path: '/:pathMatch(.*)*',
     //  key: 'path-404',
-	// 	redirect: '/404',
-	// },
+    // 	redirect: '/404',
+    // },
 ]);
 /**
  * @description 动态路由参数配置简介 📚
@@ -58,17 +59,20 @@ const router = createRouter({
     }
 });
 
+// 设置布局守卫
+setupLayoutGuard(router);
+
 /**
  * @description 重置路由
  */
 export const resetRouter = () => {
-	const authStore = useAuthStore();
-	authStore.flatMenuListGet.forEach(route => {
-		const {name} = route;
-		if (name && router.hasRoute(name)) {
-			router.removeRoute(name);
-		}
-	});
+    const authStore = useAuthStore();
+    authStore.flatMenuListGet.forEach((route) => {
+        const { name } = route;
+        if (name && router.hasRoute(name)) {
+            router.removeRoute(name);
+        }
+    });
 };
 // 导航守卫
 router.beforeEach(async (to, from, next) => {
@@ -89,22 +93,22 @@ router.beforeEach(async (to, from, next) => {
     }
 
     // 判断访问页面是否在路由白名单地址中，如果存在直接放行
-	if (ROUTER_WHITE_LIST.includes(to.path)) {
+    if (ROUTER_WHITE_LIST.includes(to.path)) {
         return next();
-    };
+    }
 
-	// 判断是否有 Token，没有重定向到 login
-	if (!userStore.token) {
+    // 判断是否有 Token，没有重定向到 login
+    if (!userStore.token) {
         return next({ path: LOGIN_URL, replace: true });
-    };
+    }
 
-	// 如果没有菜单列表，就重新请求菜单列表并添加动态路由
-	// const authStore = useAuthStore();
-	// authStore.setRouteName(to.name as string);
-	// if (!authStore.authMenuListGet.length) {
-	// 	await initDynamicRouter();
-	// 	return next({ ...to, replace: true });
-	// }
+    // 如果没有菜单列表，就重新请求菜单列表并添加动态路由
+    // const authStore = useAuthStore();
+    // authStore.setRouteName(to.name as string);
+    // if (!authStore.authMenuListGet.length) {
+    // 	await initDynamicRouter();
+    // 	return next({ ...to, replace: true });
+    // }
 
     next();
 });
@@ -114,4 +118,3 @@ router.afterEach((to) => {
     NProgress.done();
 });
 export default router;
-

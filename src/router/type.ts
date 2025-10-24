@@ -5,8 +5,17 @@ export type RouteItem = RouteRecordRaw & {
     key: string;
     children?: RouteItem[];
 } & {
-    meta: RouteMeta;
+    meta?: RouteMeta;
 };
+
+// 布局预设类型
+export type LayoutPreset =
+    | 'fullscreen'
+    | 'contentOnly'
+    | 'standard'
+    | 'noSider'
+    | 'noHeader'
+    | 'noFooter';
 
 export interface RouteMeta {
     title: string;
@@ -16,7 +25,9 @@ export interface RouteMeta {
     pathFileName?: string | 'index';
     // 渲染后缀 默认是 vue
     fileSuffix?: 'tsx' | 'vue';
-    // 布局控制字段 默认是 true
+    // 布局预设 - 优先级最高
+    layoutPreset?: LayoutPreset;
+    // 布局控制字段 - 优先级次之
     showSider?: boolean;
     showHeader?: boolean;
     showFooter?: boolean;

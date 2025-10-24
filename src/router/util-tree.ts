@@ -1,5 +1,6 @@
 import { validateBoolean } from '@/utils/util-normal';
-import { RouteItem, RouteMeta } from './type';
+import { RouteItem, RouteMeta, LayoutPreset } from './type';
+import { LAYOUT_PRESETS } from './guards/layout';
 
 type PartialRoute = Partial<Omit<RouteItem, 'children'>>;
 interface PartialRouteItem extends PartialRoute {
@@ -38,11 +39,26 @@ export function routesToTree(routes: RouteItem[]) {
 }
 
 export function handleRouteMeta(meta: RouteMeta): RouteMeta {
+    // 如果定义了布局预设，使用预设值
+    const presetConfig =
+        meta.layoutPreset && LAYOUT_PRESETS[meta.layoutPreset]
+            ? LAYOUT_PRESETS[meta.layoutPreset]
+            : { showSider: undefined, showHeader: undefined, showFooter: undefined };
+
     const result = {
         ...meta,
-        showSider: validateBoolean(meta.showSider),
-        showHeader: validateBoolean(meta.showHeader),
-        showFooter: validateBoolean(meta.showFooter)
+        ...presetConfig,
+        // 具体的布局控制字段优先级更高，会覆盖预设值
+        showSider:
+            meta.showSider !== undefined ? validateBoolean(meta.showSider) : presetConfig.showSider,
+        showHeader:
+            meta.showHeader !== undefined
+                ? validateBoolean(meta.showHeader)
+                : presetConfig.showHeader,
+        showFooter:
+            meta.showFooter !== undefined
+                ? validateBoolean(meta.showFooter)
+                : presetConfig.showFooter
     };
     result.setValue = (type, value) => {
         result[type] = value;

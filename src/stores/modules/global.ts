@@ -1,7 +1,7 @@
-import { defineStore } from 'pinia'
-import { GlobalState } from '@/stores/type'
-import { DEFAULT_PRIMARY } from '@/config'
-import piniaPersistConfig from '@/config/pinia-persist'
+import { defineStore } from 'pinia';
+import { GlobalState } from '@/stores/type';
+import { DEFAULT_PRIMARY } from '@/config';
+import piniaPersistConfig from '@/config/pinia-persist';
 
 // defineStore 调用后返回一个函数，调用该函数获得 Store 实体
 export const useGlobalStore = defineStore({
@@ -41,14 +41,25 @@ export const useGlobalStore = defineStore({
         // 标签页图标
         tabsIcon: true,
         // 页脚
-        footer: true
+        footer: true,
+        // 布局组件显示控制
+        showSider: true,
+        showHeader: true,
+        showFooter: true,
+        // 标记是否被动态修改过
+        layoutModified: false
     }),
-    getters: {},
+    getters: {
+        // 类 mobx computed
+        // active():boolean {
+        //     return this.showSider;
+        // },
+    },
     actions: {
         // Set GlobalState
         setGlobalState(key: keyof GlobalState, val: unknown) {
-            this.$patch({ [key]: val })
+            this.$patch({ [key]: val });
         }
     },
     persist: piniaPersistConfig('gyl-global')
-})
+});

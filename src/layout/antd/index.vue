@@ -40,6 +40,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { menuRoutes, firstRoute } from '@/router/pages';
 import type { MenuProps } from 'ant-design-vue';
 import { useAuthStore } from '@/stores/modules/auth';
+import { useGlobalStore } from '@/stores/modules/global';
 import SubMenu from '@/layout/components/menu/sub-menu.vue';
 import MainAntd from '@/layout/components/main/antd.vue';
 import { getMenuList } from './util-menu';
@@ -52,19 +53,48 @@ const collapsed = ref<boolean>(false);
 
 const route = useRoute();
 const authStore = useAuthStore();
+const globalStore = useGlobalStore();
 const router = useRouter();
 
-// 根据路由元数据控制布局组件显示
+// 根据路由元数据和global store状态控制布局组件显示
+// 优先级：路由元数据 > global store状态
 const shouldShowSider = computed(() => {
-    return route.meta?.showSider;
+    // 如果被动态修改过，优先使用 global store 状态
+    if (globalStore.layoutModified) {
+        return globalStore.showSider;
+    }
+    // 如果 global store 没有被修改，则使用路由元数据
+    if (route.meta?.showSider !== undefined) {
+        return route.meta.showSider;
+    }
+    // 最后使用 global store 的默认值
+    return globalStore.showSider;
 });
 
 const shouldShowHeader = computed(() => {
-    return route.meta?.showHeader;
+    // 如果被动态修改过，优先使用 global store 状态
+    if (globalStore.layoutModified) {
+        return globalStore.showHeader;
+    }
+    // 如果 global store 没有被修改，则使用路由元数据
+    if (route.meta?.showHeader !== undefined) {
+        return route.meta.showHeader;
+    }
+    // 最后使用 global store 的默认值
+    return globalStore.showHeader;
 });
 
 const shouldShowFooter = computed(() => {
-    return route.meta?.showFooter;
+    // 如果被动态修改过，优先使用 global store 状态
+    if (globalStore.layoutModified) {
+        return globalStore.showFooter;
+    }
+    // 如果 global store 没有被修改，则使用路由元数据
+    if (route.meta?.showFooter !== undefined) {
+        return route.meta.showFooter;
+    }
+    // 最后使用 global store 的默认值
+    return globalStore.showFooter;
 });
 
 const handleClick: MenuProps['onClick'] = (e: any) => {
