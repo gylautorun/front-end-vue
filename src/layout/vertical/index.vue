@@ -1,39 +1,36 @@
 <template>
-	<a-layout class="layout">
-		<a-layout-sider
-			v-if="!shouldHideSider"
-			v-model:collapsed="isCollapse"
-			class="aside"
-			:trigger="null"
-			collapsible
-			:theme="theme"
-			:style="{ borderRight: theme === 'dark' ? '1px solid #001529' : '1px solid #f0f5ff' }"
-		>
-			<div class="menu" :style="{ width: isCollapse ? '70px' : '200px' }">
-				<!-- logo -->
-				<div class="logo flx-center">
-					<img src="@/assets/images/logo.svg" alt="logo" />
-					<span v-show="!isCollapse">gyl</span>
-				</div>
-				<!-- 菜单栏 -->
-				<div class="scrollbar menu-scrollbar">
-					<a-menu v-model:selectedKeys="activeMenu" :theme="theme" mode="inline">
-						<SubMenu :menuList="menuList" />
-					</a-menu>
-				</div>
-			</div>
-		</a-layout-sider>
-		<a-layout>
-			<a-layout-header 
-				v-if="!shouldHideHeader"
-				class="header"
-			>
-				<ToolBarLeft />
-				<ToolBarRight />
-			</a-layout-header>
-			<Main />
-		</a-layout>
-	</a-layout>
+    <a-layout class="layout">
+        <a-layout-sider
+            v-if="shouldShowSider"
+            v-model:collapsed="isCollapse"
+            class="aside"
+            :trigger="null"
+            collapsible
+            :theme="theme"
+            :style="{ borderRight: theme === 'dark' ? '1px solid #001529' : '1px solid #f0f5ff' }"
+        >
+            <div class="menu" :style="{ width: isCollapse ? '70px' : '200px' }">
+                <!-- logo -->
+                <div class="logo flx-center">
+                    <img src="@/assets/images/logo.svg" alt="logo" />
+                    <span v-show="!isCollapse">gyl</span>
+                </div>
+                <!-- 菜单栏 -->
+                <div class="scrollbar menu-scrollbar">
+                    <a-menu v-model:selectedKeys="activeMenu" :theme="theme" mode="inline">
+                        <SubMenu :menuList="menuList" />
+                    </a-menu>
+                </div>
+            </div>
+        </a-layout-sider>
+        <a-layout>
+            <a-layout-header v-if="shouldShowHeader" class="header">
+                <ToolBarLeft />
+                <ToolBarRight />
+            </a-layout-header>
+            <Main />
+        </a-layout>
+    </a-layout>
 </template>
 
 <script setup lang="ts" name="layoutVertical">
@@ -45,6 +42,7 @@ import SubMenu from '@/layout/components/menu/sub-menu.vue';
 import ToolBarLeft from '@/layout/components/header/toolbar-left.vue';
 import ToolBarRight from '@/layout/components/header/toolbar-right.vue';
 import Main from '@/layout/components/main/index.vue';
+import { validateBoolean } from '@/utils/util-normal';
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -52,16 +50,16 @@ const globalStore = useGlobalStore();
 const isCollapse = computed(() => globalStore.isCollapse);
 const menuList = computed(() => authStore.showMenuListGet);
 const theme = computed(() => {
-	return globalStore.styleSetting === 'realDark' ? 'dark' : globalStore.styleSetting;
+    return globalStore.styleSetting === 'realDark' ? 'dark' : globalStore.styleSetting;
 });
 
 // 根据路由元数据控制布局组件显示
-const shouldHideSider = computed(() => {
-    return route.meta?.hideSider || false;
+const shouldShowSider = computed(() => {
+    return route.meta?.hideSider;
 });
 
-const shouldHideHeader = computed(() => {
-    return route.meta?.hideHeader || false;
+const shouldShowHeader = computed(() => {
+    return route.meta?.hideHeader;
 });
 
 // 从路由元数据中获取当前激活的菜单项
@@ -72,5 +70,5 @@ const activeMenu = computed(() => {
 </script>
 
 <style scoped lang="scss">
-	@import url("./index.scss");
+@import url('./index.scss');
 </style>

@@ -1,7 +1,7 @@
 <template>
     <a-layout class="antd-layout">
         <a-layout-sider
-            v-if="!shouldHideSider"
+            v-if="shouldShowSider"
             v-model:collapsed="collapsed"
             collapsible
             class="antd-sider"
@@ -17,7 +17,7 @@
             ></a-menu>
         </a-layout-sider>
         <a-layout>
-            <a-layout-header v-if="!shouldHideHeader" class="antd-header"> Header </a-layout-header>
+            <a-layout-header v-if="shouldShowHeader" class="antd-header"> Header </a-layout-header>
             <a-layout-content class="main-wrapper">
                 <!-- <a-breadcrumb style="margin: 16px 0">
                     <a-breadcrumb-item>User</a-breadcrumb-item>
@@ -27,7 +27,7 @@
                     <MainAntd />
                 </div>
             </a-layout-content>
-            <a-layout-footer v-if="!shouldHideFooter" class="antd-footer">
+            <a-layout-footer v-if="shouldShowFooter" class="antd-footer">
                 Ant Design ©2018 Created by Ant UED
             </a-layout-footer>
         </a-layout>
@@ -43,6 +43,7 @@ import { useAuthStore } from '@/stores/modules/auth';
 import SubMenu from '@/layout/components/menu/sub-menu.vue';
 import MainAntd from '@/layout/components/main/antd.vue';
 import { getMenuList } from './util-menu';
+import { validateBoolean } from '@/utils/util-normal';
 
 const items = reactive(getMenuList(menuRoutes));
 
@@ -54,16 +55,16 @@ const authStore = useAuthStore();
 const router = useRouter();
 
 // 根据路由元数据控制布局组件显示
-const shouldHideSider = computed(() => {
-    return route.meta?.hideSider || false;
+const shouldShowSider = computed(() => {
+    return route.meta?.showSider;
 });
 
-const shouldHideHeader = computed(() => {
-    return route.meta?.hideHeader || false;
+const shouldShowHeader = computed(() => {
+    return route.meta?.showHeader;
 });
 
-const shouldHideFooter = computed(() => {
-    return route.meta?.hideFooter || false;
+const shouldShowFooter = computed(() => {
+    return route.meta?.showFooter;
 });
 
 const handleClick: MenuProps['onClick'] = (e: any) => {

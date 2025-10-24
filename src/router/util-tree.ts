@@ -1,4 +1,5 @@
-import { RouteItem } from './type';
+import { validateBoolean } from '@/utils/util-normal';
+import { RouteItem, RouteMeta } from './type';
 
 type PartialRoute = Partial<Omit<RouteItem, 'children'>>;
 interface PartialRouteItem extends PartialRoute {
@@ -8,14 +9,14 @@ export function routesToTree(routes: RouteItem[]) {
     const map: Record<string, PartialRouteItem> = {};
     const result = [];
     for (const route of routes) {
-        const {key, parentKey} = route;
+        const { key, parentKey } = route;
         if (!map[key]) {
-            map[key] = {children: []};
+            map[key] = { children: [] };
         }
         map[key] = {
             ...route,
-            children: map[key].children,
-        }
+            children: map[key].children
+        };
         const current = map[key];
 
         // 是否第一层
@@ -27,11 +28,19 @@ export function routesToTree(routes: RouteItem[]) {
             // 有可能当前父级还未遍历到, 需要提前赋予children
             if (!map[parentKey]) {
                 map[parentKey] = {
-                    children: [],
+                    children: []
                 };
             }
             map[parentKey].children?.push(current);
         }
     }
     return result as RouteItem[];
+}
+
+export function setRouteMeta(meta: RouteMeta) {
+    Object.assign(meta, {
+        showSider: validateBoolean(meta.showSider),
+        showHeader: validateBoolean(meta.showHeader),
+        showFooter: validateBoolean(meta.showFooter)
+    });
 }

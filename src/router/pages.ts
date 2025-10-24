@@ -1,7 +1,9 @@
 import { RouteItem, RouteMeta } from './type';
-import { routesToTree } from './util-tree';
+import { routesToTree, setRouteMeta } from './util-tree';
 
 const pages = import.meta.glob('../pages/**/page.ts', { eager: true, import: 'default' });
+
+console.log('Pages loaded:', Object.keys(pages).length);
 
 /**
  * import.meta.glob('../pages/**\/index.vue', {eager: true, import: 'default'});
@@ -15,7 +17,9 @@ const pages = import.meta.glob('../pages/**/page.ts', { eager: true, import: 'de
  */
 const comps = import.meta.glob('../pages/**/index.vue');
 const tsxComps = import.meta.glob('../pages/**/index.tsx');
+
 export const routes = Object.entries(pages).map(([path, meta]) => {
+    setRouteMeta(meta as RouteMeta);
     const { fileSuffix = 'vue', pathFileName = 'index' } = meta as RouteMeta;
     const compPath = path.replace('page.ts', `${pathFileName}.${fileSuffix}`);
     path = path.replace('../pages', '').replace('/page.ts', '') || '/';
@@ -37,7 +41,10 @@ export const routes = Object.entries(pages).map(([path, meta]) => {
         parentKey: path === '/' ? undefined : parentPath || '/'
     };
 }) as RouteItem[];
+
 export const menuRoutes = routesToTree(routes);
-console.log('routes', routes);
+
+console.log('routes (fallback)', routes);
+
 export const firstRoute = menuRoutes.find(({ meta }) => meta?.isRedirect) || menuRoutes[0];
 export default routes;

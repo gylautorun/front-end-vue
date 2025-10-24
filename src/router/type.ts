@@ -14,8 +14,8 @@ export interface RouteMeta {
     pathFileName?: string | 'index';
     // 渲染后缀 默认是 vue
     fileSuffix?: 'tsx' | 'vue';
-    // 布局控制字段
-    hideSider?: boolean;
-    hideHeader?: boolean;
-    hideFooter?: boolean;
+    // 布局控制字段 默认是 true
+    showSider?: boolean;
+    showHeader?: boolean;
+    showFooter?: boolean;
 }

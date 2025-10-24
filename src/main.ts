@@ -53,3 +53,5 @@ app.use(EChart)
     .use(I18n)
     // .use(pinia)
     .mount('#app');
+
+console.log('Application started');
