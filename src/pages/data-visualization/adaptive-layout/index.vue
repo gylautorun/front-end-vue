@@ -3,6 +3,7 @@
         <div class="header">
             <h1>数据可视化展示</h1>
             <p>响应式图表展示不同屏幕尺寸下的自适应效果</p>
+            <a-button type="primary" @click="toggleSider()">切换显示侧边栏</a-button>
         </div>
 
         <div class="charts-container">
@@ -16,6 +17,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { IndexChart, BarChart, PieChart, LineChart, AreaChart } from '../components';
+import { useRoute } from 'vue-router';
+import { RouteItem } from '@/router/type';
+
+const route = useRoute();
 
 const chartList = [
     {
@@ -39,6 +44,12 @@ const chartList = [
         component: AreaChart
     }
 ];
+
+function toggleSider() {
+    const visible = route.meta.showSider;
+    console.log('visible', route.meta);
+    route.meta?.setValue('showSider', !visible);
+}
 </script>
 
 <style scoped lang="scss">

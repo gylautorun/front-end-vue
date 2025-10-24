@@ -4,6 +4,8 @@ export type RouteItem = RouteRecordRaw & {
     parentKey?: string;
     key: string;
     children?: RouteItem[];
+} & {
+    meta: RouteMeta;
 };
 
 export interface RouteMeta {
@@ -18,4 +20,9 @@ export interface RouteMeta {
     showSider?: boolean;
     showHeader?: boolean;
     showFooter?: boolean;
+
+    setValue?: <K extends keyof Omit<RouteMeta, 'setValue'>>(
+        type: K,
+        value: Required<Omit<RouteMeta, 'setValue'>>[K]
+    ) => void;
 }

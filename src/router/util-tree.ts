@@ -37,10 +37,15 @@ export function routesToTree(routes: RouteItem[]) {
     return result as RouteItem[];
 }
 
-export function setRouteMeta(meta: RouteMeta) {
-    Object.assign(meta, {
+export function handleRouteMeta(meta: RouteMeta): RouteMeta {
+    const result = {
+        ...meta,
         showSider: validateBoolean(meta.showSider),
         showHeader: validateBoolean(meta.showHeader),
         showFooter: validateBoolean(meta.showFooter)
-    });
+    };
+    result.setValue = (type, value) => {
+        result[type] = value;
+    };
+    return result;
 }
