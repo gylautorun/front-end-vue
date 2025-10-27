@@ -3,7 +3,7 @@
         <a-popover
             v-model:open="isPanelOpen"
             placement="topRight"
-            trigger="click"
+            trigger="hover"
             :overlay-style="{ padding: 0 }"
             :arrow="false"
             overlay-class-name="floating-layout-popover"
