@@ -1,4 +1,3 @@
-import echarts from './base';
 import BaseChart from '@/components/echarts/base-chart.vue';
 import { App } from 'vue';
 
