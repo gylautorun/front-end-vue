@@ -23,7 +23,12 @@ const props = defineProps({
     }
 });
 const listRef = ref();
-useSeamlessScroll(listRef, props.option);
+const { pause, play } = useSeamlessScroll(listRef, props.option);
+
+defineExpose({
+    pause,
+    play
+});
 </script>
 
 <style lang="scss" scoped>

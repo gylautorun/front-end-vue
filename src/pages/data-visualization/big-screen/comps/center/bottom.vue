@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, DefineComponent } from 'vue';
 import { ElIcon } from 'element-plus';
 import Vue3Odometer from 'vue3-odometer';
 import 'odometer/themes/odometer-theme-default.css';

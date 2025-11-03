@@ -63,8 +63,10 @@ export function useSeamlessScroll(listRef: Ref<HTMLElement | null>, options: Opt
     watch(
         () => options,
         () => {
-            // 移除上一次的
-            animation.value?.remove(transList);
+            // 移除上一次的 ?? 被删除了方法
+            // animation.value?.remove(transList);
+            // 暂停上一次的动画
+            animation.value?.pause();
             nextTick(() => {
                 // 重新初始化
                 init();
@@ -74,8 +76,10 @@ export function useSeamlessScroll(listRef: Ref<HTMLElement | null>, options: Opt
     );
 
     onBeforeUpdate(() => {
-        // 移除上一次的
-        animation.value?.remove(transList);
+        // 移除上一次的 ?? 被删除了方法
+        // animation.value?.remove(transList);
+        // 暂停上一次的动画
+        animation.value?.pause();
     });
     onUpdated(() => {
         // 重新初始化
