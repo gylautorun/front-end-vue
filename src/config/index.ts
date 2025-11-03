@@ -10,9 +10,9 @@ export const LOGIN_URL: string = '/login';
 export const DEFAULT_PRIMARY: string = '#2449ff';
 
 // * 路由白名单地址（必须是本地存在的路由 staticRouter.ts）
-export const ROUTER_WHITE_LIST: string[] = ['/500'];
+export const ROUTER_WHITE_LIST: string[] = ['/500', '/data-visualization/big-screen'];
 
 export const defaultSettings = {
     language: 'zh-cn',
-    size: 'md',
+    size: 'md'
 };
