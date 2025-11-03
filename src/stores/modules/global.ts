@@ -47,7 +47,9 @@ export const useGlobalStore = defineStore({
         showHeader: true,
         showFooter: true,
         // 标记是否被动态修改过
-        layoutModified: false
+        layoutModified: false,
+        // 是否清除布局间距
+        isClearLayoutGap: false
     }),
     getters: {
         // 类 mobx computed
@@ -59,6 +61,12 @@ export const useGlobalStore = defineStore({
         // Set GlobalState
         setGlobalState(key: keyof GlobalState, val: unknown) {
             this.$patch({ [key]: val });
+        },
+        toggleClearLayoutGap() {
+            this.isClearLayoutGap = !this.isClearLayoutGap;
+        },
+        setClearLayoutGap(val: boolean) {
+            this.isClearLayoutGap = val;
         }
     },
     persist: piniaPersistConfig('gyl-global')

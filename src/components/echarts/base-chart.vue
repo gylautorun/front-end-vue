@@ -1,5 +1,5 @@
 <template>
-    <div ref="chartRef" class="es-chart"></div>
+    <div ref="chartRef" class="base-chart"></div>
 </template>
 
 <script setup lang="ts" name="BaseChart">
@@ -119,7 +119,7 @@ defineExpose({
 </script>
 
 <style lang="scss" scoped>
-.es-chart {
+.base-chart {
     width: 100%;
     height: 100%;
 }

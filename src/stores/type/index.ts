@@ -29,6 +29,9 @@ export interface GlobalState {
     showFooter: boolean;
     // 标记是否被动态修改过
     layoutModified: boolean;
+
+    // 是否清除布局间距
+    isClearLayoutGap: boolean;
 }
 
 /* tabsMenuProps */

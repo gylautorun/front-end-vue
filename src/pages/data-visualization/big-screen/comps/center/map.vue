@@ -1,0 +1,62 @@
+<template>
+    <div class="big-block">
+        <Title>商家分布</Title>
+        <div style="width: 100%; height: 98%">
+            <v-chart :option="option" />
+        </div>
+    </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+import Title from '../title.vue';
+import echarts, { ECOption } from '@/components/echarts/base';
+import allData from '../../assets/data/map.json';
+import chinaJson from '../../assets/data/china.json';
+
+echarts.registerMap('china', chinaJson as any);
+const option = ref<ECOption>({
+    geo: {
+        type: 'map',
+        map: 'china',
+        top: '5%',
+        bottom: '5%',
+        itemStyle: {
+            areaColor: '#2E72BF',
+            borderColor: '#333'
+        }
+    },
+    legend: {
+        left: '5%',
+        bottom: '5%',
+        orient: 'vertical',
+        data: allData.map((item) => item.name),
+        textStyle: {
+            color: '#aaa'
+        }
+    },
+    series: allData.map((item) => {
+        // return的这个对象就代表的是一个类别下的所有散点数据
+        // 如果想在地图中显示散点的数据, 我们需要给散点的图表增加一个配置, coordinateSystem:geo
+        return {
+            type: 'effectScatter',
+            rippleEffect: {
+                scale: 5,
+                brushType: 'stroke'
+            },
+            name: item.name,
+            data: item.children,
+            coordinateSystem: 'geo'
+        };
+    })
+});
+</script>
+
+<style lang="scss" scoped>
+.big-block {
+    width: 100%;
+    height: 100%;
+    padding: 16px;
+    // background-color: var(--big-block-bg);
+}
+</style>

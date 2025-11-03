@@ -1,43 +1,50 @@
 .antd-layout {
-	width: 100%;
-	height: 100%;
-	.antd-header {
-		background: #fff;
-		padding: 0;
-	}
-	.ant-layout-sider.antd-sider {
-		display: flex;
-		flex-direction: column;
-		padding-bottom: 48px;
+    width: 100%;
+    height: 100%;
+    .antd-header {
+        background: #fff;
+        padding: 0;
+    }
+    .ant-layout-sider.antd-sider {
+        display: flex;
+        flex-direction: column;
+        padding-bottom: 48px;
 
-		.logo {
-			height: 32px;
-			background: rgba(255, 255, 255, 0.3);
-			margin: 16px;
-		}
-		.antd-menu-wrapper {
-			height: 100%;
-			overflow-y: auto;
-			padding: 0 0 64px;
-		}
+        .logo {
+            height: 32px;
+            background: rgba(255, 255, 255, 0.3);
+            margin: 16px;
+        }
+        .antd-menu-wrapper {
+            height: 100%;
+            overflow-y: auto;
+            padding: 0 0 64px;
+        }
+    }
 
-	}
-	
+    .main-wrapper {
+        overflow: auto;
+    }
 
-	.main-wrapper {
-		overflow: auto;
-	}
+    .main-content {
+        padding: 16px;
 
-	.main-content {
-		padding: 16px;
-	}
+        // 清除布局间距
+        &.clear-layout-gap {
+            padding: 0;
 
-	.antd-footer {
-		text-align: center;
-		background: #fff;
-	}
+            .ant-layout-content {
+                padding: 0;
+            }
+        }
+    }
 
-	.antd-menu-wrapper {
-		padding-bottom: 50px;
-	}
+    .antd-footer {
+        text-align: center;
+        background: #fff;
+    }
+
+    .antd-menu-wrapper {
+        padding-bottom: 50px;
+    }
 }

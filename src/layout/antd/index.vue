@@ -23,7 +23,7 @@
                     <a-breadcrumb-item>User</a-breadcrumb-item>
                     <a-breadcrumb-item>Bill</a-breadcrumb-item>
                 </a-breadcrumb> -->
-                <div class="main-content">
+                <div class="main-content" :class="{ 'clear-layout-gap': clearLayoutGap }">
                     <MainAntd />
                 </div>
             </a-layout-content>
@@ -95,6 +95,14 @@ const shouldShowFooter = computed(() => {
     }
     // 最后使用 global store 的默认值
     return globalStore.showFooter;
+});
+
+const clearLayoutGap = computed(() => {
+    if (route.meta?.isClearLayoutGap !== undefined) {
+        return route.meta?.isClearLayoutGap;
+    }
+
+    return globalStore.isClearLayoutGap;
 });
 
 const handleClick: MenuProps['onClick'] = (e: any) => {

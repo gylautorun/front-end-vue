@@ -1,0 +1,53 @@
+// .big-screen {
+//     width: 100vw;
+//     height: 100vh;
+// }
+
+.big-screen-container {
+    --big-screen-width: 1920px;
+    --big-screen-height: 1080px;
+    --big-header-height: 72px;
+    --big-block-bg: #222733;
+    // --big-block-bg: #000;
+    --big-screen-bg: rgb(22, 21, 34);
+    // --big-screen-bg: rgb(0, 0, 0, .8);
+    --big-screen-text-color: #fff;
+    position: relative;
+    margin: 0;
+    width: 100vw;
+    height: 100vh;
+    background-size: 100% 100%;
+    overflow: hidden;
+    background: var(--big-screen-bg);
+    color: var(--big-screen-text-color);
+}
+.light {
+    --big-screen-bg: rgb(238, 238, 238);
+    --big-block-bg: #fff;
+    --big-screen-text-color: rgb(22, 21, 34);
+}
+.big-screen {
+    position: absolute;
+    user-select: none;
+    top: 50%;
+    left: 50%;
+    width: var(--big-screen-width);
+    height: var(--big-screen-height);
+    margin-left: calc(var(--big-screen-width) * 0.5 - var(--big-screen-width));
+    margin-top: calc(var(--big-screen-height) * 0.5 - var(--big-screen-height));
+    background-size: 100% 100%;
+    padding: 0 20px;
+    &-main {
+        position: relative;
+        display: flex;
+        height: calc(100% - var(--big-header-height));
+    }
+    &-center {
+        flex: 1;
+        width: calc(var(--big-screen-width) - 1000px);
+    }
+    &-left,
+    &-right {
+        width: 460px;
+    }
+}

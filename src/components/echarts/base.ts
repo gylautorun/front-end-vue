@@ -6,10 +6,14 @@ import {
     BarChart,
     // 系列类型的定义后缀都为 SeriesOption
     BarSeriesOption,
+    MapChart,
+    MapSeriesOption,
     LineChart,
     LineSeriesOption,
     PieChart,
-    PieSeriesOption
+    PieSeriesOption,
+    EffectScatterChart,
+    EffectScatterSeriesOption
 } from 'echarts/charts';
 import { LegendComponent } from 'echarts/components';
 import {
@@ -18,6 +22,8 @@ import {
     TitleComponentOption,
     TooltipComponent,
     TooltipComponentOption,
+    GeoComponent,
+    GeoComponentOption,
     GridComponent,
     GridComponentOption,
     // 数据集组件
@@ -33,10 +39,13 @@ import { CanvasRenderer } from 'echarts/renderers';
 // 通过 ComposeOption 来组合出一个只有必须组件和图表的 Option 类型
 export type ECOption = echarts.ComposeOption<
     | BarSeriesOption
+    | MapSeriesOption
     | LineSeriesOption
     | PieSeriesOption
+    | EffectScatterSeriesOption
     | TitleComponentOption
     | TooltipComponentOption
+    | GeoComponentOption
     | GridComponentOption
     | DatasetComponentOption
 >;
@@ -46,12 +55,15 @@ echarts.use([
     LegendComponent,
     TitleComponent,
     TooltipComponent,
+    GeoComponent,
     GridComponent,
     DatasetComponent,
     TransformComponent,
     BarChart,
+    MapChart,
     LineChart,
     PieChart,
+    EffectScatterChart,
     LabelLayout,
     UniversalTransition,
     CanvasRenderer
