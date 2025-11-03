@@ -19,7 +19,10 @@ export function createViteCss(): CSSOptions {
                 //     // mainColor: 'red'
                 // },
                 javascriptEnabled: true,
-                additionalData: '@import "@/styles/variables.scss";'
+                additionalData: `
+                @use "sass:math";
+                @use "@/styles/variables.scss";
+                `
             }
         },
         postcss: {

@@ -19,7 +19,7 @@
 <script setup lang="ts" name="bigScreen">
 import { ref } from 'vue';
 import { useScreenStore } from '@/stores/data-visualization/screen';
-import { useResize } from '@/hooks/use-resize';
+import { useResize } from './hooks/use-resize';
 import Header from './comps/header.vue';
 import Left from './comps/left/index.vue';
 import Right from './comps/right/index.vue';

@@ -13,6 +13,7 @@ import Title from '../title.vue';
 import Chart from '@/components/echarts/base-chart.vue';
 import echarts, { ECOption } from '@/components/echarts/base';
 import allData from '../../assets/data/trend.json';
+import { getFontSize } from '../../utils/calculate';
 
 const choiceType = 'map';
 const option = ref<ECOption>({
@@ -32,7 +33,8 @@ const option = ref<ECOption>({
         icon: 'circle',
         data: allData[choiceType].data,
         textStyle: {
-            color: '#aaa'
+            color: '#aaa',
+            fontSize: getFontSize()
         }
     },
     xAxis: {
