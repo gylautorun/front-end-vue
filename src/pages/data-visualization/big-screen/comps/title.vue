@@ -15,13 +15,13 @@ defineProps({
 <style lang="scss" scoped>
 .big-screen-title {
     position: relative;
-    padding-left: 20px;
+    padding-left: var(--big-gap-small);
     &::before {
         content: '';
         position: absolute;
         left: 0;
         top: 0;
-        width: 3px;
+        width: var(--big-border-width);
         height: 100%;
         background-color: var(--big-screen-text-color);
     }

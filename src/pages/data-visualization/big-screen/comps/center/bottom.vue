@@ -2,7 +2,8 @@
     <div class="big-center-bottom-wrapper">
         <SeamlessScroll ref="scrollRef" class="big-center-bottom">
             <div v-for="(item, index) in actions" class="big-bottom-item">
-                <ElIcon size="32" :color="item.color">
+                <!-- 32 -->
+                <ElIcon size="64" :color="item.color">
                     <component :is="iconObj[item.icon]" />
                 </ElIcon>
                 <Vue3Odometer
@@ -67,52 +68,63 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .big-center-bottom-wrapper {
+    --center-bottom-height: 300px; // 150px * 2
+    --center-bottom-width: 340px; // 170px * 2
+    --bottom-font-size: 44px; // 22px * 2
+
+    --bottom-control-buttons-top: 20px; // 10px * 2
+    --bottom-control-buttons-gap: 16px; // 8px * 2
+
+    --bottom-control-btn-padding: 8px 24px; // 4px * 2, 12px * 2
+    --bottom-control-btn-font-size: 24px; // 12px * 2
+    --bottom-control-btn-radius: 8px; // 4px * 2
+
     position: relative;
     width: 100%;
-    height: 150px;
+    height: var(--center-bottom-height);
 
     .big-center-bottom {
         position: relative;
         width: 100%;
         overflow: hidden;
-        height: 150px;
+        height: var(--center-bottom-height);
     }
 
     .big-bottom-item {
         position: absolute;
         top: 0;
         left: 0;
-        width: 170px;
-        height: 150px;
+        width: var(--center-bottom-width);
+        height: var(--center-bottom-height);
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
         background-color: var(--big-block-bg);
-        font-size: 22px;
+        font-size: var(--bottom-font-size);
         font-weight: 600;
         .big-item-text {
-            margin-top: 16px;
+            margin-top: var(--big-margin-20);
         }
     }
 
     .control-buttons {
         position: absolute;
-        top: 10px;
-        right: 10px;
+        top: var(--bottom-control-buttons-top);
+        right: var(--bottom-control-buttons-top);
         display: flex;
-        gap: 8px;
+        gap: var(--bottom-control-buttons-gap);
         z-index: 10;
     }
 
     .control-btn {
-        padding: 4px 12px;
+        padding: var(--bottom-control-btn-padding);
         background-color: rgba(0, 0, 0, 0.6);
         color: #fff;
         border: 1px solid rgba(255, 255, 255, 0.3);
-        border-radius: 4px;
+        border-radius: var(--bottom-control-btn-radius);
         cursor: pointer;
-        font-size: 12px;
+        font-size: var(--bottom-control-btn-font-size);
         transition: all 0.3s;
 
         &:hover {

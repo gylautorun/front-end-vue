@@ -30,10 +30,11 @@ const { containerRef } = useSortable(components);
 
 <style lang="scss" scoped>
 .big-screen-right-item {
+    --screen-right-height: 640px; // 320px * 2
     width: 100%;
-    height: 320px;
+    height: var(--screen-right-height);
     background-color: var(--big-block-bg);
-    padding: 16px;
+    padding: var(--big-padding-16);
     animation-name: slide;
     &:nth-child(1) {
         animation-duration: 0.5s;
@@ -45,7 +46,7 @@ const { containerRef } = useSortable(components);
         animation-duration: 1.5s;
     }
     & + & {
-        margin-top: 20px;
+        margin-top: var(--big-margin-20);
     }
 }
 
@@ -54,7 +55,7 @@ const { containerRef } = useSortable(components);
         transform: translateX(100%);
     }
     80% {
-        transform: translateX(-20px);
+        transform: translateX(calc(-1 * var(--big-margin-20)));
     }
     100% {
         transform: translateX(0);

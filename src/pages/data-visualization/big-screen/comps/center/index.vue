@@ -16,24 +16,26 @@ import Bottom from './bottom.vue';
 
 <style lang="scss" scoped>
 .big-center {
+    --center-height: 2000px; // 1000px * 2
+    --center-top-height: 300px; // 150px * 2
+    --center-animate-translate-y: 436px; // 218px * 2
     position: relative;
     // width: 100%;
-    height: 1000px;
-    padding: 0 16px;
+    height: var(--center-height);
+    padding: 0 var(--big-padding-16);
     animation: slideAndFade 1.5s;
     .big-center-top {
-        height: calc(100% - 150px);
+        height: calc(100% - var(--center-top-height));
     }
-}
-
-@keyframes slideAndFade {
-    0% {
-        transform: translateY(218px);
-        opacity: 0;
-    }
-    100% {
-        transform: translateX(0);
-        opacity: 1;
+    @keyframes slideAndFade {
+        0% {
+            transform: translateY(var(--center-animate-translate-y));
+            opacity: 0;
+        }
+        100% {
+            transform: translateX(0);
+            opacity: 1;
+        }
     }
 }
 </style>

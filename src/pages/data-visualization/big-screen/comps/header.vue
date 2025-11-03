@@ -49,6 +49,9 @@ startTime();
 
 <style lang="scss" scoped>
 .big-screen-header {
+    --header-title-width: 974px; // 487px * 2
+    --header-title-letter-spacing: 14px; // 7px * 2
+    --header-title-text-shadow: 0px 4px 40px rgba(222, 171, 155, 0.6); // 2px * 2, 20px * 2
     position: relative;
     width: 100%;
     height: var(--big-header-height);
@@ -61,20 +64,20 @@ startTime();
         left: 50%;
         top: 50%;
         transform: translate(-50%, -50%);
-        width: 487px;
+        width: var(--header-title-width);
         height: var(--big-header-height);
         display: flex;
         justify-content: center;
         align-items: center;
-        font-size: 30px;
+        font-size: var(--big-font-title);
         font-weight: 500;
-        letter-spacing: 7px;
-        text-shadow: 0px 2px 20px rgba(222, 171, 155, 0.6);
+        letter-spacing: var(--header-title-letter-spacing);
+        text-shadow: var(--header-title-text-shadow);
     }
     .big-screen-logo {
         display: flex;
         align-items: center;
-        height: calc(var(--big-header-height) - 20px);
+        height: calc(var(--big-header-height) - var(--big-gap-small));
     }
     &-right {
         display: flex;
@@ -84,8 +87,8 @@ startTime();
         top: 50%;
         transform: translateY(-80%);
         img {
-            width: 30px;
-            margin-right: 16px;
+            width: var(--big-icon-size);
+            margin-right: var(--big-icon-margin);
             cursor: pointer;
             transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             &:hover {

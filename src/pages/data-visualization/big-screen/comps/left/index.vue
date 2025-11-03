@@ -28,17 +28,19 @@ const { containerRef } = useSortable(components);
 
 <style lang="scss" scoped>
 .big-screen-left-item {
+    --screen-left-height: 860px; // 430px * 2
+    --screen-left--top-height: 1100px; // 550px * 2
     width: 100%;
-    height: 430px;
+    height: var(--screen-left-height);
     background-color: var(--big-block-bg);
-    padding: 16px;
+    padding: var(--big-padding-16);
     animation-name: slide;
 
     & + & {
-        margin-top: 20px;
+        margin-top: var(--big-margin-20);
     }
     &[name='top'] {
-        height: 550px;
+        height: var(--screen-left--top-height);
         animation-duration: 0.8s;
     }
     &[name='bottom'] {
@@ -51,7 +53,7 @@ const { containerRef } = useSortable(components);
         transform: translateX(-100%);
     }
     80% {
-        transform: translateX(20px);
+        transform: translateX(var(--big-margin-20));
     }
     100% {
         transform: translateX(0);

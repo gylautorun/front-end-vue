@@ -14,7 +14,7 @@ import Chart from '@/components/echarts/base-chart.vue';
 import allData from '../../assets/data/seller.json';
 import echarts, { ECOption } from '@/components/echarts/base';
 
-const barWidth = 22;
+const barWidth = 22 * 2;
 const option = ref<ECOption>({
     grid: {
         top: '10%',

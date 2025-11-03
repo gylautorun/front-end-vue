@@ -26,7 +26,7 @@ import Right from './comps/right/index.vue';
 import Center from './comps/center/index.vue';
 
 const store = useScreenStore();
-const { screenRef } = useResize();
+const { screenRef } = useResize({ w: 3840, h: 2160 });
 const props = withDefaults(
     defineProps<{
         option: any;
