@@ -1,4 +1,4 @@
-import { ServerOptions } from 'vite'
+import { ServerOptions } from 'vite';
 
 export function createViteServer(): ServerOptions {
     return {
@@ -6,7 +6,8 @@ export function createViteServer(): ServerOptions {
         port: 3000, // 设置开发服务器的端口号
         // 默认的origin是http://localhost:3000，这里可以自定义设置, 但是 web worker 会跨域问题, 需要和端口一致
         // origin: 'http://localhost:6666',
-        host: 'localhost', // 设置开发服务器的主机地址
+        // host: 'localhost', // 设置开发服务器的主机地址
+        host: '0.0.0.0', // 监听所有网络接口
         open: true, // 是否在服务器启动时自动在浏览器中打开应用
         // https: {
         //   // 配置开发服务器的https选项
@@ -27,5 +28,5 @@ export function createViteServer(): ServerOptions {
             // 只预热必要的客户端文件
             clientFiles: ['./src/main.ts', './src/router/index.ts']
         }
-    }
+    };
 }

@@ -13,7 +13,7 @@ import Title from '../title.vue';
 import Chart from '@/components/echarts/base-chart.vue';
 import echarts, { ECOption } from '@/components/echarts/base';
 import allData from '../../assets/data/trend.json';
-import { getFontSize } from '../../utils/calculate';
+import { getFontSize, getChartSize } from '../../utils/calculate';
 
 const choiceType = 'map';
 const option = ref<ECOption>({
@@ -23,9 +23,6 @@ const option = ref<ECOption>({
         right: '4%',
         bottom: '1%',
         containLabel: true
-    },
-    tooltip: {
-        trigger: 'axis'
     },
     legend: {
         left: 20,
@@ -40,10 +37,30 @@ const option = ref<ECOption>({
     xAxis: {
         type: 'category',
         boundaryGap: false,
-        data: allData.common.month
+        data: allData.common.month,
+        axisLabel: {
+            fontSize: getFontSize(12),
+            rotate: 45, // 旋转45度
+            interval: 0 // 显示所有标签
+        }
     },
     yAxis: {
-        type: 'value'
+        type: 'value',
+        axisLabel: {
+            fontSize: getFontSize()
+        }
+    },
+    tooltip: {
+        trigger: 'axis',
+        textStyle: {
+            fontSize: getFontSize(14),
+            // fontWeight: 'bold', // 字体粗细
+            color: '#333' // 字体颜色
+        },
+        backgroundColor: '#FFF', // 背景颜色
+        borderColor: '#CCC', // 边框颜色
+        borderWidth: getChartSize(1), // 边框宽度
+        padding: getChartSize(10)
     },
     series: getSeries()
 });

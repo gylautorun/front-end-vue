@@ -13,6 +13,7 @@ import Title from '../title.vue';
 import Chart from '@/components/echarts/base-chart.vue';
 import echarts, { ECOption } from '@/components/echarts/base';
 import allData from '../../assets/data/rank.json';
+import { getFontSize } from '../../utils/calculate';
 
 const colorArr = [
     ['#0BA82C', '#4FF778'],
@@ -31,7 +32,12 @@ const option = ref<ECOption>({
         containLabel: true
     },
     tooltip: {
-        show: true
+        show: true,
+        textStyle: {
+            fontSize: getFontSize(14),
+            // fontWeight: 'bold', // 字体粗细
+            color: '#FFF' // 字体颜色
+        }
     },
     xAxis: {
         type: 'category',

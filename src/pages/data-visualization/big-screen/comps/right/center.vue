@@ -13,6 +13,7 @@ import Title from '../title.vue';
 import Chart from '@/components/echarts/base-chart.vue';
 import allData from '../../assets/data/stock.json';
 import echarts, { ECOption } from '@/components/echarts/base';
+import { getFontSize, getChartSize, ScreenScale } from '../../utils/calculate';
 
 const currentIndex = ref(0);
 const option = ref<ECOption>({
@@ -39,15 +40,15 @@ function getSeries(): ECOption['series'] {
     const end = (currentIndex.value + 1) * 5;
     const showData = allData.slice(start, end);
 
-    const titleFontSize = (460 / 100) * 3.6;
+    const titleFontSize = (480 / 100) * 3.6 * ScreenScale;
     const innerRadius = titleFontSize * 2.8;
-    const outterRadius = innerRadius * 1.125;
+    const outerRadius = innerRadius * 1.125;
 
     return showData.map((item, index) => {
         return {
             type: 'pie',
             center: centerArr[index],
-            radius: [outterRadius, innerRadius],
+            radius: [outerRadius, innerRadius],
             emphasis: {
                 scale: false
             },
@@ -73,7 +74,7 @@ function getSeries(): ECOption['series'] {
                     label: {
                         position: 'center',
                         color: colorArr[index][0],
-                        fontSize: titleFontSize / 2
+                        fontSize: titleFontSize / 1.2
                     }
                 },
                 {

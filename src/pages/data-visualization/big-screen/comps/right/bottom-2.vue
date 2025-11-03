@@ -12,6 +12,7 @@ import { ref } from 'vue';
 import Title from '../title.vue';
 import Chart from '@/components/echarts/base-chart.vue';
 import echarts, { ECOption } from '@/components/echarts/base';
+import { getFontSize, getChartSize, ScreenScale } from '../../utils/calculate';
 
 const option = ref<ECOption>({
     // backgroundColor: 'rgba(0,0,0,.6)',
@@ -27,7 +28,8 @@ const option = ref<ECOption>({
         data: ['雨量', '累计雨量'],
         textStyle: {
             color: '#fff',
-            borderColor: '#fff'
+            borderColor: '#fff',
+            fontSize: getFontSize(12)
         }
     },
     tooltip: {
@@ -35,6 +37,11 @@ const option = ref<ECOption>({
         padding: [5, 10, 5, 10],
         backgroundColor: 'rgba(0,0,0,.6)',
         borderColor: 'transparent',
+        textStyle: {
+            fontSize: getFontSize(14),
+            // fontWeight: 'bold', // 字体粗细
+            color: '#FFF' // 字体颜色
+        },
         formatter: (p: any) => {
             let str = '';
             p.forEach((val: any) => {
@@ -66,7 +73,8 @@ const option = ref<ECOption>({
                 }
             },
             axisLabel: {
-                color: '#9eaaba'
+                color: '#9eaaba',
+                fontSize: getFontSize(12)
             },
             axisTick: {
                 show: false
@@ -76,23 +84,34 @@ const option = ref<ECOption>({
     ],
     yAxis: [
         {
-            nameTextStyle: {
-                color: '#9eaaba'
-            },
             offset: 0,
             name: '单位 mm',
+            nameGap: 40, // 关键属性：调整名称与轴线的距离（数值越大距离越远）
+            nameLocation: 'end', // 名称位置（end/start/middle，默认end）
+            nameTextStyle: {
+                color: '#9eaaba',
+                fontSize: getFontSize(12),
+                padding: [0, 0, 0, 10] // 额外内边距（上右下左）
+            },
             type: 'value',
+            // 轴线样式
+            axisTick: {
+                show: false
+            },
+            // 标签样式
             axisLabel: {
                 show: true,
-                color: '#9eaaba'
+                color: '#9eaaba',
+                fontSize: getFontSize(12)
             },
+            // 轴线样式
             axisLine: {
                 show: true
             },
             splitLine: {
                 show: true,
                 lineStyle: {
-                    width: 1,
+                    width: getChartSize(1),
                     color: 'rgba(49,105,129,0.4)',
                     type: 'dashed'
                 }
@@ -107,7 +126,8 @@ const option = ref<ECOption>({
             label: {
                 show: false,
                 position: 'top',
-                color: '#fff'
+                color: '#fff',
+                fontSize: getFontSize(12)
             },
             itemStyle: {
                 color: new echarts.graphic.LinearGradient(
@@ -144,7 +164,8 @@ const option = ref<ECOption>({
             label: {
                 show: false,
                 position: 'top',
-                color: '#fff'
+                color: '#fff',
+                fontSize: getFontSize(12)
             },
             itemStyle: {
                 color: '#2CF2FD'

@@ -13,6 +13,7 @@ import Title from '../title.vue';
 import Chart from '@/components/echarts/base-chart.vue';
 import echarts, { ECOption } from '@/components/echarts/base';
 import allData from '../../assets/data/hot.json';
+import { getFontSize, getChartSize } from '../../utils/calculate';
 
 const currentIndex = ref(0);
 const option = ref<ECOption>({
@@ -26,7 +27,8 @@ const option = ref<ECOption>({
             return item.name;
         }),
         textStyle: {
-            color: '#aaa'
+            color: '#aaa',
+            fontSize: getFontSize()
         }
     },
     tooltip: {
@@ -47,13 +49,21 @@ const option = ref<ECOption>({
 				`;
             });
             return retStr;
+        },
+        textStyle: {
+            fontSize: getFontSize(14),
+            // fontWeight: 'bold', // 字体粗细
+            color: '#333' // 字体颜色
         }
     },
     series: [
         {
             type: 'pie',
             label: {
-                show: false
+                show: false,
+                fontSize: getFontSize(), // 字体大小
+                color: '#FFF', // 字体颜色
+                fontWeight: 'bold'
             },
             emphasis: {
                 label: {
