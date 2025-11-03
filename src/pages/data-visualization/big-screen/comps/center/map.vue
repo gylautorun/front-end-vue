@@ -50,12 +50,15 @@ const option = ref<ECOption>({
         left: '5%',
         bottom: '5%',
         orient: 'vertical',
+        symbol: 'circle',
+        symbolSize: getChartSize(8),
         data: allData.map((item) => item.name),
         textStyle: {
-            color: '#aaa',
-            fontSize: getFontSize(16)
+            color: '#AAA',
+            fontSize: getFontSize()
         }
     },
+    color: ['#F6C95C', '#EF7D33', '#FF0000', '#184EA1', '#81C8EF', '#9270CA'],
     series: allData.map((item) => {
         // return的这个对象就代表的是一个类别下的所有散点数据
         // 如果想在地图中显示散点的数据, 我们需要给散点的图表增加一个配置, coordinateSystem:geo
