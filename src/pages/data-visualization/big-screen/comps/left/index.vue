@@ -28,8 +28,9 @@ const { containerRef } = useSortable(components);
 
 <style lang="scss" scoped>
 .big-screen-left-item {
-    --screen-left-height: 860px; // 430px * 2
-    --screen-left--top-height: 1100px; // 550px * 2
+    --screen-left-height: #{screen.scale-size(430px)}; // 430px * 2
+    --screen-left--top-height: #{screen.scale-size(550px)}; // 550px * 2
+
     width: 100%;
     height: var(--screen-left-height);
     background-color: var(--big-block-bg);

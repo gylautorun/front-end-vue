@@ -49,9 +49,11 @@ startTime();
 
 <style lang="scss" scoped>
 .big-screen-header {
-    --header-title-width: 974px; // 487px * 2
-    --header-title-letter-spacing: 14px; // 7px * 2
-    --header-title-text-shadow: 0px 4px 40px rgba(222, 171, 155, 0.6); // 2px * 2, 20px * 2
+    // 使用screen.scale-size函数计算缩放后的尺寸
+    --header-title-width: #{screen.scale-size(487px)};
+    --header-title-letter-spacing: #{screen.scale-size(7px)};
+    --header-title-text-shadow: 0px #{screen.scale-size(2px)} #{screen.scale-size(20px)}
+        rgba(222, 171, 155, 0.6);
     position: relative;
     width: 100%;
     height: var(--big-header-height);

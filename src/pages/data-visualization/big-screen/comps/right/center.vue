@@ -13,7 +13,7 @@ import Title from '../title.vue';
 import Chart from '@/components/echarts/base-chart.vue';
 import allData from '../../assets/data/stock.json';
 import echarts, { ECOption } from '@/components/echarts/base';
-import { getFontSize, getChartSize, ScreenScale } from '../../utils/calculate';
+import { getFontSize, getChartSize, getCurrentScale } from '../../utils/calculate';
 
 const currentIndex = ref(0);
 const option = ref<ECOption>({
@@ -40,7 +40,7 @@ function getSeries(): ECOption['series'] {
     const end = (currentIndex.value + 1) * 5;
     const showData = allData.slice(start, end);
 
-    const titleFontSize = (480 / 100) * 3.6 * ScreenScale;
+    const titleFontSize = (480 / 100) * 3.6 * getCurrentScale();
     const innerRadius = titleFontSize * 2.8;
     const outerRadius = innerRadius * 1.125;
 

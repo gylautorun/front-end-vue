@@ -1,56 +1,55 @@
-// math.add($a, $b)	加法	math.add(10px, 5px) → 15px
-// math.sub($a, $b)	减法	math.sub(20px, 5px) → 15px
-// math.mul($a, $b)	乘法	math.mul(72px, 2) → 144px
-// math.div($a, $b)	除法	math.div(100px, 2) → 50px
-// math.percentage($a)	转百分比	math.percentage(0.5) → 50%
+// 大屏适配方案：基于1920x1080基础尺寸的响应式缩放
+// 定义基础比例变量，可快速切换不同分辨率适配
+$scale: screen.$screen-scale; // 4K: 2, 1080P: 1, 2K: 1.5 等
 
-// .big-screen {
-//     width: 100vw;
-//     height: 100vh;
-// }
+// 基础尺寸定义 (1920x1080标准)
+$base-width: screen.$screen-base-width;
+$base-height: screen.$screen-base-height;
+$base-header-height: 72px;
 
-$scale: 2;
-$big-base_header-height: 72px;
-
-:root {
-    --big-screen-scale: 2; // 变化的比例hua倍数, CSS变量，运行时可通过JS修改
+// 计算函数：用于计算缩放后的尺寸
+@function scale-size($size) {
+    @return $size * $scale;
 }
-.big-screen-container {
-    // 原始尺寸: 1920x1080
-    // --big-screen-width: 1920px;
-    // --big-screen-height: 1080px;
 
-    // 4K尺寸: 3840x2160
-    // calc(1920px * var(--scale))
-    --big-screen-width: 3840px;
-    --big-screen-height: 2160px;
+// 定义CSS变量
+:root {
+    // 缩放比例 (JS可运行时修改此变量实现动态缩放)
+    --big-screen-scale: #{$scale};
 
-    // 基础尺寸变量 (基于1920x1080, 4K需要乘以2)
-    --big-header-height: #{$big-base_header-height * $scale};
-    --big-left-right-width: 920px; // 460px * 2
-    --big-padding-horizontal: 40px; // 20px * 2
-    --big-padding-16: 32px; // 16px * 2
-    --big-padding-20: 40px; // 20px * 2
-    --big-margin-20: 40px; // 20px * 2
+    // 屏幕尺寸
+    --big-screen-width: #{$base-width * $scale};
+    --big-screen-height: #{$base-height * $scale};
 
-    // 字体大小变量
-    --big-font-size: 28px; // 14px * 2
-    --big-font-title: 60px; // 30px * 2
-    --big-font-subtitle: 30px; // 15px * 2
+    // 基础布局尺寸
+    --big-header-height: #{screen.scale-size($base-header-height)};
+    --big-left-right-width: #{screen.scale-size(460px)};
+    --big-padding-horizontal: #{screen.scale-size(20px)};
 
-    // 图标和间距
-    --big-icon-size: 60px; // 30px * 2
-    --big-icon-margin: 32px; // 16px * 2
-    --big-border-width: 6px; // 3px * 2
-    --big-gap-small: 40px; // 20px * 2
+    // 间距尺寸
+    --big-padding-16: #{screen.scale-size(16px)};
+    --big-padding-20: #{screen.scale-size(20px)};
+    --big-margin-20: #{screen.scale-size(20px)};
+    --big-gap-small: #{screen.scale-size(20px)};
 
-    // 颜色变量
+    // 字体大小
+    --big-font-size: #{screen.scale-size(14px)};
+    --big-font-title: #{screen.scale-size(30px)};
+    --big-font-subtitle: #{screen.scale-size(15px)};
+
+    // 图标和边框
+    --big-icon-size: #{screen.scale-size(30px)};
+    --big-icon-margin: #{screen.scale-size(16px)};
+    --big-border-width: #{screen.scale-size(3px)};
+
+    // 颜色变量 (默认暗色主题)
     --big-block-bg: #222733;
-    // --big-block-bg: #000;
     --big-screen-bg: rgb(22, 21, 34);
-    // --big-screen-bg: rgb(0, 0, 0, .8);
     --big-screen-text-color: #fff;
+}
 
+// 大屏容器样式
+.big-screen-container {
     position: relative;
     margin: 0;
     width: 100vw;
@@ -61,11 +60,14 @@ $big-base_header-height: 72px;
     background: var(--big-screen-bg);
     color: var(--big-screen-text-color);
 }
+// 亮色主题变量覆盖
 .light {
     --big-screen-bg: rgb(238, 238, 238);
     --big-block-bg: #fff;
     --big-screen-text-color: rgb(22, 21, 34);
 }
+
+// 大屏主体布局
 .big-screen {
     position: absolute;
     user-select: none;
@@ -73,15 +75,21 @@ $big-base_header-height: 72px;
     left: 50%;
     width: var(--big-screen-width);
     height: var(--big-screen-height);
+    // 使用CSS变量计算居中定位
     margin-left: calc(var(--big-screen-width) * 0.5 - var(--big-screen-width));
     margin-top: calc(var(--big-screen-height) * 0.5 - var(--big-screen-height));
+
     background-size: 100% 100%;
     padding: 0 var(--big-padding-horizontal);
+
+    // 主内容区
     &-main {
         position: relative;
         display: flex;
         height: calc(100% - var(--big-header-height));
     }
+
+    // 中央区域
     &-center {
         flex: 1;
         width: calc(
@@ -90,6 +98,8 @@ $big-base_header-height: 72px;
                 ) * 2
         );
     }
+
+    // 左右侧边区域
     &-left,
     &-right {
         width: var(--big-left-right-width);

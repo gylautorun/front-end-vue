@@ -16,9 +16,10 @@ import Bottom from './bottom.vue';
 
 <style lang="scss" scoped>
 .big-center {
-    --center-height: 2000px; // 1000px * 2
-    --center-top-height: 300px; // 150px * 2
-    --center-animate-translate-y: 436px; // 218px * 2
+    // 使用screen.scale-size函数计算缩放后的尺寸
+    --center-height: #{screen.scale-size(1000px)};
+    --center-top-height: #{screen.scale-size(150px)};
+    --center-animate-translate-y: #{screen.scale-size(218px)};
     position: relative;
     // width: 100%;
     height: var(--center-height);

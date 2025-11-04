@@ -30,7 +30,8 @@ const { containerRef } = useSortable(components);
 
 <style lang="scss" scoped>
 .big-screen-right-item {
-    --screen-right-height: 640px; // 320px * 2
+    // 使用screen.scale-size函数计算缩放后的尺寸
+    --screen-right-height: #{screen.scale-size(320px)};
     width: 100%;
     height: var(--screen-right-height);
     background-color: var(--big-block-bg);

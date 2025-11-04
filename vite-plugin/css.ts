@@ -21,7 +21,8 @@ export function createViteCss(): CSSOptions {
                 javascriptEnabled: true,
                 additionalData: `
                 @use "sass:math";
-                @use "@/styles/variables.scss";
+                @use "@/styles/variables.scss" as variables;
+                @use "@/styles/screen.scss" as screen;
                 `
             }
         },
