@@ -21,33 +21,29 @@ export function hslToHex(h: number, s: number, l: number) {
     const c = (1 - Math.abs(2 * l - 1)) * s;
     const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
     const m = l - c / 2;
-    
+
     let r, g, b;
     if (h >= 0 && h < 60) {
         [r, g, b] = [c, x, 0];
-    }
-    else if (h < 120) {
+    } else if (h < 120) {
         [r, g, b] = [x, c, 0];
-    }
-    else if (h < 180) {
+    } else if (h < 180) {
         [r, g, b] = [0, c, x];
-    }
-    else if (h < 240) {
+    } else if (h < 240) {
         [r, g, b] = [0, x, c];
-    }
-    else if (h < 300) {
+    } else if (h < 300) {
         [r, g, b] = [x, 0, c];
-    }
-    else {
+    } else {
         [r, g, b] = [c, 0, x];
     }
     // RGB转HEX（补零+大写）
-    const toHex = (n: number) => Math.round((n + m) * 255)
-        .toString(16)
-        .padStart(2, '0')
-        .toUpperCase();
+    const toHex = (n: number) =>
+        Math.round((n + m) * 255)
+            .toString(16)
+            .padStart(2, '0')
+            .toUpperCase();
 
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 // 输出HEX格式
-console.log(generateColors().map(hsl => /* HSL转HEX函数 */));
+// console.log(generateColors().map(hsl => /* HSL转HEX函数 */));

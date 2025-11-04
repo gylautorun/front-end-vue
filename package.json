@@ -22,6 +22,7 @@
         "@element-plus/icons-vue": "^2.3.2",
         "@njleonzhang/postcss-px-to-rem": "^1.0.1",
         "@vueuse/core": "^10.10.0",
+        "ahooks-vue": "^0.15.1",
         "animejs": "^3.2.2",
         "ant-design-vue": "^4.2.2",
         "axios": "^1.7.2",

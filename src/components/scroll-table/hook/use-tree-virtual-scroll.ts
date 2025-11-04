@@ -13,16 +13,14 @@ export function useTreeVirtualScroll(
     const startIndex = ref(0);
 
     // 判断节点是否展开
-    const isExpanded = (key: string) => {
-        return expandedRowKeys.value.includes(key);
+    const isExpanded = (key: string | number) => {
+        return expandedRowKeys.value.includes(key.toString());
     };
 
     // 切换节点展开状态
     const toggleExpand = (key: string) => {
         const index = expandedRowKeys.value.findIndex((item) => item === key);
-        index >= 0
-            ? expandedRowKeys.value.splice(index, 1)
-            : expandedRowKeys.value.push(key);
+        index >= 0 ? expandedRowKeys.value.splice(index, 1) : expandedRowKeys.value.push(key);
     };
 
     // 遍历树
@@ -30,10 +28,10 @@ export function useTreeVirtualScroll(
         for (let item of walkData) {
             data.push({
                 ...item,
-                level,
+                level
             });
             if (isExpanded(item.id) && item.children) {
-                walkTree(data, item.children, level + 1)
+                walkTree(data, item.children, level + 1);
             }
         }
     };
@@ -47,7 +45,7 @@ export function useTreeVirtualScroll(
     });
 
     const scrollY = computed(() => {
-        const {scrollY} = props;
+        const { scrollY } = props;
         const { scrollRef } = refs;
         if (scrollRef.value) {
             return scrollRef.value.clientHeight;
@@ -59,7 +57,7 @@ export function useTreeVirtualScroll(
     const count = computed(() => {
         const { cellHeight, headerFixed } = props;
         const { headerRef } = refs;
-        const headerHeight = (headerFixed && headerRef.value) ? headerRef.value.clientHeight : 0;
+        const headerHeight = headerFixed && headerRef.value ? headerRef.value.clientHeight : 0;
         return Math.ceil((scrollY.value - headerHeight) / cellHeight);
     });
 
@@ -74,9 +72,7 @@ export function useTreeVirtualScroll(
     // 滚动监听事件
     const onScroll = (e: Event) => {
         const { scrollTop, scrollHeight } = e.target as HTMLElement;
-        const start = Math.floor(
-            (scrollTop / scrollHeight) * allTableData.value.length
-        );
+        const start = Math.floor((scrollTop / scrollHeight) * allTableData.value.length);
         startIndex.value = start;
     };
 
@@ -87,6 +83,6 @@ export function useTreeVirtualScroll(
         count,
         tableData,
         allTableData,
-        onScroll,
+        onScroll
     };
 }
