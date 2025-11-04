@@ -70,6 +70,7 @@ onMounted(() => {
 .big-center-bottom-wrapper {
     // 使用screen.scale-size函数计算缩放后的尺寸
     --center-bottom-width: #{screen.scale-size(170px)};
+    --center-bottom-height: #{screen.scale-size(150px)};
     --bottom-font-size: #{screen.scale-size(22px)};
 
     --bottom-control-buttons-top: #{screen.scale-size(10px)};
@@ -84,16 +85,6 @@ onMounted(() => {
     height: var(--center-bottom-height);
 
     .big-center-bottom {
-        // 定义相关CSS变量
-        --center-bottom-height: #{screen.scale-size(150px)};
-        --center-bottom-width: #{screen.scale-size(800px)};
-        --bottom-font-size: #{screen.scale-size(16px)};
-        --bottom-control-buttons-top: #{screen.scale-size(10px)};
-        --bottom-control-buttons-gap: #{screen.scale-size(10px)};
-        --bottom-control-btn-padding: #{screen.scale-size(5px)} #{screen.scale-size(10px)};
-        --bottom-control-btn-radius: #{screen.scale-size(4px)};
-        --bottom-control-btn-font-size: #{screen.scale-size(12px)};
-
         position: relative;
         width: 100%;
         overflow: hidden;
