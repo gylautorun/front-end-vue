@@ -22,7 +22,8 @@
 <script setup lang="ts" name="estimatedHeight">
 import { type CSSProperties, computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { IListItem, listData_default, listData_100 } from '../method';
-import { useThrottle } from './tools';
+// import { useThrottle } from './tools';
+import { throttle } from 'lodash-es';
 
 // 不定高虚拟列表
 interface IEstimatedListProps<T> {
@@ -196,7 +197,8 @@ const setPosition = () => {
     // 更新列表高度
     state.listHeight = positions.value[len - 1].bottom;
 };
-const handleScroll = useThrottle(() => {
+// const handleScroll = useThrottle(() => {
+const handleScroll = throttle((event: Event) => {
     const { scrollTop, clientHeight, scrollHeight } = contentRef.value!;
     // 根据二分查找更新开始下标
     state.startIndex = binarySearch(positions.value, scrollTop);
@@ -205,7 +207,8 @@ const handleScroll = useThrottle(() => {
     if (bottom <= 20) {
         !props.loading && emit('getMoreData');
     }
-});
+}, 100); // 100ms节流时间
+// });
 
 // 监听开始下标，更新位置信息
 watch(
