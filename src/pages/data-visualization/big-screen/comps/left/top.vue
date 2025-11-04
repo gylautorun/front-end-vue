@@ -1,6 +1,6 @@
 <template>
     <div class="big-block">
-        <Title>地区降雨趋势</Title>
+        <Title>地区地铁营运趋势</Title>
         <div style="width: 100%; height: 90%">
             <Chart :option="option" />
         </div>
