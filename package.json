@@ -44,6 +44,7 @@
         "pinia": "^2.1.7",
         "pinia-colada": "^0.0.1",
         "pinia-plugin-persistedstate": "^3.2.1",
+        "screenfull": "^6.0.2",
         "three": "^0.175.0",
         "unocss": "^0.60.4",
         "v-scale-screen": "^2.3.0",

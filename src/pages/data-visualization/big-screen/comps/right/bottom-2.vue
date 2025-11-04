@@ -12,7 +12,7 @@ import { ref } from 'vue';
 import Title from '../title.vue';
 import Chart from '@/components/echarts/base-chart.vue';
 import echarts, { ECOption } from '@/components/echarts/base';
-import { getFontSize, getChartSize, ScreenScale } from '../../utils/calculate';
+import { getFontSize, getChartSize } from '../../utils/calculate';
 
 const option = ref<ECOption>({
     // backgroundColor: 'rgba(0,0,0,.6)',
