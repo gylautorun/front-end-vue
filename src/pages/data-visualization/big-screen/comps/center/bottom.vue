@@ -63,6 +63,9 @@ onMounted(() => {
     actions.value.forEach((item) => {
         item.value = Math.floor(Math.random() * 999) + 1;
     });
+    setTimeout(() => {
+        handlePause();
+    }, 100);
 });
 </script>
 

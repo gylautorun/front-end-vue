@@ -5,7 +5,7 @@
         </h1>
         <div class="big-screen-header-title">{{ store.title }}</div>
         <div class="big-screen-header-right">
-            <img :src="githubIcon" />
+            <!-- <img :src="githubIcon" /> -->
             <img class="theme-change" :src="icon" @click="handleChangeTheme" />
             <span class="datetime">{{ currentTime }}</span>
         </div>
@@ -54,6 +54,7 @@ startTime();
     --header-title-letter-spacing: #{screen.scale-size(7px)};
     --header-title-text-shadow: 0px #{screen.scale-size(2px)} #{screen.scale-size(20px)}
         rgba(222, 171, 155, 0.6);
+
     position: relative;
     width: 100%;
     height: var(--big-header-height);
