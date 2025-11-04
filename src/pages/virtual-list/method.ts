@@ -3,6 +3,7 @@ export function repeat(value: string, count: number) {
 }
 export interface IListItem {
     id: string;
+    index: number;
     title: string;
     value: string;
 }
@@ -28,9 +29,11 @@ export const generateList = (params?: {
     const data = [];
     const value = Math.random().toString(36).substring(2, 15);
     for (let i = 1; i <= num; i++) {
-        const id = (calculate + i).toString();
+        const index = calculate + i;
+        const id = index.toString();
         data.push({
             id,
+            index,
             title: `标题${id}`,
             value: repeat(`内容${value}`, getRepeatNum())
         });

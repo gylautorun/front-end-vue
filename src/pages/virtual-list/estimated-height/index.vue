@@ -132,15 +132,15 @@ const initPosition = () => {
     for (let i = 0; i < disLen; i++) {
         const item = props.dataSource[state.preLen + i];
         pos.push({
-            index: item.id,
+            index: item.index,
             // 预设高度
             height: props.estimatedHeight,
             top: preBottom
                 ? preBottom + i * props.estimatedHeight
-                : item.id * props.estimatedHeight,
+                : item.index * props.estimatedHeight,
             bottom: preBottom
                 ? preBottom + (i + 1) * props.estimatedHeight
-                : (item.id + 1) * props.estimatedHeight,
+                : (item.index + 1) * props.estimatedHeight,
             // 预设高度与真实高度差：判断是否需要更新，默认为0
             dHeight: 0
         });
