@@ -1,0 +1,14 @@
+// 大屏适配方案：基于1920x1080基础尺寸的响应式缩放
+// 定义基础比例变量，可快速切换不同分辨率适配
+$screen-scale: 2; // 4K: 2, 1080P: 1, 2K: 1.5 等
+$screen-base-width: 1920px;
+$screen-base-height: 1080px;
+
+/**
+ * 计算缩放尺寸的全局函数
+ * @param $size 原始尺寸
+ * @return 缩放后的尺寸
+ */
+@function scale-size($size) {
+    @return $size * $screen-scale;
+}
