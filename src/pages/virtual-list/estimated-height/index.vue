@@ -39,7 +39,7 @@ const emit = defineEmits<{
 }>();
 
 defineSlots<{
-    item(props: { item: IListItem }): any;
+    item(props: { item: IListItem }): IListItem[];
 }>();
 
 // 容器 ref

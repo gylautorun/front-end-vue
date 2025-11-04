@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import {vertexShader, fragmentShader} from './constant';
+import { vertexShader, fragmentShader } from './constant';
 import { isNil } from 'lodash-es';
 import { IData } from './type';
 
@@ -27,8 +27,6 @@ interface CustomObject3D extends THREE.Object3D {
     _s: number;
 }
 
-
-
 function getDefaultNumber(num: number | undefined) {
     if (isNil(num)) {
         return 0;
@@ -52,7 +50,11 @@ export class Earth3D {
     // 旋转队列
     rotateSlowArr: CustomObject3D[] = [];
     // 放大并透明 队列
-    bigByOpacityArr: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial, THREE.Object3DEventMap>[] = [];
+    bigByOpacityArr: THREE.Mesh<
+        THREE.RingGeometry,
+        THREE.MeshBasicMaterial,
+        THREE.Object3DEventMap
+    >[] = [];
     // 移动 队列
     moveArr: THREE.Object3D<THREE.Object3DEventMap>[] = [];
 
@@ -61,7 +63,7 @@ export class Earth3D {
     // 炫光粒子 几何体
     geometryLz = new THREE.BufferGeometry();
     // 炫光粒子 透明度
-    opacityList!: Float32Array<ArrayBuffer>;
+    opacityList!: Float32Array;
 
     // 地球，月亮 3D层
     landOrbitObject = new THREE.Object3D();
@@ -89,7 +91,7 @@ export class Earth3D {
      * */
     initRenderer(canvas: HTMLCanvasElement, width: number, height: number) {
         // antialias: true, alpha: true 抗锯齿设置
-        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
         // window.devicePixelRatio 设备像素比
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(width, height);
@@ -105,9 +107,9 @@ export class Earth3D {
         //     0.1,
         //     1000
         // );
-        const camera = new THREE.PerspectiveCamera(45, width / height, 1, 10000)
-        camera.position.set(5, -20, 200)
-        camera.lookAt(0, 3, 0)
+        const camera = new THREE.PerspectiveCamera(45, width / height, 1, 10000);
+        camera.position.set(5, -20, 200);
+        camera.lookAt(0, 3, 0);
         return camera;
     }
     /**
@@ -121,10 +123,10 @@ export class Earth3D {
         return scene;
     }
     /**
-       * 初始化 相机控制
-       */
+     * 初始化 相机控制
+     */
     initControls(camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer) {
-        const controls = new OrbitControls(camera, renderer.domElement)
+        const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.enableZoom = true;
         controls.autoRotate = false;
@@ -171,7 +173,7 @@ export class Earth3D {
         this.scene = this.initScene();
         // 相机
         this.camera = this.initCamera(this.width, this.height);
-        
+
         // 渲染器
         this.renderer = this.initRenderer(this.canvas, this.width, this.height);
         // document.body.appendChild(this.renderer.domElement);
@@ -186,11 +188,11 @@ export class Earth3D {
      * 渲染函数
      * */
     renders(time: number) {
-        time *= 0.003
+        time *= 0.003;
         // 3D对象 旋转
         // _y 初始坐标 _s 旋转速度
         this.rotateSlowArr.forEach((obj) => {
-          obj.rotation.y = getDefaultNumber(obj._y) + time * getDefaultNumber(obj._s);
+            obj.rotation.y = getDefaultNumber(obj._y) + time * getDefaultNumber(obj._s);
         });
         this.bigByOpacityArr.forEach((mesh) => {
             //  目标 圆环放大 并 透明
@@ -198,12 +200,11 @@ export class Earth3D {
             mesh.scale.set(1 * mesh._s, 1 * mesh._s, 1 * mesh._s);
             if (mesh._s <= 2) {
                 mesh.material.opacity = 2 - mesh._s;
-            }
-            else {
+            } else {
                 mesh._s = 1;
             }
-        })
-        this.moveArr.forEach ((mesh) => {
+        });
+        this.moveArr.forEach((mesh) => {
             if (!mesh.curve) {
                 return;
             }
@@ -220,9 +221,8 @@ export class Earth3D {
             }
 
             for (let i = 0; i < 200; i++) {
-                this.opacityList[(this.geometryLz.currentPos + i) % this.lines.length] = (
-                    i / 50 > 2 ? 2 : i / 50
-                );
+                this.opacityList[(this.geometryLz.currentPos + i) % this.lines.length] =
+                    i / 50 > 2 ? 2 : i / 50;
             }
             this.geometryLz.attributes.aOpacity.needsUpdate = true;
         }
@@ -293,10 +293,7 @@ export class Earth3D {
             positions.push(vertex.x, vertex.y, vertex.z);
         }
         // 对几何体 设置 坐标 和 颜色
-        geometry.setAttribute(
-            'position',
-            new THREE.Float32BufferAttribute(positions, 3)
-        );
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         // 默认球体
         geometry.computeBoundingSphere();
 
@@ -318,20 +315,19 @@ export class Earth3D {
         this.scene.add(stars);
     }
 
-    
     /**
      * 球相关加载
      * */
     drawEarthAndMoon() {
         const radius = this.globeRadius;
-        const widthSegments = 100
-        const heightSegments = 100
-        const sphereGeometry = new THREE.SphereGeometry(radius, widthSegments, heightSegments)
+        const widthSegments = 100;
+        const heightSegments = 100;
+        const sphereGeometry = new THREE.SphereGeometry(radius, widthSegments, heightSegments);
 
         // 地球
         const earthTexture = this.textureLoader.load(getUrlObject('./img/3.jpg').href);
         const earthMaterial = new THREE.MeshStandardMaterial({
-            map: earthTexture,
+            map: earthTexture
         });
         const earthMesh = new THREE.Mesh(sphereGeometry, earthMaterial);
 
@@ -374,13 +370,11 @@ export class Earth3D {
      */
     lglt2xyz(lng: number, lat: number, radius: number) {
         // 以z轴正方向为起点的水平方向弧度值
-        const theta = (90 + lng) * (Math.PI / 180)
+        const theta = (90 + lng) * (Math.PI / 180);
         // 以y轴正方向为起点的垂直方向弧度值
-        const phi = (90 - lat) * (Math.PI / 180)
+        const phi = (90 - lat) * (Math.PI / 180);
 
-        return new THREE.Vector3().setFromSpherical(
-            new THREE.Spherical(radius, phi, theta)
-        );
+        return new THREE.Vector3().setFromSpherical(new THREE.Spherical(radius, phi, theta));
     }
 
     /**
@@ -404,7 +398,11 @@ export class Earth3D {
         // 圆环
         const geometry2 = new THREE.RingGeometry(0.03, 0.04, 100);
         // transparent 设置 true 开启透明
-        const material2 = new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide, transparent: true });
+        const material2 = new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+            side: THREE.DoubleSide,
+            transparent: true
+        });
         const circleY = new THREE.Mesh(geometry2, material2);
         circleY.position.set(spot[0], spot[1], spot[2]);
 
@@ -431,11 +429,9 @@ export class Earth3D {
         let n: number = 0;
         if (angle <= 1) {
             n = (this.globeRadius / 5) * angle;
-        }
-        else if (angle > 1 && angle < 2) {
+        } else if (angle > 1 && angle < 2) {
             n = (this.globeRadius / 5) * Math.pow(angle, 2);
-        }
-        else {
+        } else {
             n = (this.globeRadius / 5) * Math.pow(angle, 1.5);
         }
 
@@ -466,15 +462,24 @@ export class Earth3D {
 
         // 给每个顶点设置演示 实现渐变
         for (var j = 0; j < points.length; j++) {
-            color.setHSL(0.81666 + j, 0.88, 0.715 + j * 0.0025) // 粉色
-            colors.push(color.r, color.g, color.b)
-            positions.push(points[j].x, points[j].y, points[j].z)
+            color.setHSL(0.81666 + j, 0.88, 0.715 + j * 0.0025); // 粉色
+            colors.push(color.r, color.g, color.b);
+            positions.push(points[j].x, points[j].y, points[j].z);
         }
         // 放入顶点 和 设置顶点颜色
-        lineGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3, true));
-        lineGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3, true));
+        lineGeometry.setAttribute(
+            'position',
+            new THREE.BufferAttribute(new Float32Array(positions), 3, true)
+        );
+        lineGeometry.setAttribute(
+            'color',
+            new THREE.BufferAttribute(new Float32Array(colors), 3, true)
+        );
 
-        const material = new THREE.LineBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+        const material = new THREE.LineBasicMaterial({
+            vertexColors: true,
+            side: THREE.DoubleSide
+        });
         const line = new THREE.Line(lineGeometry, material);
 
         this.earthObject.add(line);
@@ -531,7 +536,7 @@ export class Earth3D {
             // 中国边界
             const feature = jsonData.features[0];
             const province = new THREE.Object3D() as THREE.Object3D & { properties: string };
-            province.properties = feature.properties.name
+            province.properties = feature.properties.name;
             // 点数据
             const coordinates = feature.geometry.coordinates;
 
@@ -542,14 +547,14 @@ export class Earth3D {
                     const line = this.lineDraw(rows, 0xaa381e);
                     province.add(line);
                 });
-            })
+            });
             // 添加地图边界
             this.earthObject.add(province);
 
             // 拉平 为一维数组
             const positions = new Float32Array(this.lines.flat(1));
             // 设置顶点
-            this.geometryLz.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+            this.geometryLz.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             // 设置 粒子透明度为 0
             const opacityArray = new Float32Array(positions.length).map(() => 0);
             this.geometryLz.setAttribute('aOpacity', new THREE.BufferAttribute(opacityArray, 1));
@@ -577,8 +582,8 @@ export class Earth3D {
                     },
                     uColor: {
                         value: new THREE.Color(params.pointColor)
-                    },
-                },
+                    }
+                }
             });
             const points = new THREE.Points(this.geometryLz, material);
 
@@ -597,7 +602,7 @@ export class Earth3D {
         const pointsArray = new Array();
         polygon.forEach((row) => {
             // 转换坐标
-            const xyz = this.lglt2xyz(row[0], row[1], this.globeRadius);;
+            const xyz = this.lglt2xyz(row[0], row[1], this.globeRadius);
             // 创建三维点
             pointsArray.push(xyz);
 
@@ -605,7 +610,7 @@ export class Earth3D {
                 // 为了好看 这里只要内陆边界
                 this.lines.push([xyz.x, xyz.y, xyz.z]);
             }
-        })
+        });
 
         this.indexBol = false;
 
@@ -613,11 +618,10 @@ export class Earth3D {
         lineGeometry.setFromPoints(pointsArray);
 
         const lineMaterial = new THREE.LineBasicMaterial({
-            color: color,
+            color: color
         });
         return new THREE.Line(lineGeometry, lineMaterial);
     }
-
 
     /**
      * 页面加载完成后执行的方法
@@ -634,5 +638,5 @@ export class Earth3D {
 
         // 渲染
         this.animate();
-    }
+    };
 }

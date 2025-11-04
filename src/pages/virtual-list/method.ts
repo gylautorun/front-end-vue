@@ -2,7 +2,7 @@ export function repeat(value: string, count: number) {
     return value.repeat(count);
 }
 export interface IListItem {
-    id: number;
+    id: string;
     title: string;
     value: string;
 }
@@ -13,12 +13,11 @@ export const generateList = (params?: {
     repeatNum?: number;
     isAuto?: boolean;
 }) => {
-    
     const {
         num = GENERATE_LIST_NUM,
         repeatNum = 100,
         isAuto = false,
-        calculate = 0,
+        calculate = 0
     } = params || {};
     const getRepeatNum = () => {
         if (isAuto) {
@@ -29,16 +28,16 @@ export const generateList = (params?: {
     const data = [];
     const value = Math.random().toString(36).substring(2, 15);
     for (let i = 1; i <= num; i++) {
-        const id = calculate + i;
+        const id = (calculate + i).toString();
         data.push({
             id,
             title: `标题${id}`,
-            value: repeat(`内容${value}`, getRepeatNum()),
+            value: repeat(`内容${value}`, getRepeatNum())
         });
     }
     return data;
 };
 
 export const listData_default = generateList();
-export const listData_100 = generateList({num: 100});
-export const listData_10000000 = generateList({num: 10000000});
+export const listData_100 = generateList({ num: 100 });
+export const listData_10000000 = generateList({ num: 10000000 });
