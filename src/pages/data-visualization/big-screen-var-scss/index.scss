@@ -1,0 +1,97 @@
+// math.add($a, $b)	加法	math.add(10px, 5px) → 15px
+// math.sub($a, $b)	减法	math.sub(20px, 5px) → 15px
+// math.mul($a, $b)	乘法	math.mul(72px, 2) → 144px
+// math.div($a, $b)	除法	math.div(100px, 2) → 50px
+// math.percentage($a)	转百分比	math.percentage(0.5) → 50%
+
+// .big-screen {
+//     width: 100vw;
+//     height: 100vh;
+// }
+
+$scale: 2;
+$big-base_header-height: 72px;
+
+:root {
+    --big-screen-scale: 2; // 变化的比例hua倍数, CSS变量，运行时可通过JS修改
+}
+.big-screen-container {
+    // 原始尺寸: 1920x1080
+    // --big-screen-width: 1920px;
+    // --big-screen-height: 1080px;
+
+    // 4K尺寸: 3840x2160
+    // calc(1920px * var(--scale))
+    --big-screen-width: 3840px;
+    --big-screen-height: 2160px;
+
+    // 基础尺寸变量 (基于1920x1080, 4K需要乘以2)
+    --big-header-height: #{$big-base_header-height * $scale};
+    --big-left-right-width: 920px; // 460px * 2
+    --big-padding-horizontal: 40px; // 20px * 2
+    --big-padding-16: 32px; // 16px * 2
+    --big-padding-20: 40px; // 20px * 2
+    --big-margin-20: 40px; // 20px * 2
+
+    // 字体大小变量
+    --big-font-size: 28px; // 14px * 2
+    --big-font-title: 60px; // 30px * 2
+    --big-font-subtitle: 30px; // 15px * 2
+
+    // 图标和间距
+    --big-icon-size: 60px; // 30px * 2
+    --big-icon-margin: 32px; // 16px * 2
+    --big-border-width: 6px; // 3px * 2
+    --big-gap-small: 40px; // 20px * 2
+
+    // 颜色变量
+    --big-block-bg: #222733;
+    // --big-block-bg: #000;
+    --big-screen-bg: rgb(22, 21, 34);
+    // --big-screen-bg: rgb(0, 0, 0, .8);
+    --big-screen-text-color: #fff;
+
+    position: relative;
+    margin: 0;
+    width: 100vw;
+    height: 100vh;
+    background-size: 100% 100%;
+    overflow: hidden;
+    font-size: var(--big-font-size);
+    background: var(--big-screen-bg);
+    color: var(--big-screen-text-color);
+}
+.light {
+    --big-screen-bg: rgb(238, 238, 238);
+    --big-block-bg: #fff;
+    --big-screen-text-color: rgb(22, 21, 34);
+}
+.big-screen {
+    position: absolute;
+    user-select: none;
+    top: 50%;
+    left: 50%;
+    width: var(--big-screen-width);
+    height: var(--big-screen-height);
+    margin-left: calc(var(--big-screen-width) * 0.5 - var(--big-screen-width));
+    margin-top: calc(var(--big-screen-height) * 0.5 - var(--big-screen-height));
+    background-size: 100% 100%;
+    padding: 0 var(--big-padding-horizontal);
+    &-main {
+        position: relative;
+        display: flex;
+        height: calc(100% - var(--big-header-height));
+    }
+    &-center {
+        flex: 1;
+        width: calc(
+            var(--big-screen-width) - var(--big-left-right-width) * 2 - var(
+                    --big-padding-horizontal
+                ) * 2
+        );
+    }
+    &-left,
+    &-right {
+        width: var(--big-left-right-width);
+    }
+}
