@@ -65,7 +65,7 @@ onMounted(() => {
     });
     setTimeout(() => {
         handlePause();
-    }, 100);
+    }, 500);
 });
 </script>
 
