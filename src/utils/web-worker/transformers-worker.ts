@@ -21,72 +21,152 @@ export class TransformersWorker {
     private worker: Worker | null = null;
     private tasks: Map<string, Task> = new Map();
     private isInitialized: boolean = false;
+    private initializationPromise: Promise<void> | null = null;
 
     /**
      * 构造函数
      * @param workerUrl worker 文件路径
      */
     constructor() {
-        this.initWorker();
+        this.initializationPromise = this.initWorker();
     }
 
     /**
      * 初始化 Worker
      */
-    private initWorker(): void {
-        // 创建 Worker
-        this.worker = new Worker(new URL('./transformers.worker.ts', import.meta.url), {
-            type: 'module'
-        });
+    private async initWorker(): Promise<void> {
+        // 最多重试3次
+        const maxRetries = 3;
+        let retryCount = 0;
 
-        // 监听 Worker 消息
-        this.worker.addEventListener('message', (event: MessageEvent<WorkerMessage>) => {
-            const { type, data, id } = event.data;
+        while (retryCount < maxRetries) {
+            try {
+                console.log(`尝试初始化 Worker (第 ${retryCount + 1} 次)`);
 
-            if (!id) return;
+                // 创建 Worker
+                if (this.worker) {
+                    console.log('Worker 已存在，先销毁');
+                    this.worker.terminate();
+                    this.worker = null;
+                }
 
-            const task = this.tasks.get(id);
-            if (!task) return;
+                this.worker = new Worker(new URL('./transformers.worker.ts', import.meta.url), {
+                    type: 'module'
+                });
 
-            switch (type) {
-                case 'progress':
-                    // 处理进度更新
-                    if (task.progressCallback) {
-                        task.progressCallback(data);
+                console.log('Worker 创建成功');
+
+                // 等待 Worker 准备就绪，设置超时时间为10秒
+                await new Promise<void>((resolve, reject) => {
+                    if (!this.worker) {
+                        reject(new Error('Failed to create worker'));
+                        return;
                     }
-                    break;
 
-                case 'result':
-                    // 处理成功结果
-                    task.status = 'completed';
-                    task.resolve(data);
-                    this.tasks.delete(id);
-                    break;
+                    // 设置超时
+                    const timeoutId = setTimeout(() => {
+                        this.worker?.removeEventListener('error', errorHandler);
+                        this.worker?.removeEventListener('message', messageHandler);
+                        reject(new Error('Worker initialization timed out after 10 seconds'));
+                    }, 10000);
 
-                case 'error':
-                    // 处理错误
-                    task.status = 'error';
-                    task.reject(new Error(data as string));
-                    this.tasks.delete(id);
-                    break;
+                    // 监听 Worker 错误
+                    const errorHandler = (error: ErrorEvent) => {
+                        console.error('Transformers Worker 初始化错误:', error);
+                        clearTimeout(timeoutId);
+                        reject(new Error(`Worker 初始化失败: ${error.message}`));
+                    };
 
-                default:
-                    break;
+                    // 监听 Worker 消息，确保它能正常通信
+                    const messageHandler = (event: MessageEvent) => {
+                        console.log('Worker 消息:', event.data);
+                        if (event.data.type === 'pong') {
+                            this.worker?.removeEventListener('error', errorHandler);
+                            clearTimeout(timeoutId);
+                            resolve();
+                        }
+                    };
+
+                    this.worker.addEventListener('error', errorHandler);
+                    this.worker.addEventListener('message', messageHandler);
+
+                    // 发送测试消息
+                    console.log('发送 ping 消息到 Worker');
+                    this.worker.postMessage({ type: 'ping', data: 'hello' });
+                });
+
+                // 监听 Worker 消息
+                this.worker.addEventListener('message', (event: MessageEvent<WorkerMessage>) => {
+                    console.log('Worker 消息:', event.data);
+                    const { type, data, id } = event.data;
+
+                    if (type === 'pong') {
+                        // 忽略 pong 消息，这是初始化时的测试消息
+                        return;
+                    }
+
+                    if (!id) return;
+
+                    const task = this.tasks.get(id);
+                    if (!task) return;
+
+                    switch (type) {
+                        case 'progress':
+                            // 处理进度更新
+                            if (task.progressCallback) {
+                                task.progressCallback(data);
+                            }
+                            break;
+
+                        case 'result':
+                            // 处理成功结果
+                            task.status = 'completed';
+                            task.resolve(data);
+                            this.tasks.delete(id);
+                            break;
+
+                        case 'error':
+                            // 处理错误
+                            task.status = 'error';
+                            task.reject(new Error(data as string));
+                            this.tasks.delete(id);
+                            break;
+
+                        default:
+                            break;
+                    }
+                });
+
+                // 重新监听 Worker 错误
+                this.worker.addEventListener('error', (error: ErrorEvent) => {
+                    console.error('Transformers Worker 错误:', error);
+                    // 失败所有任务
+                    for (const [id, task] of this.tasks) {
+                        task.status = 'error';
+                        task.reject(new Error(`Worker error: ${error.message}`));
+                    }
+                    this.tasks.clear();
+                });
+
+                this.isInitialized = true;
+                console.log('Worker 初始化成功');
+                return;
+            } catch (error) {
+                retryCount++;
+                console.error(`Worker 初始化失败 (第 ${retryCount} 次):`, error);
+
+                if (retryCount >= maxRetries) {
+                    this.isInitialized = false;
+                    throw new Error(
+                        `Worker 初始化失败，已重试 ${maxRetries} 次: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                }
+
+                // 重试前等待一段时间
+                console.log(`等待 ${retryCount * 1000}ms 后重试`);
+                await new Promise((resolve) => setTimeout(resolve, retryCount * 1000));
             }
-        });
-
-        // 监听 Worker 错误
-        this.worker.addEventListener('error', (error: ErrorEvent) => {
-            console.error('Transformers Worker 错误:', error);
-            // 失败所有任务
-            for (const [id, task] of this.tasks) {
-                task.status = 'error';
-                task.reject(new Error(`Worker error: ${error.message}`));
-            }
-            this.tasks.clear();
-        });
-
-        this.isInitialized = true;
+        }
     }
 
     /**
@@ -94,6 +174,22 @@ export class TransformersWorker {
      */
     private generateTaskId(): string {
         return `task_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    }
+
+    /**
+     * 确保 Worker 已初始化
+     */
+    private async ensureInitialized(): Promise<void> {
+        // 如果没有初始化Promise，或者初始化失败，重新初始化
+        if (!this.initializationPromise) {
+            this.initializationPromise = this.initWorker().catch((error) => {
+                // 初始化失败，清除Promise，以便下次可以重试
+                this.initializationPromise = null;
+                throw error;
+            });
+        }
+
+        await this.initializationPromise;
     }
 
     /**
@@ -105,31 +201,38 @@ export class TransformersWorker {
         params: LoadModelParams,
         progressCallback?: (progress: any) => void
     ): Promise<string> {
-        return new Promise((resolve, reject) => {
-            if (!this.isInitialized || !this.worker) {
-                reject(new Error('Worker 未初始化'));
-                return;
+        return new Promise(async (resolve, reject) => {
+            try {
+                // 确保 Worker 已初始化
+                await this.ensureInitialized();
+
+                if (!this.worker) {
+                    reject(new Error('Worker 未初始化'));
+                    return;
+                }
+
+                const taskId = this.generateTaskId();
+
+                // 创建任务
+                const task: Task = {
+                    id: taskId,
+                    status: 'pending',
+                    resolve,
+                    reject,
+                    progressCallback
+                };
+
+                this.tasks.set(taskId, task);
+
+                // 发送消息到 Worker
+                this.worker.postMessage({
+                    type: 'load-model',
+                    data: params,
+                    id: taskId
+                } as WorkerMessage<LoadModelParams>);
+            } catch (error) {
+                reject(error instanceof Error ? error : new Error('Worker 初始化失败'));
             }
-
-            const taskId = this.generateTaskId();
-
-            // 创建任务
-            const task: Task = {
-                id: taskId,
-                status: 'pending',
-                resolve,
-                reject,
-                progressCallback
-            };
-
-            this.tasks.set(taskId, task);
-
-            // 发送消息到 Worker
-            this.worker.postMessage({
-                type: 'load-model',
-                data: params,
-                id: taskId
-            } as WorkerMessage<LoadModelParams>);
         });
     }
 
@@ -142,31 +245,38 @@ export class TransformersWorker {
         params: RunInferenceParams,
         progressCallback?: (progress: any) => void
     ): Promise<any> {
-        return new Promise((resolve, reject) => {
-            if (!this.isInitialized || !this.worker) {
-                reject(new Error('Worker 未初始化'));
-                return;
+        return new Promise(async (resolve, reject) => {
+            try {
+                // 确保 Worker 已初始化
+                await this.ensureInitialized();
+
+                if (!this.worker) {
+                    reject(new Error('Worker 未初始化'));
+                    return;
+                }
+
+                const taskId = this.generateTaskId();
+
+                // 创建任务
+                const task: Task = {
+                    id: taskId,
+                    status: 'pending',
+                    resolve,
+                    reject,
+                    progressCallback
+                };
+
+                this.tasks.set(taskId, task);
+
+                // 发送消息到 Worker
+                this.worker.postMessage({
+                    type: 'run-inference',
+                    data: params,
+                    id: taskId
+                } as WorkerMessage<RunInferenceParams>);
+            } catch (error) {
+                reject(error instanceof Error ? error : new Error('Worker 未初始化'));
             }
-
-            const taskId = this.generateTaskId();
-
-            // 创建任务
-            const task: Task = {
-                id: taskId,
-                status: 'pending',
-                resolve,
-                reject,
-                progressCallback
-            };
-
-            this.tasks.set(taskId, task);
-
-            // 发送消息到 Worker
-            this.worker.postMessage({
-                type: 'run-inference',
-                data: params,
-                id: taskId
-            } as WorkerMessage<RunInferenceParams>);
         });
     }
 

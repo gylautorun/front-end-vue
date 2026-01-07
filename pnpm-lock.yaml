@@ -116,6 +116,9 @@ importers:
       vue-i18n:
         specifier: ^9.13.1
         version: 9.13.1(vue@3.4.27(typescript@5.4.5))
+      vue-json-pretty:
+        specifier: ^2.6.0
+        version: 2.6.0(vue@3.4.27(typescript@5.4.5))
       vue-query:
         specifier: ^1.26.0
         version: 1.26.0(react@18.3.1)(vue@3.4.27(typescript@5.4.5))
@@ -213,6 +216,9 @@ importers:
       '@xenova/transformers':
         specifier: ^2.17.2
         version: 2.17.2
+      chart.js:
+        specifier: ^4.5.1
+        version: 4.5.1
       cspell:
         specifier: ^8.17.5
         version: 8.17.5
@@ -1279,6 +1285,9 @@ packages:
   '@jsdevtools/ez-spawn@3.0.4':
     resolution: {integrity: sha512-f5DRIOZf7wxogefH03RjMPMdBF7ADTWUMoOs9kaJo06EfwF+aFhMZMDZxHg/Xe12hptN9xoZjGso2fdjapBRIA==}
     engines: {node: '>=10'}
+
+  '@kurkle/color@0.3.4':
+    resolution: {integrity: sha512-M5UknZPHRu3DEDWoipU6sE8PdkZ6Z/S+v4dD+Ke8IaNlpdSQah50lz1KtcFBa2vsdOnwbbnxJwVM4wty6udA5w==}
 
   '@njleonzhang/postcss-px-to-rem@1.0.1':
     resolution: {integrity: sha512-/LdwkNE9SjbwN7L1MonKAj8v1q/W4Y3h09hDD5lDCNNJG0DWlOpdSseq6NarvD3sz7873fKHEwwIxFIUzUc0tQ==}
@@ -2388,6 +2397,10 @@ packages:
   chalk@5.4.1:
     resolution: {integrity: sha512-zgVZuo2WcZgfUEmsn6eO3kINexW8RAE4maiQ8QNs8CtpPCSyMiYsULR3HQYkm3w8FIA3SberyMJMSldGsW+U3w==}
     engines: {node: ^12.17.0 || ^14.13 || >=16.0.0}
+
+  chart.js@4.5.1:
+    resolution: {integrity: sha512-GIjfiT9dbmHRiYi6Nl2yFCq7kkwdkp1W/lp2J99rX0yo9tgJGn3lKQATztIjb5tVtevcBtIdICNWqlq5+E8/Pw==}
+    engines: {pnpm: '>=8'}
 
   chokidar@3.6.0:
     resolution: {integrity: sha512-7VT13fmjotKpGipCW9JEQAusEPE+Ei8nl6/g4FBAmIm0GOOLMua9NDDo/DWp0ZAxCr3cPq5ZpBqmPAQgDda2Pw==}
@@ -6466,6 +6479,12 @@ packages:
     peerDependencies:
       vue: ^3.0.0
 
+  vue-json-pretty@2.6.0:
+    resolution: {integrity: sha512-glz1aBVS35EO8+S9agIl3WOQaW2cJZW192UVKTuGmryx01ZvOVWc4pR3t+5UcyY4jdOfBUgVHjcpRpcnjRhCAg==}
+    engines: {node: '>= 10.0.0', npm: '>= 5.0.0'}
+    peerDependencies:
+      vue: '>=3.0.0'
+
   vue-query@1.26.0:
     resolution: {integrity: sha512-78JbnLX/3tDll5kDr6PUasRWn05BeWm7yJNeUezA9INrn3AgTCLbsEctnlw6/wM6HiRqFj9F+mf+ruZusyiVOg==}
     peerDependencies:
@@ -7643,6 +7662,8 @@ snapshots:
       cross-spawn: 7.0.3
       string-argv: 0.3.2
       type-detect: 4.0.8
+
+  '@kurkle/color@0.3.4': {}
 
   '@njleonzhang/postcss-px-to-rem@1.0.1':
     dependencies:
@@ -9005,6 +9026,10 @@ snapshots:
       supports-color: 7.2.0
 
   chalk@5.4.1: {}
+
+  chart.js@4.5.1:
+    dependencies:
+      '@kurkle/color': 0.3.4
 
   chokidar@3.6.0:
     dependencies:
@@ -13582,6 +13607,10 @@ snapshots:
       '@intlify/core-base': 9.13.1
       '@intlify/shared': 9.13.1
       '@vue/devtools-api': 6.6.2
+      vue: 3.4.27(typescript@5.4.5)
+
+  vue-json-pretty@2.6.0(vue@3.4.27(typescript@5.4.5)):
+    dependencies:
       vue: 3.4.27(typescript@5.4.5)
 
   vue-query@1.26.0(react@18.3.1)(vue@3.4.27(typescript@5.4.5)):

@@ -103,84 +103,90 @@ async function detect(image: string) {
     statusObj.isAnalysis = true;
     statusObj.progress = 0;
 
+    // 开关：控制是否使用模拟检测（true为使用模拟，false为使用真实模型）
+    const useMockDetection = false;
+
     try {
-        // 尝试使用模拟检测作为备选方案
-        statusObj.progress = 30;
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        if (useMockDetection) {
+            // 使用模拟检测作为备选方案
+            // 模拟模型加载
+            statusObj.progress = 0;
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            statusObj.progress = 20;
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            statusObj.progress = 40;
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            statusObj.progress = 60;
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            statusObj.progress = 80;
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            statusObj.progress = 100;
+            await new Promise((resolve) => setTimeout(resolve, 300));
 
-        statusObj.progress = 60;
-        await new Promise((resolve) => setTimeout(resolve, 500));
+            // 模拟检测结果
+            const mockResults: DetectionResult[] = [
+                {
+                    box: { xmin: 0.2, xmax: 0.5, ymin: 0.3, ymax: 0.7 },
+                    label: 'person',
+                    score: 0.95
+                },
+                { box: { xmin: 0.6, xmax: 0.8, ymin: 0.2, ymax: 0.5 }, label: 'dog', score: 0.88 }
+            ];
 
-        statusObj.progress = 90;
-        await new Promise((resolve) => setTimeout(resolve, 500));
+            // 处理检测结果
+            statusObj.isAnalysis = false;
+            statusObj.progress = 0;
 
-        // 模拟检测结果
-        const mockResults: DetectionResult[] = [
-            {
-                box: { xmin: 0.2, xmax: 0.5, ymin: 0.3, ymax: 0.7 },
-                label: 'person',
-                score: 0.95
-            },
-            {
-                box: { xmin: 0.6, xmax: 0.8, ymin: 0.2, ymax: 0.5 },
-                label: 'dog',
-                score: 0.88
+            if (Array.isArray(mockResults)) {
+                // 渲染所有检测结果
+                mockResults.forEach((result: DetectionResult) => renderBox(result));
             }
-        ];
-
-        // 处理检测结果
-        statusObj.isAnalysis = false;
-        statusObj.progress = 0;
-
-        if (Array.isArray(mockResults)) {
-            // 渲染所有检测结果
-            mockResults.forEach((result: DetectionResult) => renderBox(result));
-        }
-
-        // 注释掉真实模型加载和推理代码，避免网络请求
-        /*
-        // 加载模型（使用yolov8进行目标检测）
-        await transformersWorker.loadModel(
-            {
-                task: 'object-detection',
-                model: 'Xenova/yolov8n'
-            },
-            (progress) => {
-                // 更新加载进度
-                if (progress && typeof progress.progress === 'number') {
-                    statusObj.progress = progress.progress * 100;
+        } else {
+            // 加载模型（使用SSD进行目标检测）
+            await transformersWorker.loadModel(
+                {
+                    task: 'object-detection',
+                    model: 'Xenova/ssd-mobilenet-v1'
+                },
+                (progress) => {
+                    // 更新加载进度
+                    if (progress && typeof progress.progress === 'number') {
+                        statusObj.progress = progress.progress * 100;
+                    }
                 }
-            }
-        );
+            );
 
-        // 运行推理
-        const results = await transformersWorker.runInference(
-            {
-                task: 'object-detection',
-                inputs: image
-            },
-            (progress) => {
-                // 更新推理进度
-                if (progress && typeof progress.progress === 'number') {
-                    statusObj.progress = 50 + progress.progress * 50; // 50%是模型加载，50%是推理
+            // 运行推理
+            const results = await transformersWorker.runInference(
+                {
+                    task: 'object-detection',
+                    inputs: image
+                },
+                (progress) => {
+                    // 更新推理进度
+                    if (progress && typeof progress.progress === 'number') {
+                        statusObj.progress = 50 + progress.progress * 50; // 50%是模型加载，50%是推理
+                    }
                 }
+            );
+
+            // 处理检测结果
+            statusObj.isAnalysis = false;
+            statusObj.progress = 0;
+
+            if (Array.isArray(results)) {
+                // 渲染所有检测结果
+                results.forEach((result: DetectionResult) => renderBox(result));
             }
-        );
-
-        // 处理检测结果
-        statusObj.isAnalysis = false;
-        statusObj.progress = 0;
-
-        if (Array.isArray(results)) {
-            // 渲染所有检测结果
-            results.forEach((result: DetectionResult) => renderBox(result));
         }
-        */
     } catch (error) {
         statusObj.isAnalysis = false;
         statusObj.progress = 0;
         statusObj.error = error instanceof Error ? error.message : '检测失败';
         console.error('检测失败:', error);
+    } finally {
+        // 确保无论成功还是失败，都能重置分析状态
+        statusObj.isAnalysis = false;
     }
 }
 

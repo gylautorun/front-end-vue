@@ -2,7 +2,7 @@ import type { PipelineType } from '@xenova/transformers';
 
 // 定义 Worker 消息类型
 export interface WorkerMessage<T = any> {
-    type: 'load-model' | 'run-inference' | 'progress' | 'result' | 'error';
+    type: 'load-model' | 'run-inference' | 'progress' | 'result' | 'error' | 'ping' | 'pong';
     data: T;
     id?: string;
 }
@@ -70,10 +70,16 @@ let currentTask: PipelineType | null = null;
 
 // 监听主线程消息
 self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
+    console.log('Worker 收到消息:', event.data);
     const { type, data, id } = event.data;
 
     try {
         switch (type) {
+            case 'ping':
+                // 响应 ping 消息，确认 Worker 已准备就绪
+                console.log('Worker 收到 ping，发送 pong');
+                self.postMessage({ type: 'pong', data: 'ready' });
+                break;
             case 'load-model':
                 await handleLoadModel(data as LoadModelParams, id);
                 break;
@@ -84,6 +90,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
                 throw new Error(`Unknown message type: ${type}`);
         }
     } catch (error) {
+        console.error('Worker 处理消息出错:', error);
         self.postMessage({
             type: 'error',
             data: error instanceof Error ? error.message : String(error),
@@ -94,7 +101,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
 
 // 加载模型
 async function handleLoadModel(params: LoadModelParams, id?: string) {
-    const { task, model = 'Xenova/yolov8n', options = {} } = params;
+    const { task, model = 'Xenova/ssd-mobilenet-v1', options = {} } = params;
 
     // 如果模型已经加载且任务相同，直接返回
     if (pipelineInstance && currentTask === task) {
@@ -132,21 +139,23 @@ async function handleLoadModel(params: LoadModelParams, id?: string) {
                 - 在生产环境，如果需要确保使用最新模型，可以设置为 false
                 - 当网络环境不稳定时，可以设置为 true 并提供本地模型文件作为备选
              */
-            allowLocalModels: true,
+            // 核心配置，使用极简设置
+            allowLocalModels: false,
             debug: true,
             backend: 'onnx',
 
-            // 国内镜像配置
-            remoteHost: 'https://hf-mirror.com',
+            // 使用默认的Hugging Face Hub
+            remoteHost: 'https://huggingface.co',
             hub: {
-                url: 'https://hf-mirror.com',
-                api_url: 'https://hf-mirror.com/api/models'
+                url: 'https://huggingface.co',
+                api_url: 'https://huggingface.co/api/models'
             },
 
             // ONNX运行时配置
             backends: {
                 onnx: {
                     wasm: {
+                        // 使用稳定版本的CDN路径
                         wasmPaths: 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/',
                         proxy: false
                     }
@@ -154,10 +163,10 @@ async function handleLoadModel(params: LoadModelParams, id?: string) {
             },
 
             // 缓存配置
-            cacheDir: options.cache_dir || '/tmp/transformers'
+            // cacheDir: options.cache_dir || '/tmp/transformers'
+            // 禁用缓存
+            cacheDir: null
         });
-
-        console.log('环境配置:', env);
 
         // 添加进度回调
         const onProgress = (data: any) => {
@@ -176,26 +185,18 @@ async function handleLoadModel(params: LoadModelParams, id?: string) {
             });
         };
 
-        const modelToUse = 'Xenova/yolov8n';
-
+        // 使用页面组件传递的模型参数
         self.postMessage({
             type: 'progress',
-            data: { stage: 'loading', message: `正在准备加载模型: ${modelToUse}...`, progress: 30 },
+            data: { stage: 'loading', message: `正在准备加载模型: ${model}...`, progress: 30 },
             id
         });
 
         // 使用最基本的配置加载模型
-        pipelineInstance = await pipeline(task, modelToUse, {
+        pipelineInstance = await pipeline(task, model, {
             progress_callback: onProgress,
             quantized: true,
-            local_files_only: false,
-            // 使用最小模型配置
-            config: {
-                // 确保使用较小的批处理大小
-                batch_size: 1,
-                // 减少内存使用
-                low_cpu_mem_usage: true
-            }
+            local_files_only: false
         });
 
         self.postMessage({
@@ -206,34 +207,20 @@ async function handleLoadModel(params: LoadModelParams, id?: string) {
     } catch (error) {
         console.error('加载模型时发生错误:', error);
 
-        // 尝试使用本地模型作为最后的 fallback
-        try {
-            self.postMessage({
-                type: 'progress',
-                data: { stage: 'loading', message: '尝试使用本地模型...', progress: 50 },
-                id
-            });
-
-            const { pipeline } = await import('@xenova/transformers');
-            pipelineInstance = await pipeline(task, model, {
-                quantized: true,
-                local_files_only: true
-            });
-
-            self.postMessage({
-                type: 'result',
-                data: 'Model loaded successfully (local)',
-                id
-            });
-            return;
-        } catch (localError) {
-            console.error('使用本地模型也失败了:', localError);
-        }
-
-        // 返回详细的错误信息
+        // 返回详细的错误信息和解决方案
         self.postMessage({
             type: 'error',
-            data: `加载模型失败: ${error instanceof Error ? error.message : String(error)}\n\n可能的解决方案:\n1. 检查网络连接\n2. 确保浏览器支持Web Worker\n3. 尝试使用更小的模型\n4. 检查防火墙设置\n\n详细错误: ${JSON.stringify(error)}`,
+            data: {
+                message: `加载模型失败: ${error instanceof Error ? error.message : String(error)}`,
+                details: '这通常是由于网络问题导致的，请检查网络连接并尝试以下解决方案:',
+                solutions: [
+                    '1. 确保您的网络连接正常',
+                    '2. 检查防火墙设置，确保允许访问 huggingface.co',
+                    '3. 如果您在中国大陆，建议使用 VPN 或代理',
+                    '4. 尝试使用更轻量级的模型'
+                ],
+                rawError: JSON.stringify(error)
+            },
             id
         });
     }
@@ -253,8 +240,35 @@ async function handleRunInference(params: RunInferenceParams, id?: string) {
         );
     }
 
+    // 发送开始推理的进度
+    self.postMessage({
+        type: 'progress',
+        data: { stage: 'inference', message: '正在进行推理...', progress: 0 },
+        id
+    });
+
+    // 添加进度回调到推理选项
+    const inferenceOptions = {
+        ...options,
+        onProgress: (step: number, total: number) => {
+            const progress = Math.round((step / total) * 100);
+            self.postMessage({
+                type: 'progress',
+                data: { stage: 'inference', message: '正在进行推理...', progress },
+                id
+            });
+        }
+    };
+
     // 运行推理
-    const result = await pipelineInstance(inputs, options);
+    const result = await pipelineInstance(inputs, inferenceOptions);
+
+    // 发送推理完成的进度
+    self.postMessage({
+        type: 'progress',
+        data: { stage: 'inference', message: '推理完成', progress: 100 },
+        id
+    });
 
     self.postMessage({
         type: 'result',
