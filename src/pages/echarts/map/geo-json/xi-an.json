@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "西安市"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [108.78, 34.15],
+            [109.03, 34.15],
+            [109.03, 34.42],
+            [108.78, 34.42],
+            [108.78, 34.15]
+          ]
+        ]
+      }
+    }
+  ]
+}

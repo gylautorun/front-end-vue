@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts" name="BaseChart">
-import { onMounted, onUnmounted, PropType, shallowRef, watch, withDefaults } from 'vue';
+import { onMounted, onUnmounted, PropType, shallowRef, watch, computed } from 'vue';
 import echarts, { ECOption } from './base';
 import { EChartsType } from 'echarts/core';
 
@@ -48,10 +48,13 @@ const props = withDefaults(
 
 const chartRef = shallowRef<HTMLElement | null>(null);
 const chart = shallowRef<EChartsType | null>(null);
-
+const isEmptyOption = computed(() => {
+    return !props.option || Object.keys(props.option).length === 0;
+});
 function init() {
-    if (props.option) {
-        chart.value = echarts.init(chartRef.value!);
+    chart.value = echarts.init(chartRef.value!);
+    // 初始化时判断是否为空
+    if (!isEmptyOption.value) {
         setOption(props.option);
     }
 }

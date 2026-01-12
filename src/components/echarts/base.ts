@@ -68,5 +68,6 @@ echarts.use([
     UniversalTransition,
     CanvasRenderer
 ]);
+export { echarts };
 
 export default echarts;

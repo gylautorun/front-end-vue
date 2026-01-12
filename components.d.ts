@@ -88,5 +88,6 @@ declare module 'vue' {
     SvgIcon: typeof import('./src/components/svg-icon.vue')['default']
     TabRightMenu: typeof import('./src/components/context-menu/tab-right-menu.vue')['default']
     ThemeColor: typeof import('./src/components/theme-color.vue')['default']
+    XiAnEnterpriseMap: typeof import('./src/components/echarts/xi-an-enterprise-map.vue')['default']
   }
 }
