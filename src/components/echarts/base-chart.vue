@@ -17,7 +17,7 @@ const props = withDefaults(
         loading?: boolean;
     }>(),
     {
-        option: () => ({}),
+        option: () => ({}) as ECOption,
         loading: false
     }
 );
@@ -60,17 +60,23 @@ function init() {
 }
 
 function setOption(option: ECOption, notMerge?: boolean, lazyUpdate?: boolean) {
-    chart.value!.setOption(option, notMerge, lazyUpdate);
+    if (chart.value && option) {
+        chart.value.setOption(option, notMerge, lazyUpdate);
+    }
 }
 
 const resize = debounce(() => {
-    chart.value!.resize();
+    if (chart.value) {
+        chart.value.resize();
+    }
 }, 100);
 
 watch(
     () => props.option,
     () => {
-        setOption(props.option);
+        if (chart.value && !isEmptyOption.value) {
+            setOption(props.option);
+        }
     }
 );
 

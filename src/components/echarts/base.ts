@@ -10,6 +10,8 @@ import {
     MapSeriesOption,
     LineChart,
     LineSeriesOption,
+    LinesChart,
+    LinesSeriesOption,
     PieChart,
     PieSeriesOption,
     EffectScatterChart,
@@ -41,6 +43,7 @@ export type ECOption = echarts.ComposeOption<
     | BarSeriesOption
     | MapSeriesOption
     | LineSeriesOption
+    | LinesSeriesOption
     | PieSeriesOption
     | EffectScatterSeriesOption
     | TitleComponentOption
@@ -63,6 +66,7 @@ echarts.use([
     MapChart,
     LineChart,
     PieChart,
+    LinesChart,
     EffectScatterChart,
     LabelLayout,
     UniversalTransition,
