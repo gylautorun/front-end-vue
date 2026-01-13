@@ -68,6 +68,9 @@ importers:
       js-sha256:
         specifier: ^0.11.0
         version: 0.11.0
+      lil-gui:
+        specifier: ^0.21.0
+        version: 0.21.0
       mathjs:
         specifier: ^14.3.1
         version: 14.3.1
@@ -285,6 +288,9 @@ importers:
       vite-plugin-enhance-log:
         specifier: ^0.6.2
         version: 0.6.2(@babel/core@7.24.7)(vite@5.2.12(@types/node@20.14.0)(less@4.2.2)(sass@1.77.4)(stylus@0.62.0)(terser@5.44.0))
+      vite-plugin-glsl:
+        specifier: ^1.5.5
+        version: 1.5.5(@rollup/pluginutils@5.1.0(rollup@4.18.0))(vite@5.2.12(@types/node@20.14.0)(less@4.2.2)(sass@1.77.4)(stylus@0.62.0)(terser@5.44.0))
       vite-plugin-html:
         specifier: ^3.2.2
         version: 3.2.2(vite@5.2.12(@types/node@20.14.0)(less@4.2.2)(sass@1.77.4)(stylus@0.62.0)(terser@5.44.0))
@@ -4309,6 +4315,9 @@ packages:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
     engines: {node: '>= 0.8.0'}
 
+  lil-gui@0.21.0:
+    resolution: {integrity: sha512-tpvxN7v1GvE/Tv+GRopfOp0W7fVEjF4PltkuX8vOCIfim22rD1ztvfkoEMcv9lzQeuNUSeIrUmUjBwmlW/oUew==}
+
   lines-and-columns@1.2.4:
     resolution: {integrity: sha512-7ylylesZQ/PV29jhEDl3Ufjo6ZX7gCqJr5F7PKrqc93v7fzSymt1BpwEU8nAUXs8qzzvqhbjhK5QZg6Mt/HkBg==}
 
@@ -6344,6 +6353,19 @@ packages:
     resolution: {integrity: sha512-UoR4XFozpr47S7x/9a4Da8klZLxKBzW77SgY4L97eifyv548siw/JkJir8/iJGGCEX+fHKmeby0y+auldeZq2A==}
     peerDependencies:
       vite: ^2.9.0 || ^3.0.0 || ^4.0.0 || ^5.0.0
+
+  vite-plugin-glsl@1.5.5:
+    resolution: {integrity: sha512-6NM2P4JkM+1hNSqMhM4eagX03bmhEoTyrOrk68y3Q6KXfdF73QIuCb6BmRZvwLPgXTCOBM3Zc8gL1WxctYnrUQ==}
+    engines: {node: '>= 20.17.0', npm: '>= 10.8.3'}
+    peerDependencies:
+      '@rollup/pluginutils': ^5.x
+      esbuild: '>= 0.25'
+      vite: '>= 3.x'
+    peerDependenciesMeta:
+      '@rollup/pluginutils':
+        optional: true
+      esbuild:
+        optional: true
 
   vite-plugin-html@3.2.2:
     resolution: {integrity: sha512-vb9C9kcdzcIo/Oc3CLZVS03dL5pDlOFuhGlZYDCJ840BhWl/0nGeZWf3Qy7NlOayscY4Cm/QRgULCQkEZige5Q==}
@@ -11142,6 +11164,8 @@ snapshots:
       prelude-ls: 1.2.1
       type-check: 0.4.0
 
+  lil-gui@0.21.0: {}
+
   lines-and-columns@1.2.4: {}
 
   load-json-file@1.1.0:
@@ -13456,6 +13480,12 @@ snapshots:
     transitivePeerDependencies:
       - '@babel/core'
       - supports-color
+
+  vite-plugin-glsl@1.5.5(@rollup/pluginutils@5.1.0(rollup@4.18.0))(vite@5.2.12(@types/node@20.14.0)(less@4.2.2)(sass@1.77.4)(stylus@0.62.0)(terser@5.44.0)):
+    dependencies:
+      vite: 5.2.12(@types/node@20.14.0)(less@4.2.2)(sass@1.77.4)(stylus@0.62.0)(terser@5.44.0)
+    optionalDependencies:
+      '@rollup/pluginutils': 5.1.0(rollup@4.18.0)
 
   vite-plugin-html@3.2.2(vite@5.2.12(@types/node@20.14.0)(less@4.2.2)(sass@1.77.4)(stylus@0.62.0)(terser@5.44.0)):
     dependencies:

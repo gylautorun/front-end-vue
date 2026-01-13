@@ -1,5 +1,5 @@
 <template>
-    <div class="multiple-window-3d-scene" ref="sceneContainerRef"></div>
+    <div class="multiple-window-3d-entangled" ref="sceneContainerRef"></div>
 </template>
 
 <script setup lang="ts">
@@ -23,10 +23,5 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-.multiple-window-3d-scene {
-    // width: 100%;
-    // height: 100vh;
-    // overflow: hidden;
-    // position: relative;
-}
+@import url('./index.scss');
 </style>
