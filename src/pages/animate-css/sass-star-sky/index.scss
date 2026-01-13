@@ -12,7 +12,7 @@
 }
 
 .sass-star-sky {
-    --bg: #000;
+    --bg: #0a0e27; // 深蓝黑色夜空背景
     background-color: var(--bg);
     height: 100vh;
     .star-sky-content {
@@ -21,13 +21,27 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 3vw;
-        background: var(--bg);
-        background-clip: text;
-        -webkit-background-clip: text;
-        color: transparent;
-        text-stroke: 1px #fff;
-        -webkit-text-stroke: 1px #fff;
+        // font-size: 3vw;
+        // background: var(--bg);
+        // background-clip: text;
+        // -webkit-background-clip: text;
+        // color: transparent;
+        // text-stroke: 1px #fff;
+        // -webkit-text-stroke: 1px #fff;
+
+        svg {
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+        }
+
+        text {
+            font-size: 36px;
+            fill: transparent;
+            stroke: url(#strokeGradient);
+            stroke-width: 1; // 2
+            font-weight: bold;
+        }
     }
     $duration: 400s;
     $count: 1000;
