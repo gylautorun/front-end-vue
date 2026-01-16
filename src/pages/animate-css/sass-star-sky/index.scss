@@ -46,7 +46,7 @@
     $duration: 400s;
     $count: 1000;
     @for $i from 1 through 5 {
-        $duration: $duration / 2;
+        $duration: math.div($duration, 2);
         $count: floor($count / 2);
         .star-sky#{$i} {
             $size: #{$i}px;
