@@ -20,6 +20,7 @@ import { visualizer } from 'rollup-plugin-visualizer';
 import viteImagemin from 'vite-plugin-imagemin';
 // 全局安装组件库的按需加载插件
 import { lazyImport, VxeResolver } from 'vite-plugin-lazy-import';
+import tailwindcss from '@tailwindcss/vite';
 
 // px-vw
 // import {postcssPxToViewportConfig} from './vite-plugin/postcss-px-to-viewport-config';
@@ -202,7 +203,8 @@ export const createVitePlugins = (): (PluginOption | PluginOption[])[] => {
                 })
             ]
         }),
-        glsl()
+        glsl(),
+        tailwindcss()
     ];
 };
 
