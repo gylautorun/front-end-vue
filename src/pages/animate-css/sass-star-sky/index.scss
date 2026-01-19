@@ -1,3 +1,6 @@
+// 导入 math 模块用于数学运算
+@use 'sass:math';
+
 @function getShadows($n) {
     $shadows: '#{random(100)}vw #{random(100)}vh #fff';
     @for $i from 1 through $n {
@@ -47,7 +50,7 @@
     $count: 1000;
     @for $i from 1 through 5 {
         $duration: math.div($duration, 2);
-        $count: floor($count / 2);
+        $count: floor(math.div($count, 2));
         .star-sky#{$i} {
             $size: #{$i}px;
             width: $size;
