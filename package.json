@@ -45,6 +45,7 @@
         "pinia": "^2.1.7",
         "pinia-colada": "^0.0.1",
         "pinia-plugin-persistedstate": "^3.2.1",
+        "qss": "^3.0.0",
         "screenfull": "^6.0.2",
         "speak-tts": "^2.0.8",
         "three": "^0.175.0",
