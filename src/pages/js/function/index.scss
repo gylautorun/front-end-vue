@@ -1,0 +1,97 @@
+// 主标题样式
+h3 {
+    color: #1890ff;
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+// 每个部分的样式
+.section {
+    margin-bottom: 32px;
+    padding: 16px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+
+    &:hover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        background-color: #f5f5f5;
+    }
+}
+
+// 部分标题样式
+.section-title {
+    color: #333;
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+}
+
+// 部分描述文本样式
+.section-description {
+    color: #666;
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 16px;
+}
+
+// 部分列表样式
+.section-items {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+// 列表项样式
+.section-item {
+    color: #555;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 12px;
+    padding-left: 20px;
+    position: relative;
+
+    // 自定义列表项标记
+    &::before {
+        content: '•';
+        color: #1890ff;
+        font-size: 16px;
+        position: absolute;
+        left: 0;
+        top: 2px;
+    }
+
+    // 列表项中的强调文本样式
+    strong {
+        color: #333;
+        font-weight: 500;
+        margin-right: 8px;
+    }
+}
+
+// 响应式设计
+@media (max-width: 768px) {
+    h3 {
+        font-size: 18px;
+        margin-bottom: 20px;
+    }
+
+    .section {
+        margin-bottom: 24px;
+        padding: 12px;
+    }
+
+    .section-title {
+        font-size: 15px;
+    }
+
+    .section-description,
+    .section-item {
+        font-size: 13px;
+    }
+}
