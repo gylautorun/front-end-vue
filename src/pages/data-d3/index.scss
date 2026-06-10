@@ -379,6 +379,53 @@
     border-color: #1890ff;
 }
 
+/* 下载格式选择模态框 */
+.modal.download-modal {
+    min-width: 360px;
+    padding: 20px;
+}
+.download-modal h3 {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 18px;
+}
+.download-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.download-option {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    border: 1px solid #e8e8e8;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.download-option:hover {
+    border-color: #1890ff;
+    background: #f6ffed;
+    box-shadow: 0 2px 8px rgba(24, 144, 255, 0.15);
+}
+.download-option .option-icon {
+    font-size: 28px;
+    margin-right: 16px;
+}
+.download-option .option-info {
+    flex: 1;
+}
+.download-option .option-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 4px;
+}
+.download-option .option-desc {
+    font-size: 13px;
+    color: #999;
+}
+
 /* D3 节点卡片样式（通过 foreignObject 嵌入 HTML）
    ----------------------------------------------------------------------------
    在 d3Tree.ts 中由 D3 动态创建：

@@ -65,6 +65,43 @@
                 </div>
             </div>
         </teleport>
+
+        <!-- 下载格式选择模态框 -->
+        <div
+            class="modal-overlay"
+            :class="{ show: showDownloadModal }"
+            @click.self="showDownloadModal = false"
+        >
+            <div class="modal download-modal">
+                <h3>📥 选择下载格式</h3>
+
+                <!-- 文件名输入 -->
+                <div class="form-group">
+                    <label>文件名称</label>
+                    <input type="text" v-model="downloadFileName" placeholder="请输入文件名" />
+                </div>
+
+                <div class="download-options">
+                    <div class="download-option" @click="selectDownloadFormat('png')">
+                        <div class="option-icon">🖼️</div>
+                        <div class="option-info">
+                            <div class="option-title">PNG 图片</div>
+                            <div class="option-desc">适合分享和打印</div>
+                        </div>
+                    </div>
+                    <div class="download-option" @click="selectDownloadFormat('svg')">
+                        <div class="option-icon">📐</div>
+                        <div class="option-info">
+                            <div class="option-title">SVG 矢量图</div>
+                            <div class="option-desc">适合编辑和缩放</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button @click="showDownloadModal = false">取消</button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -156,6 +193,14 @@ const contextMenuX = ref<number>(0);
 
 /** 右键菜单 Y 坐标（鼠标 clientY，用于 position: fixed 定位） */
 const contextMenuY = ref<number>(0);
+
+// ---------- 下载模态框状态 ----------
+
+/** 下载格式选择模态框是否打开 */
+const showDownloadModal = ref<boolean>(false);
+
+/** 下载文件名（有默认值，可修改） */
+const downloadFileName = ref<string>('tree-diagram');
 
 /** 当前触发右键菜单的节点 ID（用于后续 emit 时传递给父组件） */
 const contextMenuNodeId = ref<string>('');
@@ -464,9 +509,10 @@ function handleResetZoom() {
 }
 
 /**
- * 下载图片按钮处理：使用 downloadTree 函数下载树形图为 PNG
+ * 下载图片按钮处理：显示下载格式选择模态框
  * ----------------------------------------------------------------------------
  * 借鉴 org-tree-lib 的实现，支持正确的布局和样式
+ * 支持选择下载 PNG 或 SVG 格式
  */
 async function handleDownload() {
     try {
@@ -482,12 +528,52 @@ async function handleDownload() {
             return;
         }
 
-        const { svg, root } = d3Instance;
-
-        // 使用新的 downloadTree 函数（借鉴 org-tree-lib）
-        await downloadTree(svg, root, container.clientWidth);
+        // 显示下载格式选择模态框
+        showDownloadModal.value = true;
     } catch (e) {
         console.error('[handleDownload] error:', e);
+    }
+}
+
+/**
+ * 选择下载格式并执行下载
+ * ----------------------------------------------------------------------------
+ * @param format - 下载格式：'png' 或 'svg'
+ */
+async function selectDownloadFormat(format: 'png' | 'svg') {
+    try {
+        console.log('[selectDownloadFormat] selected:', format);
+
+        if (!d3Instance) {
+            console.warn('[selectDownloadFormat] d3Instance is null!');
+            return;
+        }
+
+        const container = document.getElementById('graph-container');
+        if (!container) {
+            console.warn('[selectDownloadFormat] container not found!');
+            return;
+        }
+
+        const { svg, root } = d3Instance;
+
+        // 获取用户输入的文件名
+        const inputFileName = downloadFileName.value.trim();
+
+        // 如果用户没有修改（使用默认值），添加时间戳；否则使用用户输入的名称
+        const fileName =
+            inputFileName === 'tree-diagram'
+                ? `tree-diagram-${Date.now()}` // 默认名称添加时间戳
+                : inputFileName || 'tree-diagram'; // 用户自定义名称不添加时间戳
+
+        // 关闭模态框
+        showDownloadModal.value = false;
+
+        // 使用 downloadTree 函数下载
+        await downloadTree(svg, root, container.clientWidth, fileName, format);
+    } catch (e) {
+        console.error('[selectDownloadFormat] error:', e);
+        showDownloadModal.value = false; // 出错也要关闭模态框
     }
 }
 

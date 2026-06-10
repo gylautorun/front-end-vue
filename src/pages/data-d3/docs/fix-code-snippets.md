@@ -23,6 +23,7 @@
     - [4.5 Canvas 污染错误](#45-canvas-污染错误)
     - [4.6 线条宽度异常](#46-线条宽度异常)
     - [4.7 下载按钮触发](#47-下载按钮触发)
+    - [4.8 下载格式选择（Modal 模态框）](#48-下载格式选择modal-模态框)
 
 ---
 
@@ -458,6 +459,46 @@ export const INTEGRATION_TYPE_NAME: Record<IntegrationTypeKey, string> = {
 
 ---
 
+### 3.3 类型不匹配错误
+
+**问题根因**：字符串字面量与枚举类型不兼容
+
+**解决方案**：全局替换为枚举值
+
+```typescript
+// Modals.vue - 使用枚举值
+import { IntegrationTypeKey } from '../types';
+
+const newNodeIntegrationType = ref<IntegrationTypeKey>(IntegrationTypeKey.integration);
+const integrateType = ref<IntegrationTypeKey>(IntegrationTypeKey.merge);
+const relationType = ref<IntegrationTypeKey>(IntegrationTypeKey.integration);
+
+// mockData.ts - 使用枚举值
+import { IntegrationTypeKey, INTEGRATION_TYPE_NAME } from '../types';
+
+export const initialTreeData: TreeData = {
+    id: 'edu',
+    label: '教育局',
+    level: '领域级应用',
+    dept: '教育局',
+    owner: '管理员',
+    children: [
+        {
+            id: 'app1',
+            label: '教育管理一体化平台',
+            level: '领域级应用',
+            dept: '教育局',
+            owner: '李XX',
+            integrationType: IntegrationTypeKey.merge,           // 使用枚举
+            integrationTypeName: INTEGRATION_TYPE_NAME.merge,    // 存储中文名
+            children: [...]
+        }
+    ]
+};
+```
+
+---
+
 ## 4. 下载功能问题
 
 ### 4.1 下载功能实现（借鉴 org-tree-lib）
@@ -722,47 +763,98 @@ async function handleDownload() {
 }
 ```
 
----
+### 4.8 下载格式选择（Modal 模态框）
 
-### 3.3 类型不匹配错误
+**需求**：点击下载按钮时弹出美观的模态框，让用户选择下载格式（PNG/SVG），并支持自定义文件名。
 
-**问题根因**：字符串字面量与枚举类型不兼容
+**解决方案**：
 
-**解决方案**：全局替换为枚举值
+```vue
+<!-- GraphCanvas.vue - 下载格式选择模态框 -->
+<div class="modal-overlay" :class="{ show: showDownloadModal }" @click.self="showDownloadModal = false">
+    <div class="modal download-modal">
+        <h3>📥 选择下载格式</h3>
 
-```typescript
-// Modals.vue - 使用枚举值
-import { IntegrationTypeKey } from '../types';
+        <!-- 文件名输入 -->
+        <div class="form-group">
+            <label>文件名称</label>
+            <input type="text" v-model="downloadFileName" placeholder="请输入文件名" />
+        </div>
 
-const newNodeIntegrationType = ref<IntegrationTypeKey>(IntegrationTypeKey.integration);
-const integrateType = ref<IntegrationTypeKey>(IntegrationTypeKey.merge);
-const relationType = ref<IntegrationTypeKey>(IntegrationTypeKey.integration);
-
-// mockData.ts - 使用枚举值
-import { IntegrationTypeKey, INTEGRATION_TYPE_NAME } from '../types';
-
-export const initialTreeData: TreeData = {
-    id: 'edu',
-    label: '教育局',
-    level: '领域级应用',
-    dept: '教育局',
-    owner: '管理员',
-    children: [
-        {
-            id: 'app1',
-            label: '教育管理一体化平台',
-            level: '领域级应用',
-            dept: '教育局',
-            owner: '李XX',
-            integrationType: IntegrationTypeKey.merge,           // 使用枚举
-            integrationTypeName: INTEGRATION_TYPE_NAME.merge,    // 存储中文名
-            children: [...]
-        }
-    ]
-};
+        <div class="download-options">
+            <div class="download-option" @click="selectDownloadFormat('png')">
+                <div class="option-icon">🖼️</div>
+                <div class="option-info">
+                    <div class="option-title">PNG 图片</div>
+                    <div class="option-desc">适合分享和打印</div>
+                </div>
+            </div>
+            <div class="download-option" @click="selectDownloadFormat('svg')">
+                <div class="option-icon">📐</div>
+                <div class="option-info">
+                    <div class="option-title">SVG 矢量图</div>
+                    <div class="option-desc">适合编辑和缩放</div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button @click="showDownloadModal = false">取消</button>
+        </div>
+    </div>
+</div>
 ```
 
----
+```typescript
+// GraphCanvas.vue - 下载逻辑
+const showDownloadModal = ref<boolean>(false);
+const downloadFileName = ref<string>('tree-diagram');
 
-**文档版本**：v1.0  
-**生成日期**：2026-06-10
+async function handleDownload() {
+    // 显示下载格式选择模态框
+    showDownloadModal.value = true;
+}
+
+async function selectDownloadFormat(format: 'png' | 'svg') {
+    const inputFileName = downloadFileName.value.trim();
+
+    // 如果用户没有修改（使用默认值），添加时间戳；否则使用用户输入的名称
+    const fileName =
+        inputFileName === 'tree-diagram'
+            ? `tree-diagram-${Date.now()}` // 默认名称添加时间戳
+            : inputFileName || 'tree-diagram'; // 用户自定义名称不添加时间戳
+
+    showDownloadModal.value = false;
+    await downloadTree(svg, root, container.clientWidth, fileName, format);
+}
+```
+
+```typescript
+// d3Tree.ts - 支持多种格式下载
+export async function downloadTree(
+    svg: SvgSelection,
+    root: d3.HierarchyNode<TreeData>,
+    elemWidth: number,
+    name: string = 'tree-diagram',
+    format: 'png' | 'svg' = 'png' // 新增参数
+) {
+    // ... 获取 SVG 字符串 ...
+
+    if (format === 'svg') {
+        // 下载 SVG 文件
+        const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        saveAs(blob, `${name}.svg`, true);
+    } else {
+        // 转换为 PNG 图片并下载
+        const blob = await svgString2Image(svgString, width, height, 'png');
+        saveAs(blob, `${name}.png`, true);
+    }
+}
+```
+
+**文件名生成规则**：
+
+| 用户输入              | 判断条件 | 下载文件名                                   |
+| --------------------- | -------- | -------------------------------------------- |
+| 默认值 `tree-diagram` | 未修改   | `tree-diagram-1781075920479.png`（带时间戳） |
+| 用户输入 `my-tree`    | 自定义   | `my-tree.png`（不带时间戳）                  |
+| 用户清空输入框        | 空值     | `tree-diagram.png`（不带时间戳）             |

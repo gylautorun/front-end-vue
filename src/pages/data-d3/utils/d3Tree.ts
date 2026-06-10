@@ -1540,24 +1540,25 @@ function calculateDownloadTranslate(svg: SvgSelection, elemWidth: number) {
 }
 
 /**
- * 下载树形图为 PNG 图片
+ * 下载树形图
  * ----------------------------------------------------------------------------
  * 借鉴 org-tree-lib 的 download 实现：
  *   1. 计算下载所需的尺寸和平移
  *   2. 获取 SVG 字符串（包含内联样式）
- *   3. 转换为 PNG Blob
- *   4. 使用 file-saver 下载
+ *   3. 根据格式转换为 PNG 或直接下载 SVG
  *
  * @param svg      - D3 选中的 SVG 元素
- *   @param root     - D3 HierarchyNode 根节点
+ * @param root     - D3 HierarchyNode 根节点
  * @param elemWidth - 容器宽度
  * @param name     - 文件名（默认 'tree-diagram'）
+ * @param format   - 下载格式：'png' 或 'svg'（默认 'png'）
  */
 export async function downloadTree(
     svg: SvgSelection,
     root: d3.HierarchyNode<TreeData>,
     elemWidth: number,
-    name: string = 'tree-diagram'
+    name: string = 'tree-diagram',
+    format: 'png' | 'svg' = 'png'
 ) {
     try {
         const svgNode = svg.node();
@@ -1579,17 +1580,25 @@ export async function downloadTree(
         });
         console.log('[downloadTree] svgString length:', svgString.length);
 
-        // 转换为图片并下载
-        console.log('[downloadTree] converting to blob...');
-        const blob = await svgString2Image(svgString, width, height, 'png');
-        console.log('[downloadTree] blob created:', blob.size, 'bytes');
+        if (format === 'svg') {
+            // 下载 SVG 文件
+            console.log('[downloadTree] downloading SVG:', `${name}.svg`);
+            const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            saveAs(blob, `${name}.svg`, true);
+            console.log('[downloadTree] SVG saveAs called');
+        } else {
+            // 转换为 PNG 图片并下载
+            console.log('[downloadTree] converting to blob...');
+            const blob = await svgString2Image(svgString, width, height, 'png');
+            console.log('[downloadTree] blob created:', blob.size, 'bytes');
 
-        // 下载
-        console.log('[downloadTree] calling saveAs:', `${name}-${Date.now()}.png`);
+            // 下载
+            console.log('[downloadTree] calling saveAs:', `${name}.png`);
 
-        // 使用 file-saver 的 saveAs 方法，第三个参数 true 表示强制下载（创建 object URL）
-        saveAs(blob, `${name}-${Date.now()}.png`, true);
-        console.log('[downloadTree] saveAs called');
+            // 使用 file-saver 的 saveAs 方法，第三个参数 true 表示强制下载（创建 object URL）
+            saveAs(blob, `${name}.png`, true);
+            console.log('[downloadTree] PNG saveAs called');
+        }
     } catch (e) {
         console.error('[downloadTree] error:', e);
         throw e; // 重新抛出错误让调用者知道
