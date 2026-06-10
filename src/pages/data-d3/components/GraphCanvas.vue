@@ -24,6 +24,7 @@
             <button @click="handleZoomIn" title="放大">➕</button>
             <button @click="handleResetZoom" title="重置缩放">🔍 100%</button>
             <button @click="handleFitView" title="适应屏幕">🎯 适应</button>
+            <button @click="handleDownload" title="下载图片">📥 下载</button>
             <button v-if="selectedCount > 0" @click="handleClearSelection" title="清除选择">
                 ✖️ 清除选择 ({{ selectedCount }})
             </button>
@@ -69,8 +70,17 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue';
+import * as d3 from 'd3';
 import type { TreeData, SelectedNode } from '../types';
-import { initD3, renderTree, zoomIn, zoomOut, fitView, resetZoom } from '../utils/d3Tree';
+import {
+    initD3,
+    renderTree,
+    zoomIn,
+    zoomOut,
+    fitView,
+    resetZoom,
+    downloadTree
+} from '../utils/d3Tree';
 import type { D3TreeInstance } from '../utils/d3Tree';
 
 /**
@@ -450,6 +460,34 @@ function handleResetZoom() {
         );
     } catch (e) {
         console.error('[handleResetZoom] error:', e);
+    }
+}
+
+/**
+ * 下载图片按钮处理：使用 downloadTree 函数下载树形图为 PNG
+ * ----------------------------------------------------------------------------
+ * 借鉴 org-tree-lib 的实现，支持正确的布局和样式
+ */
+async function handleDownload() {
+    try {
+        console.log('[handleDownload] starting...');
+        if (!d3Instance) {
+            console.warn('[handleDownload] d3Instance is null!');
+            return;
+        }
+
+        const container = document.getElementById('graph-container');
+        if (!container) {
+            console.warn('[handleDownload] container not found!');
+            return;
+        }
+
+        const { svg, root } = d3Instance;
+
+        // 使用新的 downloadTree 函数（借鉴 org-tree-lib）
+        await downloadTree(svg, root, container.clientWidth);
+    } catch (e) {
+        console.error('[handleDownload] error:', e);
     }
 }
 

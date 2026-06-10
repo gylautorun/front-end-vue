@@ -8,6 +8,7 @@
  *   - renderTree(...)        数据变化时重渲染（节点增删、整合方式改变时）
  *   - zoomIn / zoomOut / fitView  缩放平移控制
  *   - clearSelection(...)    清除所有选中状态
+ *   - downloadTree(...)      下载树形图为 PNG 图片
  *
  * 工作流程：
  *   1. initD3 选择 #graph-container，创建 svg + g 分层
@@ -20,9 +21,12 @@
 import * as d3 from 'd3';
 import type { TreeData } from '../types';
 import { NODE_COLORS, EDGE_STYLES, INTEGRATION_TYPE_NAME, IntegrationTypeKey } from '../types';
+import { saveAs } from 'file-saver';
+import { createPromise } from '@/utils/promise/util-create-promise';
 
 const NODE_WIDTH: number = 160;
 const NODE_HEIGHT: number = 40;
+const MARGIN = { top: 40, right: 40, bottom: 40, left: 40 };
 
 // 定义 D3 Selection 的基础类型
 // Selection<GElement, Datum, PElement, PDatum>
@@ -67,20 +71,9 @@ export interface D3TreeInstance {
     node: NodeSelection;
     /** 已绑定到 svg 的 zoom 行为，用于精确控制 transform */
     zoom: d3.ZoomBehavior<SVGSVGElement, null>;
+    /** 当前正在拖拽的节点 id（实例级状态，支持多实例） */
+    currentDraggingNodeId: string | null;
 }
-
-/**
- * 模块级变量：记录"当前正在拖拽的节点 id"
- * ----------------------------------------------------------------------------
- * 解决 d3-drag v3 的 dragend 回调中 `this` 不可靠（指向 dispatch context 而非元素）
- *   - dragstart 时写入
- *   - dragend 时读取
- *   - dragended 后清空
- *
- * 注意：这是模块级单例，如果同时支持多个 d3 树实例会有冲突。
- * 当前项目只有一个 data-d3 页面，可以接受。
- */
-let currentDraggingNodeId: string | null = null;
 
 const defaultConfig = {
     linkColor: '#CCC'
@@ -97,7 +90,7 @@ const defaultConfig = {
  *   6. 调用 renderTree(...) 完成首次渲染
  *   7. 给节点 .more-btn 绑定 click → onMoreClick
  *   8. 给节点绑定拖拽 d3.drag() → 移动 g 元素 + 落点检测
- *      落点检测在 dragended 时执行：
+ *      落点检测在 dragEnded 时执行：
  *      - 用 d3.pointers 拿到鼠标在 SVG 坐标系中的位置
  *      - 用 d3.hierarchy(x).find(在 x/y 半径内) 找命中的节点
  *      - 命中节点与源节点是同级（同一个父节点）才触发 onDropToTarget
@@ -302,6 +295,21 @@ export function initD3(
         }
     });
 
+    // 创建实例对象（包含拖拽状态）
+    const instance: D3TreeInstance = {
+        svg,
+        g,
+        treeLayout,
+        root,
+        link,
+        path,
+        labelBg,
+        labelText,
+        node,
+        zoom,
+        currentDraggingNodeId: null // 初始化拖拽状态
+    };
+
     // 拖拽功能（参考文件实现）
     // ----------------------------------------------------------------------------
     // 落点检测：在 drag.end 阶段判断释放点是否落在某个节点上
@@ -325,7 +333,7 @@ export function initD3(
             .on('start', function (this: unknown, _event, d) {
                 // this 在 d3-drag v3 中是 d3 selection 或 DOM 元素（依赖 d3 版本细节）
                 // 不用 this，直接用 d 参数（d = event.subject = HierarchyNode）
-                if (d && d.data) dragstarted(d);
+                if (d && d.data) dragStarted(instance, d);
             })
             .on('drag', function (this: unknown, event, d) {
                 if (!d) return;
@@ -338,8 +346,8 @@ export function initD3(
                 if (gEl) dragged(gEl, event, d, root, svg, zoom);
             })
             .on('end', function (this: unknown, event, d) {
-                // dragend 中 this 不可靠 —— 用 currentDraggingNodeId（dragstart 时记录）
-                dragended(event, d, root, onDropToTarget);
+                // dragend 中 this 不可靠 —— 用 instance.currentDraggingNodeId（dragstart 时记录）
+                dragEnded(instance, event, d, root, onDropToTarget);
             })
     );
 
@@ -365,7 +373,7 @@ export function initD3(
      */
     resetZoom(svg, g, width, height, zoom);
 
-    return { svg, g, treeLayout, root, link, path, labelBg, labelText, node, zoom };
+    return instance;
 }
 
 /**
@@ -375,11 +383,15 @@ export function initD3(
  *   1. 把当前被拖拽的节点提到最上层（raise()），避免拖动时被其他节点遮挡
  *   2. 记录原始 (x, y)（d3.hierarchy 输出的屏幕坐标）到 dataset
  *      后续 drag 用此 + 鼠标位置计算"累计偏移量"
+ *   3. 记录当前拖拽节点 id 到实例对象（供 dragEnded 读取）
  *
- * @param gEl 节点 g 元素
- * @param d   被拖拽的 HierarchyNode
+ * @param instance D3TreeInstance 实例（用于存储拖拽状态，支持多实例）
+ * @param d        被拖拽的 HierarchyNode
  */
-function dragstarted(d: d3.HierarchyNode<TreeData>) {
+function dragStarted(
+    instance: Pick<D3TreeInstance, 'currentDraggingNodeId'>,
+    d: d3.HierarchyNode<TreeData>
+) {
     // 防御：d 可能是 plain object（d3-drag v3 subject fallback）
     if (!d || !d.data) return;
     const nodeId = d.data.id;
@@ -395,8 +407,8 @@ function dragstarted(d: d3.HierarchyNode<TreeData>) {
     // 关键：初始化"当前累计 transform"
     gEl.dataset.curTX = String(Number(d.y ?? 0));
     gEl.dataset.curTY = String(Number(d.x ?? 0));
-    // 记录当前拖拽节点 id（供 dragended 读取）
-    currentDraggingNodeId = nodeId;
+    // 记录当前拖拽节点 id 到实例对象（供 dragEnded 读取）
+    instance.currentDraggingNodeId = nodeId;
 }
 
 /**
@@ -553,13 +565,14 @@ function dragged(
  *   4. 清除 hover 高亮
  *   5. **节点 transform 已不再反映 d.x / d.y**，需要 renderTree() 重绘
  *
- * @param svgEl         原生 SVG 元素（用于 d3.pointers 坐标转换，由 initD3 闭包传入）
- * @param event         d3 drag 事件
- * @param d             源节点（被拖拽的）
- * @param root          当前 HierarchyNode 根
+ * @param instance       D3TreeInstance 实例（用于读取拖拽状态，支持多实例）
+ * @param event          d3 drag 事件
+ * @param d              源节点（被拖拽的）
+ * @param root           当前 HierarchyNode 根
  * @param onDropToTarget 命中同级节点时触发的回调
  */
-function dragended(
+function dragEnded(
+    instance: Pick<D3TreeInstance, 'currentDraggingNodeId'>,
     event: d3.D3DragEvent<SVGGElement, d3.HierarchyNode<TreeData>, d3.HierarchyNode<TreeData>>,
     d: d3.HierarchyNode<TreeData>,
     root: d3.HierarchyNode<TreeData>,
@@ -574,22 +587,24 @@ function dragended(
     (window as Window & { __dragDebug?: unknown[] }).__dragDebug =
         (window as Window & { __dragDebug?: unknown[] }).__dragDebug ?? [];
     ((window as Window & { __dragDebug?: unknown[] }).__dragDebug as unknown[]).push({
-        type: 'dragended',
+        type: 'dragEnded',
         dType: typeof d,
         dIsHierarchyNode: d && typeof d === 'object' && 'parent' in d,
         dHasData: d && typeof d === 'object' && 'data' in d,
         dData: d && typeof d === 'object' ? (d as { data?: unknown }).data : null,
         dX: d && typeof d === 'object' ? (d as { x?: unknown }).x : null,
         dY: d && typeof d === 'object' ? (d as { y?: unknown }).y : null,
-        currentDraggingNodeId
+        currentDraggingNodeId: instance.currentDraggingNodeId
     });
 
     // 关键防御：d3-drag 的 d 可能是 plain object（不是 HierarchyNode）
-    // 此时用模块级变量 currentDraggingNodeId 找真正节点
+    // 此时用实例级变量 currentDraggingNodeId 找真正节点
     if (!d || !d.data) {
         // 优先用 currentDraggingNodeId（dragstart 时记录）
-        if (currentDraggingNodeId) {
-            const realNode = root.descendants().find((n) => n.data.id === currentDraggingNodeId);
+        if (instance.currentDraggingNodeId) {
+            const realNode = root
+                .descendants()
+                .find((n) => n.data.id === instance.currentDraggingNodeId);
             if (realNode) {
                 d = realNode as d3.HierarchyNode<TreeData>;
             }
@@ -628,8 +643,8 @@ function dragended(
         delete draggedG.dataset.origY;
     }
 
-    // 清空 currentDraggingNodeId
-    currentDraggingNodeId = null;
+    // 清空实例级 currentDraggingNodeId
+    instance.currentDraggingNodeId = null;
 
     if (!hit) {
         return;
@@ -1174,28 +1189,31 @@ export function fitView(
     height: number,
     zoom?: d3.ZoomBehavior<SVGSVGElement, null>
 ) {
+    // 步骤 1：获取 g 元素（内部所有节点）的 bbox 包围盒
     const gNode = g.node();
     if (!gNode) return;
 
     const bounds = gNode.getBBox();
-    // 关键修复：只缩小不放大（min(scale, 1)）
-    // - 如果图比视口小（scale > 1）→ 保持 scale = 1，不放大
-    // - 如果图比视口大（scale < 1）→ 缩小到合适尺寸
-    const rawScale = 0.9 / Math.max(bounds.width / width, bounds.height / height);
-    const scale = Math.min(rawScale, 1); // 不超过 1
 
-    // 如果 scale 接近 1（大于 0.95），直接使用 scale = 1
+    // 步骤 2：计算缩放比例 = 0.9 / max(包围盒宽/视口宽, 包围盒高/视口高)
+    // 步骤 3：限制 scale 最大为 1（避免图被意外放大）
+    //   - 如果图比视口小（rawScale > 1）→ 保持 scale = 1
+    //   - 如果图比视口大（rawScale < 1）→ 缩小到 90% 视口
+    const rawScale = 0.9 / Math.max(bounds.width / width, bounds.height / height);
+    const scale = Math.min(rawScale, 1);
     const finalScale = scale > 0.95 ? 1 : scale;
 
+    // 步骤 4：计算平移量 = 让包围盒居中显示
     const translate = [
         width / 2 - finalScale * (bounds.x + bounds.width / 2),
         height / 2 - finalScale * (bounds.y + bounds.height / 2)
     ];
 
-    // 关键：使用 svg 上已绑定的 zoom 行为
-    // 注意：不使用 transition()，确保 transform 同步生效
+    // 步骤 5：用 d3.zoomIdentity.translate().scale() 构造目标 transform
     const targetTransform = d3.zoomIdentity.translate(translate[0], translate[1]).scale(finalScale);
 
+    // 步骤 6：同步调用 zoom.transform 应用 transform（不使用 transition）
+    // 步骤 7：zoom 监听器自动更新 g 的 transform
     if (zoom) {
         // 方式 1：使用传入的 zoom 行为（推荐）- 同步生效
         svg.call(zoom.transform as any, targetTransform);
@@ -1203,5 +1221,377 @@ export function fitView(
         // 方式 2：直接读取 svg 上已绑定的 zoom
         const existingZoom = d3.zoom<SVGSVGElement, null>().transform as any;
         svg.call(existingZoom, targetTransform);
+    }
+}
+
+/**
+ * 获取树形图的包围盒
+ * ----------------------------------------------------------------------------
+ * 遍历所有节点，找到最左、最右、最上、最下的节点，计算树的边界
+ *
+ * @param root - D3 HierarchyNode 根节点
+ * @returns 包围盒对象 { left, right, top, bottom }
+ */
+function getTreeBox(root: d3.HierarchyNode<TreeData>) {
+    let box = {
+        left: root,
+        right: root,
+        top: root,
+        bottom: root
+    };
+    root.eachBefore((node) => {
+        if ((node.x ?? 0) < (box.left.x ?? 0)) {
+            box.left = node;
+        }
+        if ((node.x ?? 0) > (box.right.x ?? 0)) {
+            box.right = node;
+        }
+        if ((node.y ?? 0) < (box.top.y ?? 0)) {
+            box.top = node;
+        }
+        if ((node.y ?? 0) > (box.bottom.y ?? 0)) {
+            box.bottom = node;
+        }
+    });
+    return box;
+}
+
+/**
+ * 获取 SVG 字符串（包含内联 CSS 样式）
+ * ----------------------------------------------------------------------------
+ * 借鉴 org-tree-lib 的实现：
+ *   1. 克隆 SVG 节点
+ *   2. 添加白色背景矩形
+ *   3. 设置固定宽高
+ *   4. 调整 g 元素的 transform（居中显示）
+ *   5. 提取并内联相关 CSS 样式
+ *   6. 序列化为字符串
+ *
+ * @param svgNodeOri - 原始 SVG DOM 节点
+ * @param baseTranslate - 居中平移量 [x, y]
+ * @param options    - 配置选项 { width, height, nodeWidth, margin }
+ * @returns SVG 字符串
+ */
+function getSVGString(
+    svgNodeOri: SVGSVGElement,
+    baseTranslate: [number, number],
+    options: { width: number; height: number; nodeWidth: number; margin: typeof MARGIN }
+) {
+    const { width, height, margin } = options;
+    const svgNode = svgNodeOri.cloneNode(true) as SVGSVGElement;
+
+    // 设置命名空间
+    svgNode.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    svgNode.setAttribute('width', String(width));
+    svgNode.setAttribute('height', String(height));
+
+    // 移除可能导致布局问题的属性
+    svgNode.removeAttribute('viewBox');
+    svgNode.removeAttribute('preserveAspectRatio');
+
+    // 添加白色背景矩形（在最前面）
+    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bgRect.setAttribute('x', '0');
+    bgRect.setAttribute('y', '0');
+    bgRect.setAttribute('width', String(width));
+    bgRect.setAttribute('height', String(height));
+    bgRect.setAttribute('fill', '#ffffff');
+    svgNode.insertBefore(bgRect, svgNode.firstChild);
+
+    // 调整 g 元素的 transform，使用 baseTranslate 居中
+    const gEl = svgNode.querySelector('g');
+    if (gEl) {
+        // 清除原始的 transform（来自 zoom 操作）
+        gEl.removeAttribute('transform');
+        // 设置新的居中 transform
+        gEl.setAttribute('transform', `translate(${baseTranslate[0]}, ${baseTranslate[1]})`);
+    }
+
+    // 提取并内联 CSS 样式
+    const cssStyleText = getCSSStyles(svgNode);
+    appendCSS(cssStyleText, svgNode);
+
+    // 序列化为字符串
+    const serializer = new XMLSerializer();
+    return serializer.serializeToString(svgNode);
+
+    /**
+     * 提取相关 CSS 样式文本
+     */
+    function getCSSStyles(parentElement: Element) {
+        const selectorTextArr: string[] = [];
+
+        // 添加父元素的 ID 和类名
+        if (parentElement.id) {
+            selectorTextArr.push('#' + parentElement.id);
+        }
+        for (let c = 0; c < parentElement.classList.length; c++) {
+            const className = '.' + parentElement.classList[c];
+            if (!selectorTextArr.includes(className)) {
+                selectorTextArr.push(className);
+            }
+        }
+
+        // 添加子元素的 ID 和类名
+        const nodes = parentElement.getElementsByTagName('*');
+        for (let i = 0; i < nodes.length; i++) {
+            const id = nodes[i].id;
+            if (id && !selectorTextArr.includes('#' + id)) {
+                selectorTextArr.push('#' + id);
+            }
+
+            const classes = nodes[i].classList;
+            for (let c = 0; c < classes.length; c++) {
+                const className = '.' + classes[c];
+                if (!selectorTextArr.includes(className)) {
+                    selectorTextArr.push(className);
+                }
+            }
+        }
+
+        // 提取 CSS 规则
+        let extractedCSSText = '';
+        for (let i = 0; i < document.styleSheets.length; i++) {
+            const s = document.styleSheets[i];
+            try {
+                if (!s.cssRules) continue;
+            } catch (e) {
+                if ((e as Error).name !== 'SecurityError') {
+                    throw e;
+                }
+                continue;
+            }
+
+            const cssRules = s.cssRules;
+            for (let r = 0; r < cssRules.length; r++) {
+                const rule = cssRules[r] as CSSRule;
+                if (rule.type === CSSRule.STYLE_RULE) {
+                    const styleRule = rule as CSSStyleRule;
+                    // 检查选择器是否与 SVG 中的元素相关
+                    const selectorText = styleRule.selectorText;
+                    if (selectorText && selectorTextArr.some((sel) => selectorText.includes(sel))) {
+                        extractedCSSText += styleRule.cssText + '\n';
+                    }
+                }
+            }
+        }
+
+        return extractedCSSText;
+    }
+
+    /**
+     * 将 CSS 样式内联到 SVG 中
+     */
+    function appendCSS(cssText: string, element: SVGSVGElement) {
+        if (!cssText) return;
+        const styleElement = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+        styleElement.setAttribute('type', 'text/css');
+        styleElement.textContent = cssText;
+        const refNode = element.hasChildNodes() ? element.children[0] : null;
+        element.insertBefore(styleElement, refNode);
+    }
+}
+
+/**
+ * 将 SVG 字符串转换为图片
+ * ----------------------------------------------------------------------------
+ * 借鉴 org-tree-lib 的实现：
+ *   1. 将 SVG 字符串编码为 base64 数据 URL
+ *   2. 创建 canvas 元素
+ *   3. 创建 Image 对象，加载 SVG
+ *   4. 在 canvas 上绘制图片
+ *   5. 用 canvas.toBlob 导出为 PNG Blob
+ *
+ * @param svgString - SVG 字符串
+ * @param width     - 图片宽度
+ * @param height    - 图片高度
+ * @param format    - 图片格式（默认 'png'）
+ * @returns Promise<Blob> - 图片 Blob 对象
+ */
+function svgString2Image(
+    svgString: string,
+    width: number,
+    height: number,
+    format: string = 'png'
+): Promise<Blob> {
+    const { promise, resolve, reject } = createPromise<Blob>();
+
+    // 将 SVG 字符串编码为 base64 数据 URL
+    const imgsrc = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) {
+        reject(new Error('[svgString2Image] Failed to get canvas context'));
+        return promise;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const image = new Image();
+    image.onload = function () {
+        // 先填充白色背景
+        context.fillStyle = '#FFF';
+        context.fillRect(0, 0, width, height);
+        // 然后绘制 SVG 图像
+        context.drawImage(image, 0, 0, width, height);
+
+        canvas.toBlob(function (blob) {
+            if (blob) {
+                resolve(blob);
+            } else {
+                reject(new Error('[svgString2Image] Failed to create blob'));
+            }
+        }, `image/${format}`);
+    };
+
+    image.onerror = function () {
+        reject(new Error('[svgString2Image] Failed to load image'));
+    };
+
+    image.src = imgsrc;
+
+    return promise;
+}
+
+/**
+ * 计算下载所需的平移和尺寸
+ * ----------------------------------------------------------------------------
+ * 借鉴 org-tree-lib 的 calculateDownloadTranslate 实现
+ * 使用实际渲染的 DOM 尺寸（而非 D3 节点坐标）
+ *
+ * @param svg       - SVG 元素（用于获取实际渲染的 bounding box）
+ * @param elemWidth - 容器宽度
+ * @returns { width, height, baseTranslate }
+ */
+function calculateDownloadTranslate0(svg: SvgSelection, elemWidth: number) {
+    const svgNode = svg.node();
+    if (!svgNode) {
+        return { width: elemWidth, height: 800, baseTranslate: [0, MARGIN.top] };
+    }
+
+    // 获取实际渲染的 g 元素的 bounding box
+    const gEl = svgNode.querySelector('g');
+    if (!gEl) {
+        return { width: elemWidth, height: 800, baseTranslate: [0, MARGIN.top] };
+    }
+
+    const bounds = gEl.getBBox();
+
+    // 使用实际渲染的尺寸（确保覆盖所有内容）
+    const width = Math.max(bounds.width + MARGIN.left + MARGIN.right, elemWidth);
+    const height = Math.max(bounds.height + MARGIN.top + MARGIN.bottom, 800);
+    // 使用实际渲染的尺寸（正好包裹内容，不留多余空白）
+    // const width = bounds.width + MARGIN.left + MARGIN.right;
+    // const height = bounds.height + MARGIN.top + MARGIN.bottom;
+
+    // 计算平移量：让内容从左上角开始（带 margin）
+    // transX = 左边距 - bounds.x（把内容左边界移到左边距位置）
+    // transY = 上边距 - bounds.y（把内容上边界移到上边距位置）
+    const transX = MARGIN.left - bounds.x;
+    const transY = MARGIN.top - bounds.y;
+    const baseTranslate = [transX, transY];
+
+    console.log('[calculateDownloadTranslate] bounds:', bounds);
+    console.log('[calculateDownloadTranslate] calculated:', { width, height, baseTranslate });
+
+    return { width, height, baseTranslate };
+}
+function calculateDownloadTranslate(svg: SvgSelection, elemWidth: number) {
+    const svgNode = svg.node();
+    if (!svgNode) {
+        return { width: elemWidth, height: 800, baseTranslate: [0, MARGIN.top] };
+    }
+
+    // 获取实际渲染的 g 元素
+    const gEl = svgNode.querySelector('g');
+    if (!gEl) {
+        return { width: elemWidth, height: 800, baseTranslate: [0, MARGIN.top] };
+    }
+
+    // 保存原始 transform（来自 zoom 操作）
+    const originalTransform = gEl.getAttribute('transform');
+
+    // 临时移除 transform 以获取准确的 bounds（不受缩放和平移影响）
+    gEl.removeAttribute('transform');
+    const bounds = gEl.getBBox();
+
+    // 恢复原始 transform
+    if (originalTransform) {
+        gEl.setAttribute('transform', originalTransform);
+    }
+
+    console.log('[calculateDownloadTranslate] bounds:', bounds);
+
+    // 图片宽度 = 内容宽度 + 边距，至少为容器宽度
+    const width = Math.max(bounds.width + MARGIN.left + MARGIN.right, elemWidth);
+    // 图片高度 = 内容高度 + 边距，至少为最小高度
+    const height = Math.max(bounds.height + MARGIN.top + MARGIN.bottom, 800);
+
+    // 计算平移量：让内容居中显示
+    const transX = MARGIN.left - bounds.x;
+    const transY = MARGIN.top - bounds.y;
+    const baseTranslate = [transX, transY];
+
+    console.log('[calculateDownloadTranslate] calculated:', { width, height, baseTranslate });
+
+    return { width, height, baseTranslate };
+}
+
+/**
+ * 下载树形图为 PNG 图片
+ * ----------------------------------------------------------------------------
+ * 借鉴 org-tree-lib 的 download 实现：
+ *   1. 计算下载所需的尺寸和平移
+ *   2. 获取 SVG 字符串（包含内联样式）
+ *   3. 转换为 PNG Blob
+ *   4. 使用 file-saver 下载
+ *
+ * @param svg      - D3 选中的 SVG 元素
+ *   @param root     - D3 HierarchyNode 根节点
+ * @param elemWidth - 容器宽度
+ * @param name     - 文件名（默认 'tree-diagram'）
+ */
+export async function downloadTree(
+    svg: SvgSelection,
+    root: d3.HierarchyNode<TreeData>,
+    elemWidth: number,
+    name: string = 'tree-diagram'
+) {
+    try {
+        const svgNode = svg.node();
+        if (!svgNode) {
+            console.warn('[downloadTree] SVG element not found');
+            return;
+        }
+
+        // 计算下载尺寸和偏移（使用实际渲染的 DOM 尺寸）
+        const { width, height, baseTranslate } = calculateDownloadTranslate(svg, elemWidth);
+        console.log('[downloadTree] dimensions:', { width, height, baseTranslate });
+
+        // 获取 SVG 字符串（包含内联 CSS）
+        const svgString = getSVGString(svgNode, baseTranslate as [number, number], {
+            width,
+            height,
+            nodeWidth: NODE_WIDTH,
+            margin: MARGIN
+        });
+        console.log('[downloadTree] svgString length:', svgString.length);
+
+        // 转换为图片并下载
+        console.log('[downloadTree] converting to blob...');
+        const blob = await svgString2Image(svgString, width, height, 'png');
+        console.log('[downloadTree] blob created:', blob.size, 'bytes');
+
+        // 下载
+        console.log('[downloadTree] calling saveAs:', `${name}-${Date.now()}.png`);
+
+        // 使用 file-saver 的 saveAs 方法，第三个参数 true 表示强制下载（创建 object URL）
+        saveAs(blob, `${name}-${Date.now()}.png`, true);
+        console.log('[downloadTree] saveAs called');
+    } catch (e) {
+        console.error('[downloadTree] error:', e);
+        throw e; // 重新抛出错误让调用者知道
     }
 }

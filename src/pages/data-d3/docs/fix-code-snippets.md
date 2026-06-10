@@ -15,6 +15,14 @@
     - [1.8 连线连接点位置不对](#18-连线连接点位置不对)
 2. [视觉样式问题](#2-视觉样式问题)
 3. [数据结构问题](#3-数据结构问题)
+4. [下载功能问题](#4-下载功能问题)
+    - [4.1 下载功能实现（借鉴 org-tree-lib）](#41-下载功能实现借鉴-org-tree-lib)
+    - [4.2 下载图片偏右](#42-下载图片偏右)
+    - [4.3 下载图片偏下](#43-下载图片偏下)
+    - [4.4 背景灰色（灰上加白）](#44-背景灰色灰上加白)
+    - [4.5 Canvas 污染错误](#45-canvas-污染错误)
+    - [4.6 线条宽度异常](#46-线条宽度异常)
+    - [4.7 下载按钮触发](#47-下载按钮触发)
 
 ---
 
@@ -122,7 +130,7 @@ const siblings = root.descendants().filter(
 **解决方案**：三重检查机制
 
 ```typescript
-// d3Tree.ts - dragended() 函数
+// d3Tree.ts - dragEnded() 函数
 const hit = findSameLevelNodeAtDOM(root, d, clientX, clientY);
 
 // 检查1: 未命中任何节点
@@ -446,6 +454,272 @@ export const INTEGRATION_TYPE_NAME: Record<IntegrationTypeKey, string> = {
     deprecate: '停用下线',
     module_merge: '模块整合'
 };
+```
+
+---
+
+## 4. 下载功能问题
+
+### 4.1 下载功能实现（借鉴 org-tree-lib）
+
+**实现原理**：借鉴 `_templates/org-tree-lib/src/index.js` 的 download 方法，实现 SVG 转 PNG 下载
+
+**解决方案**：
+
+```typescript
+// d3Tree.ts - 新增下载相关函数
+
+/**
+ * 计算下载所需的平移和尺寸
+ * 使用实际渲染的 DOM 尺寸（而非 D3 节点坐标）
+ */
+function calculateDownloadTranslate(svg: SvgSelection, elemWidth: number) {
+    const svgNode = svg.node();
+    const gEl = svgNode?.querySelector('g');
+    if (!svgNode || !gEl) {
+        return { width: elemWidth, height: 800, baseTranslate: [0, MARGIN.top] };
+    }
+
+    const bounds = gEl.getBBox();
+    const width = Math.max(bounds.width + MARGIN.left + MARGIN.right, elemWidth);
+    const height = Math.max(bounds.height + MARGIN.top + MARGIN.bottom, 800);
+
+    // 计算平移量：让内容从左上角开始（带 margin）
+    const transX = MARGIN.left - bounds.x;
+    const transY = MARGIN.top - bounds.y;
+    const baseTranslate = [transX, transY];
+
+    return { width, height, baseTranslate };
+}
+
+/**
+ * 获取 SVG 字符串（包含内联 CSS 样式）
+ */
+function getSVGString(
+    svgNodeOri: SVGSVGElement,
+    baseTranslate: [number, number],
+    options: { width: number; height: number; nodeWidth: number; margin: typeof MARGIN }
+) {
+    const { width, height } = options;
+    const svgNode = svgNodeOri.cloneNode(true) as SVGSVGElement;
+
+    svgNode.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    svgNode.setAttribute('width', String(width));
+    svgNode.setAttribute('height', String(height));
+
+    // 移除可能导致布局问题的属性
+    svgNode.removeAttribute('viewBox');
+    svgNode.removeAttribute('preserveAspectRatio');
+
+    // 添加白色背景矩形（在最前面）
+    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bgRect.setAttribute('x', '0');
+    bgRect.setAttribute('y', '0');
+    bgRect.setAttribute('width', String(width));
+    bgRect.setAttribute('height', String(height));
+    bgRect.setAttribute('fill', '#ffffff');
+    svgNode.insertBefore(bgRect, svgNode.firstChild);
+
+    // 调整 g 元素的 transform
+    const gEl = svgNode.querySelector('g');
+    if (gEl) {
+        gEl.removeAttribute('transform');
+        gEl.setAttribute('transform', `translate(${baseTranslate[0]}, ${baseTranslate[1]})`);
+    }
+
+    // 提取并内联 CSS 样式
+    const cssStyleText = getCSSStyles(svgNode);
+    appendCSS(cssStyleText, svgNode);
+
+    const serializer = new XMLSerializer();
+    return serializer.serializeToString(svgNode);
+}
+
+/**
+ * 将 SVG 字符串转换为图片 Blob
+ */
+function svgString2Image(
+    svgString: string,
+    width: number,
+    height: number,
+    format: string = 'png'
+): Promise<Blob> {
+    const { promise, resolve, reject } = createPromise<Blob>();
+    const imgsrc = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) {
+        reject(new Error('[svgString2Image] Failed to get canvas context'));
+        return promise;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const image = new Image();
+    image.onload = function () {
+        // 先填充白色背景
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, width, height);
+        // 然后绘制 SVG 图像
+        context.drawImage(image, 0, 0, width, height);
+
+        canvas.toBlob(function (blob) {
+            if (blob) {
+                resolve(blob);
+            } else {
+                reject(new Error('[svgString2Image] Failed to create blob'));
+            }
+        }, `image/${format}`);
+    };
+
+    image.onerror = function () {
+        reject(new Error('[svgString2Image] Failed to load image'));
+    };
+
+    image.src = imgsrc;
+    return promise;
+}
+
+/**
+ * 下载树形图为 PNG 图片
+ */
+export async function downloadTree(
+    svg: SvgSelection,
+    root: d3.HierarchyNode<TreeData>,
+    elemWidth: number,
+    name: string = 'tree-diagram'
+) {
+    const svgNode = svg.node();
+    if (!svgNode) return;
+
+    const { width, height, baseTranslate } = calculateDownloadTranslate(svg, elemWidth);
+    const svgString = getSVGString(svgNode, baseTranslate as [number, number], {
+        width,
+        height,
+        nodeWidth: NODE_WIDTH,
+        margin: MARGIN
+    });
+    const blob = await svgString2Image(svgString, width, height, 'png');
+    saveAs(blob, `${name}-${Date.now()}.png`, true);
+}
+```
+
+---
+
+### 4.2 下载图片偏右
+
+**问题根因**：居中计算逻辑错误，使用了复杂的 D3 节点坐标计算
+
+**解决方案**：使用实际渲染的 bounding box 计算平移量
+
+```typescript
+// 错误：使用 D3 节点坐标
+const box = getTreeBox(root);
+const disX = 2 * Math.max(Math.abs(box.right.x ?? 0), Math.abs(box.left.x ?? 0));
+const trans = Math.round(width / 2 - (width - elemWidth - NODE_WIDTH) / 2);
+
+// 正确：使用实际渲染的 DOM 尺寸
+const bounds = gEl.getBBox();
+const transX = MARGIN.left - bounds.x; // 左边界对齐左边距
+```
+
+---
+
+### 4.3 下载图片偏下
+
+**问题根因**：`transY` 计算错误，导致内容被向下偏移过多
+
+**解决方案**：让内容上边界对齐上边距
+
+```typescript
+// 错误：复杂的居中计算
+const transY = MARGIN.top - bounds.y; // 计算逻辑有误
+
+// 正确：直接对齐上边距
+const transY = MARGIN.top - bounds.y; // 让内容上边界移到上边距位置
+```
+
+---
+
+### 4.4 背景灰色（灰上加白）
+
+**问题根因**：
+
+1. SVG 的 `viewBox` 和 `preserveAspectRatio` 属性导致布局错乱
+2. canvas 绘制时未填充背景
+
+**解决方案**：
+
+```typescript
+// 移除可能导致布局问题的属性
+svgNode.removeAttribute('viewBox');
+svgNode.removeAttribute('preserveAspectRatio');
+
+// 添加白色背景矩形
+const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+bgRect.setAttribute('x', '0');
+bgRect.setAttribute('y', '0');
+bgRect.setAttribute('width', String(width));
+bgRect.setAttribute('height', String(height));
+bgRect.setAttribute('fill', '#ffffff');
+svgNode.insertBefore(bgRect, svgNode.firstChild);
+
+// canvas 绘制前先填充白色背景
+context.fillStyle = '#ffffff';
+context.fillRect(0, 0, width, height);
+context.drawImage(image, 0, 0, width, height);
+```
+
+---
+
+### 4.5 Canvas 污染错误
+
+**问题描述**：`Uncaught SecurityError: Failed to execute 'toBlob' on 'HTMLCanvasElement': Tainted canvases may not be exported.`
+
+**问题根因**：SVG 中可能包含外部资源（如外部图片）
+
+**解决方案**：使用 base64 编码的 SVG 数据 URL
+
+```typescript
+const imgsrc = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+```
+
+---
+
+### 4.6 线条宽度异常
+
+**问题根因**：CSS 样式未正确内联
+
+**解决方案**：提取并内联所有相关 CSS 样式
+
+```typescript
+function getCSSStyles(parentElement: Element) {
+    const selectorTextArr: string[] = [];
+    // 收集所有相关样式选择器...
+}
+
+function appendCSS(cssText: string, element: Element) {
+    const styleElement = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    styleElement.textContent = cssText;
+    element.appendChild(styleElement);
+}
+```
+
+---
+
+### 4.7 下载按钮触发
+
+**问题根因**：`downloadTree` 是 async 函数，但调用时未 await
+
+**解决方案**：
+
+```typescript
+// GraphCanvas.vue
+async function handleDownload() {
+    await downloadTree(d3Instance.svg, d3Instance.root, container.clientWidth);
+}
 ```
 
 ---

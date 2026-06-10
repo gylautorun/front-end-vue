@@ -40,7 +40,7 @@
 | 1    | 拖拽节点不在鼠标位置 | `event.dx/dy` 是增量，未正确累加 | 使用 `dataset` 维护累计 transform          | `d3Tree.ts:419-444` |
 | 2    | 拖拽到其他节点无反应 | DOM 命中检测无法识别可视区外节点 | 添加坐标计算回退机制                       | `d3Tree.ts:633-730` |
 | 3    | 非同级节点响应拖拽   | 缺少同级判定逻辑                 | 添加 `n.parent.data.id === sourceParentId` | `d3Tree.ts:663`     |
-| 4    | 拖拽到自己触发整合   | 未排除自身检测                   | 三重检查：DOM/坐标/dragended               | `d3Tree.ts:606-624` |
+| 4    | 拖拽到自己触发整合   | 未排除自身检测                   | 三重检查：DOM/坐标/dragEnded               | `d3Tree.ts:606-624` |
 | 5    | 画布边缘不自动平移   | 缺少边缘检测和平移逻辑           | 添加 `zoom.translateBy` 自动平移           | `d3Tree.ts:465-510` |
 | 6    | 平移方向相反         | 平移方向逻辑错误                 | 修正方向：鼠标左边缘→画布右移              | `d3Tree.ts:486-502` |
 | 7    | 可视区外节点无法命中 | 手动解析 transform 不准确        | 使用 SVG 矩阵变换 API                      | `d3Tree.ts:677-703` |
@@ -94,7 +94,7 @@
 │  │  • initD3()        - 初始化 SVG + 布局 + 绑定       │   │
 │  │  • renderTree()    - 渲染节点和连线                 │   │
 │  │  • dragged()       - 拖拽过程处理                   │   │
-│  │  • dragended()     - 拖拽结束处理                   │   │
+│  │  • dragEnded()     - 拖拽结束处理                   │   │
 │  │  • 落点检测函数     - DOM 命中 + 坐标计算            │   │
 │  └─────────────────────────────────────────────────────┘   │
 ├─────────────────────────────────────────────────────────────┤
@@ -204,9 +204,9 @@ export function initD3(containerId, treeData, onNodeClick, ...) {
 
     // 7. 绑定拖拽事件
     node.call(d3.drag()
-        .on('start', dragstarted)
+        .on('start', dragStarted)
         .on('drag', dragged)
-        .on('end', dragended));
+        .on('end', dragEnded));
 
     // 8. 初始化视图
     resetZoom(svg, g, width, height, zoom);
@@ -219,9 +219,9 @@ export function initD3(containerId, treeData, onNodeClick, ...) {
 
 | 阶段  | 函数          | 核心逻辑                                      |
 | ----- | ------------- | --------------------------------------------- |
-| start | `dragstarted` | 记录初始位置到 `dataset`                      |
+| start | `dragStarted` | 记录初始位置到 `dataset`                      |
 | drag  | `dragged`     | 累加增量 + 更新视觉位置 + 边缘平移 + 实时高亮 |
-| end   | `dragended`   | 检测落点 + 触发整合弹框 + 重置位置            |
+| end   | `dragEnded`   | 检测落点 + 触发整合弹框 + 重置位置            |
 
 #### 3.2.2 边缘自动平移
 
