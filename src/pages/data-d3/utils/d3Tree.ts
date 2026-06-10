@@ -197,11 +197,35 @@ export function initD3(
         .append<SVGGElement>('g')
         .attr('class', 'link-group');
 
-    // 创建水平连线生成器， 使用 d3.linkHorizontal() 创建水平连线（参考文件的核心实现）
+    // 创建水平连线生成器，使用自定义 source/target 函数约束连接点位置
+    // ------------------------------------------------------------------------
+    // 默认的 d3.linkHorizontal 会从节点中心连线，我们需要：
+    //   - 源节点（父节点）：从右侧中间位置出发
+    //   - 目标节点（子节点）：从左侧中间位置进入
+    //
+    // 注意：.source()/.target() 返回的 {x, y} 会被 .x()/.y() 函数处理，
+    //       由于 .x((d) => d.y) 和 .y((d) => d.x) 交换了坐标，
+    //       所以这里需要反向设置：x 存垂直坐标，y 存水平坐标
     const linkGenerator = d3
         .linkHorizontal<d3.HierarchyLink<TreeData>, d3.HierarchyNode<TreeData>>()
         .x((d) => d.y ?? 0)
-        .y((d) => d.x ?? 0);
+        .y((d) => d.x ?? 0)
+        // 自定义源节点连接点：右侧中间位置
+        .source(
+            (d) =>
+                ({
+                    x: d.source.x ?? 0, // 垂直坐标（传给 .y()）
+                    y: (d.source.y ?? 0) + NODE_WIDTH / 2 // 水平坐标（传给 .x()），向右偏移到右侧边缘
+                }) as unknown as d3.HierarchyNode<TreeData>
+        )
+        // 自定义目标节点连接点：左侧中间位置
+        .target(
+            (d) =>
+                ({
+                    x: d.target.x ?? 0, // 垂直坐标（传给 .y()）
+                    y: (d.target.y ?? 0) - NODE_WIDTH / 2 // 水平坐标（传给 .x()），向左偏移到左侧边缘
+                }) as unknown as d3.HierarchyNode<TreeData>
+        );
 
     // 使用连线生成器创建路径
     const path = link
@@ -290,6 +314,7 @@ export function initD3(
     //      （drag 事件触发时 currentTarget 可能是 null / window）
     //   3. drag 过程中只平移视觉位置（不修改 d.x / d.y），避免污染 d3.hierarchy
     //   4. dragend 用 d3.pointers 转换到 SVG 坐标系，再匹配同层级节点位置
+    //   5. 拖拽到画布边缘时自动平移画布，方便将最后一个节点拖到第一个节点
     //
     // 关键细节：d3-drag 的 .on(type, listener) 回调的 `this` 指向当前被拖拽元素
     //     但是 d3-drag v3 的类型签名是 `this: D3DragEvent`，TypeScript 会推错。
@@ -310,7 +335,7 @@ export function initD3(
                 const gEl = document.querySelector(
                     `g.node[data-id="${CSS.escape(nodeId)}"]`
                 ) as SVGGElement | null;
-                if (gEl) dragged(gEl, event, d, root);
+                if (gEl) dragged(gEl, event, d, root, svg, zoom);
             })
             .on('end', function (this: unknown, event, d) {
                 // dragend 中 this 不可靠 —— 用 currentDraggingNodeId（dragstart 时记录）
@@ -375,30 +400,36 @@ function dragstarted(d: d3.HierarchyNode<TreeData>) {
 }
 
 /**
- * 拖拽中：实时更新节点视觉位置（不修改 d.x / d.y）
+ * 拖拽中：实时更新节点视觉位置（不修改 d.x / d.y）+ 画布边缘自动平移
  * ----------------------------------------------------------------------------
  * 关键设计：
  *   - 不再把坐标写回 d.x / d.y（避免污染 d3.hierarchy 的层级结构）
  *   - 用 dataset 维护"当前累计 transform" + drag 增量 (event.dx, event.dy)
  *     确保节点准确贴在鼠标位置
  *   - 命中检测改用 DOM 命中（document.elementsFromPoint），不做坐标系转换
+ *   - 拖拽到画布边缘时自动平移画布，方便将最后一个节点拖到第一个节点
  *
  * 步骤：
  *   1. 拿原 transform（dragstart 时记录在 dataset.curTX / curTY）
  *   2. 累加本次 event.dx / event.dy（屏幕坐标增量）
  *   3. 节点 transform = translate(curTX + dx, curTY + dy)
- *   4. 用 DOM 命中找鼠标下方的同级节点，加 .drop-target 高亮
+ *   4. 检查鼠标是否在画布边缘，若是则自动平移画布
+ *   5. 用 DOM 命中找鼠标下方的同级节点，加 .drop-target 高亮
  *
  * @param gEl   节点 g 元素（this）
  * @param event d3 drag 事件
  * @param d     被拖拽的 HierarchyNode
  * @param root  当前 HierarchyNode 根（用于找鼠标下方的同级节点）
+ * @param svg   D3 选中的 SVG 元素（用于自动平移）
+ * @param zoom  D3 zoom 行为（用于自动平移）
  */
 function dragged(
     gEl: SVGGElement,
     event: d3.D3DragEvent<SVGGElement, d3.HierarchyNode<TreeData>, d3.HierarchyNode<TreeData>>,
     d: d3.HierarchyNode<TreeData>,
-    root: d3.HierarchyNode<TreeData>
+    root: d3.HierarchyNode<TreeData>,
+    svg: SvgSelection,
+    zoom: d3.ZoomBehavior<SVGSVGElement, null>
 ) {
     // 关键防御：检查 d 是否真的拿到了 HierarchyNode
     // d3-drag v3 的 d = event.subject
@@ -453,6 +484,53 @@ function dragged(
     } else if (sourceEvent && 'clientX' in sourceEvent) {
         clientX = (sourceEvent as MouseEvent).clientX;
         clientY = (sourceEvent as MouseEvent).clientY;
+    }
+
+    // 画布边缘自动平移：当鼠标靠近画布边缘时，自动平移画布
+    // ------------------------------------------------------------------------
+    // 边缘区域宽度（鼠标进入此区域时触发自动平移）
+    const edgeMargin = 100;
+    // 自动平移速度（像素/帧）
+    const panSpeed = 8;
+
+    const svgEl = svg.node();
+    if (svgEl) {
+        const rect = svgEl.getBoundingClientRect();
+        const canvasWidth = rect.width;
+        const canvasHeight = rect.height;
+
+        // 计算鼠标在画布内的相对位置
+        const relativeX = clientX - rect.left;
+        const relativeY = clientY - rect.top;
+
+        // 计算需要平移的量
+        let panDX = 0;
+        let panDY = 0;
+
+        // 左边边缘：鼠标在左边时，画布向右平移（显示左边的内容）
+        if (relativeX < edgeMargin) {
+            panDX = panSpeed;
+        }
+        // 右边边缘：鼠标在右边时，画布向左平移（显示右边的内容）
+        else if (relativeX > canvasWidth - edgeMargin) {
+            panDX = -panSpeed;
+        }
+
+        // 顶部边缘：鼠标在顶部时，画布向下平移（显示顶部的内容）
+        if (relativeY < edgeMargin) {
+            panDY = panSpeed;
+        }
+        // 底部边缘：鼠标在底部时，画布向上平移（显示底部的内容）
+        else if (relativeY > canvasHeight - edgeMargin) {
+            panDY = -panSpeed;
+        }
+
+        // 如果需要平移，执行平移
+        if (panDX !== 0 || panDY !== 0) {
+            svg.transition()
+                .duration(10)
+                .call(zoom.translateBy as any, panDX, panDY);
+        }
     }
 
     clearDropTargetHighlight();
@@ -577,6 +655,9 @@ function dragended(
  * 优势：完全不用坐标转换，浏览器直接告诉我们鼠标下是哪个 DOM
  *      避免 d.x / d.y / viewBox / zoom transform 等坐标系不一致问题
  *
+ * 回退机制：如果 DOM 命中失败或找到的不是同级节点，
+ *          会自动尝试基于坐标计算的方式（可以检测不在可视区内的节点）
+ *
  * @param root    当前 HierarchyNode 根
  * @param source  源节点（被拖拽的）
  * @param clientX 鼠标 clientX（DOM 坐标）
@@ -625,7 +706,7 @@ function findSameLevelNodeAtDOM(
         }
     }
 
-    // DOM 命中未找到或不是同级，尝试基于坐标计算的方式
+    // DOM 命中未找到、不是同级、或者是自己，都尝试基于坐标计算的方式
     // 这种方式可以检测不在可视区内的节点
     return findSameLevelNodeByCoord(root, source, clientX, clientY);
 }
@@ -634,10 +715,11 @@ function findSameLevelNodeAtDOM(
  * 通过坐标计算查找同级节点（用于 DOM 命中失败时的回退）
  * ----------------------------------------------------------------------------
  * 原理：
- *   1. 获取当前 SVG 的 transform（缩放和平移）
- *   2. 将鼠标 client 坐标转换为 SVG 内部坐标
- *   3. 遍历同级节点，计算节点中心与鼠标点的距离
- *   4. 返回距离最近且在阈值内的节点
+ *   1. 使用 SVG 的 createSVGPoint() 和矩阵变换将 client 坐标转换为 SVG 内部坐标
+ *   2. 遍历同级节点，计算节点中心与鼠标点的距离
+ *   3. 返回距离最近且在阈值内的节点
+ *
+ * 优势：可以检测不在可视区内的节点
  *
  * @param root    当前 HierarchyNode 根
  * @param source  源节点（被拖拽的）
@@ -673,37 +755,33 @@ function findSameLevelNodeByCoord(
         return null;
     }
 
-    // 获取当前的 transform
+    // 使用 SVG 的 createSVGPoint 方法进行坐标转换（最可靠的方式）
+    const svgPoint = svgEl.createSVGPoint();
+    svgPoint.x = clientX;
+    svgPoint.y = clientY;
+
+    // 获取 g 元素的变换矩阵
     const gEl = svgEl.querySelector('g');
     if (!gEl) {
         return null;
     }
 
-    // 解析当前的 transform（scale 和 translate）
-    let scale = 1;
-    let translateX = 0;
-    let translateY = 0;
-
-    const transformAttr = gEl.getAttribute('transform');
-    if (transformAttr) {
-        const scaleMatch = transformAttr.match(/scale\(([\d.]+)\)/);
-        const translateMatch = transformAttr.match(/translate\(([\d.-]+),\s*([\d.-]+)\)/);
-
-        if (scaleMatch) {
-            scale = parseFloat(scaleMatch[1]);
-        }
-        if (translateMatch) {
-            translateX = parseFloat(translateMatch[1]);
-            translateY = parseFloat(translateMatch[2]);
-        }
+    // 获取从 screen 坐标到 g 元素内部坐标的逆变换矩阵
+    const screenCTM = gEl.getScreenCTM();
+    if (!screenCTM) {
+        return null;
     }
 
-    // 获取 SVG 的 bounding rect
-    const svgRect = svgEl.getBoundingClientRect();
+    // 求逆矩阵，将屏幕坐标转换为 g 元素内部坐标
+    const inverseCTM = screenCTM.inverse();
+    if (!inverseCTM) {
+        return null;
+    }
 
-    // 将 client 坐标转换为 SVG 内部坐标
-    const svgX = (clientX - svgRect.left - translateX) / scale;
-    const svgY = (clientY - svgRect.top - translateY) / scale;
+    // 应用逆变换，得到 SVG 内部坐标
+    const transformedPoint = svgPoint.matrixTransform(inverseCTM);
+    const svgX = transformedPoint.x;
+    const svgY = transformedPoint.y;
 
     // 节点宽度和高度（用于计算点击区域）
     const NODE_WIDTH = 160;
@@ -767,11 +845,27 @@ function clearDropTargetHighlight() {
  * @param labelText 标签文字 selection
  */
 export function updateLinks(path: PathSelection, labelBg: RectSelection, labelText: TextSelection) {
-    // 创建连线生成器
+    // 创建连线生成器（与初始化时相同的配置，约束连接点位置）
     const linkGenerator = d3
         .linkHorizontal<d3.HierarchyLink<TreeData>, d3.HierarchyNode<TreeData>>()
         .x((d) => d.y ?? 0)
-        .y((d) => d.x ?? 0);
+        .y((d) => d.x ?? 0)
+        // 自定义源节点连接点：右侧中间位置
+        .source(
+            (d) =>
+                ({
+                    x: d.source.x ?? 0, // 垂直坐标（传给 .y()）
+                    y: (d.source.y ?? 0) + NODE_WIDTH / 2 // 水平坐标（传给 .x()），向右偏移到右侧边缘
+                }) as unknown as d3.HierarchyNode<TreeData>
+        )
+        // 自定义目标节点连接点：左侧中间位置
+        .target(
+            (d) =>
+                ({
+                    x: d.target.x ?? 0, // 垂直坐标（传给 .y()）
+                    y: (d.target.y ?? 0) - NODE_WIDTH / 2 // 水平坐标（传给 .x()），向左偏移到左侧边缘
+                }) as unknown as d3.HierarchyNode<TreeData>
+        );
 
     // 更新连线路径
     path.attr('d', linkGenerator);
