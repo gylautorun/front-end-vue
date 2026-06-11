@@ -10,12 +10,11 @@
  *   1. 根组件 index.vue 启动时调用 deepClone(initialTreeData) 得到当前树
  *   2. 通过 props 传给 GraphCanvas → d3Tree.initD3()
  *   3. d3.tree() 用此数据构建 Hierarchy 模型并渲染
- *   4. 默认无 integrationType，连线显示灰色
- *   5. 当通过拖拽整合或绑定关系后，会添加 integrationType 和 integrationTypeName
- *       - 节点上的 integrationType (key) 决定连线颜色（参考 EDGE_STYLES）
- *       - 中文名通过 INTEGRATION_TYPE_NAME[key] 获取，写入 integrationTypeName
+ *   4. 节点上的 integrationType (key) 决定连线颜色（参考 EDGE_STYLES）
+ *      中文名通过 INTEGRATION_TYPE_NAME[key] 获取，写入 integrationTypeName
  */
-import { TreeData, INTEGRATION_TYPE_NAME, IntegrationTypeKey } from '../types';
+import type { TreeData } from '../types';
+import { INTEGRATION_TYPE_NAME, IntegrationTypeKey } from '../types';
 
 /**
  * 初始树数据
@@ -31,8 +30,6 @@ import { TreeData, INTEGRATION_TYPE_NAME, IntegrationTypeKey } from '../types';
  *   children             [...]        - 第一层子节点
  *   modules              缺省         - 根节点下没有功能模块
  *
- * - 默认无 integrationType，所有连线显示灰色
- * - 当用户操作整合方式后，会动态添加 integrationType 和 integrationTypeName
  * 子节点示例（app1 - 教育管理一体化平台）：
  *   - integrationType: 'merge' → 连线用 EDGE_STYLES.merge = 红色
  *   - integrationTypeName: '合并'
@@ -55,8 +52,8 @@ export const initialTreeData: TreeData = {
             level: 'domain',
             dept: '教育局',
             owner: '李XX',
-            integrationType: IntegrationTypeKey.base,
-            integrationTypeName: INTEGRATION_TYPE_NAME.base,
+            integrationType: IntegrationTypeKey.merge,
+            integrationTypeName: INTEGRATION_TYPE_NAME.merge,
             modules: [
                 {
                     id: 'app1-m1',
@@ -87,8 +84,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '教育局',
                     owner: '刘XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.integration,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.integration,
                     modules: [
                         {
                             id: 'app1-c1-m1',
@@ -119,8 +116,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '信息中心',
                     owner: '杨XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.integration,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.integration,
                     modules: [
                         {
                             id: 'app1-c2-m1',
@@ -151,8 +148,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '信息中心',
                     owner: '周XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.integration,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.integration,
                     modules: [
                         {
                             id: 'app1-c3-m1',
@@ -177,6 +174,14 @@ export const initialTreeData: TreeData = {
                         }
                     ]
                 }
+            ],
+            relations: [
+                {
+                    targetId: 'app2',
+                    targetName: '学生学籍管理系统',
+                    type: IntegrationTypeKey.integration,
+                    name: '接口对接'
+                }
             ]
         },
         {
@@ -185,8 +190,8 @@ export const initialTreeData: TreeData = {
             level: 'dept_composite',
             dept: '教育局',
             owner: '张XX',
-            integrationType: IntegrationTypeKey.base,
-            integrationTypeName: INTEGRATION_TYPE_NAME.base,
+            integrationType: IntegrationTypeKey.migrate,
+            integrationTypeName: INTEGRATION_TYPE_NAME.migrate,
             modules: [
                 {
                     id: 'app2-m1',
@@ -224,8 +229,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '教育局',
                     owner: '郑XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.integration,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.integration,
                     modules: [
                         {
                             id: 'app2-c1-m1',
@@ -256,8 +261,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '教育局',
                     owner: '冯XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.integration,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.integration,
                     modules: [
                         {
                             id: 'app2-c2-m1',
@@ -288,8 +293,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '信息中心',
                     owner: '何XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.integration,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.integration,
                     modules: [
                         {
                             id: 'app2-c3-m1',
@@ -314,6 +319,14 @@ export const initialTreeData: TreeData = {
                         }
                     ]
                 }
+            ],
+            relations: [
+                {
+                    targetId: 'app1',
+                    targetName: '教育管理一体化平台',
+                    type: IntegrationTypeKey.integration,
+                    name: '接口对接'
+                }
             ]
         },
         {
@@ -322,8 +335,8 @@ export const initialTreeData: TreeData = {
             level: 'dept_single',
             dept: '教育局',
             owner: '王XX',
-            integrationType: IntegrationTypeKey.base,
-            integrationTypeName: INTEGRATION_TYPE_NAME.base,
+            integrationType: IntegrationTypeKey.integration,
+            integrationTypeName: INTEGRATION_TYPE_NAME.integration,
             modules: [
                 {
                     id: 'app3-m1',
@@ -347,8 +360,8 @@ export const initialTreeData: TreeData = {
                     level: 'dept_single',
                     dept: '招生办',
                     owner: '孙XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.integration,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.integration,
                     modules: [
                         {
                             id: 'app5-m1',
@@ -372,8 +385,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '科研处',
                     owner: '周XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.integration,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.integration,
                     modules: [
                         {
                             id: 'app6-m1',
@@ -397,8 +410,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '人事处',
                     owner: '冯XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.integration,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.integration,
                     modules: [
                         {
                             id: 'app3-c3-m1',
@@ -431,8 +444,8 @@ export const initialTreeData: TreeData = {
             level: 'office_single',
             dept: '教研室',
             owner: '赵XX',
-            integrationType: IntegrationTypeKey.base,
-            integrationTypeName: INTEGRATION_TYPE_NAME.base,
+            integrationType: IntegrationTypeKey.deprecate,
+            integrationTypeName: INTEGRATION_TYPE_NAME.deprecate,
             modules: [
                 {
                     id: 'app4-m1',
@@ -450,8 +463,8 @@ export const initialTreeData: TreeData = {
             level: 'dept_composite',
             dept: '安保处',
             owner: '陈XX',
-            integrationType: IntegrationTypeKey.base,
-            integrationTypeName: INTEGRATION_TYPE_NAME.base,
+            integrationType: IntegrationTypeKey.module_merge,
+            integrationTypeName: INTEGRATION_TYPE_NAME.module_merge,
             modules: [
                 {
                     id: 'app7-m1',
@@ -475,8 +488,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '安保处',
                     owner: '黄XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.integration,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.integration,
                     modules: [
                         {
                             id: 'app7-c1-m1',
@@ -507,8 +520,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '安保处',
                     owner: '梁XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.integration,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.integration,
                     modules: [
                         {
                             id: 'app7-c2-m1',
@@ -539,8 +552,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '安保处',
                     owner: '宋XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.integration,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.integration,
                     modules: [
                         {
                             id: 'app7-c3-m1',
@@ -573,8 +586,8 @@ export const initialTreeData: TreeData = {
             level: 'dept_composite',
             dept: '信息中心',
             owner: '许XX',
-            integrationType: IntegrationTypeKey.base,
-            integrationTypeName: INTEGRATION_TYPE_NAME.base,
+            integrationType: IntegrationTypeKey.integration,
+            integrationTypeName: INTEGRATION_TYPE_NAME.integration,
             modules: [
                 {
                     id: 'app8-m1',
@@ -598,8 +611,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '图书馆',
                     owner: '韩XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.merge,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.merge,
                     modules: [
                         {
                             id: 'app8-c1-m1',
@@ -630,8 +643,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '信息中心',
                     owner: '曾XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.merge,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.merge,
                     modules: [
                         {
                             id: 'app8-c2-m1',
@@ -662,8 +675,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '教研处',
                     owner: '肖XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.merge,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.merge,
                     modules: [
                         {
                             id: 'app8-c3-m1',
@@ -696,8 +709,8 @@ export const initialTreeData: TreeData = {
             level: 'dept_composite',
             dept: '财务处',
             owner: '董XX',
-            integrationType: IntegrationTypeKey.base,
-            integrationTypeName: INTEGRATION_TYPE_NAME.base,
+            integrationType: IntegrationTypeKey.migrate,
+            integrationTypeName: INTEGRATION_TYPE_NAME.migrate,
             modules: [
                 {
                     id: 'app9-m1',
@@ -721,8 +734,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '财务处',
                     owner: '吕XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.integration,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.integration,
                     modules: [
                         {
                             id: 'app9-c1-m1',
@@ -753,8 +766,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '财务处',
                     owner: '卢XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.integration,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.integration,
                     modules: [
                         {
                             id: 'app9-c2-m1',
@@ -785,8 +798,8 @@ export const initialTreeData: TreeData = {
                     level: 'office_single',
                     dept: '采购办',
                     owner: '蔡XX',
-                    integrationType: IntegrationTypeKey.base,
-                    integrationTypeName: INTEGRATION_TYPE_NAME.base,
+                    integrationType: IntegrationTypeKey.integration,
+                    integrationTypeName: INTEGRATION_TYPE_NAME.integration,
                     modules: [
                         {
                             id: 'app9-c3-m1',

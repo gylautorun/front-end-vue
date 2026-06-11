@@ -26,48 +26,66 @@
         <div class="legend-section">
             <label>🔗 整合方式</label>
             <div class="legend-item">
-                <div class="legend-line solid" style="background: #f5222d"></div>
-                合并
+                <div class="legend-line solid" :style="{ background: EDGE_STYLES.merge }"></div>
+                {{ INTEGRATION_TYPE_NAME.merge }}
             </div>
             <div class="legend-item">
-                <div class="legend-line solid" style="background: #1890ff"></div>
-                迁移
+                <div class="legend-line solid" :style="{ background: EDGE_STYLES.migrate }"></div>
+                {{ INTEGRATION_TYPE_NAME.migrate }}
             </div>
             <div class="legend-item">
-                <div class="legend-line solid" style="background: #52c41a"></div>
-                接口对接
+                <div
+                    class="legend-line solid"
+                    :style="{ background: EDGE_STYLES.integration }"
+                ></div>
+                {{ INTEGRATION_TYPE_NAME.integration }}
             </div>
             <div class="legend-item">
-                <div class="legend-line dashed" style="background: #d9d9d9"></div>
-                停用下线
+                <div
+                    class="legend-line dashed"
+                    :style="{ background: EDGE_STYLES.deprecate }"
+                ></div>
+                {{ INTEGRATION_TYPE_NAME.deprecate }}
             </div>
             <div class="legend-item">
-                <div class="legend-line solid" style="background: #722ed1"></div>
-                模块整合
+                <div
+                    class="legend-line solid"
+                    :style="{ background: EDGE_STYLES.module_merge }"
+                ></div>
+                {{ INTEGRATION_TYPE_NAME.module_merge }}
             </div>
         </div>
 
         <div class="legend-section">
             <label>🏷️ 层级类型</label>
             <div class="legend-item">
-                <div class="legend-color" style="background: #f5222d"></div>
-                领域级应用
+                <div class="legend-color" :style="{ background: LEVEL_CONFIG.domain.color }"></div>
+                {{ LEVEL_CONFIG.domain.name }}
             </div>
             <div class="legend-item">
-                <div class="legend-color" style="background: #fa8c16"></div>
-                部门级综合应用
+                <div
+                    class="legend-color"
+                    :style="{ background: LEVEL_CONFIG.dept_composite.color }"
+                ></div>
+                {{ LEVEL_CONFIG.dept_composite.name }}
             </div>
             <div class="legend-item">
-                <div class="legend-color" style="background: #1890ff"></div>
-                部门级单点应用
+                <div
+                    class="legend-color"
+                    :style="{ background: LEVEL_CONFIG.dept_single.color }"
+                ></div>
+                {{ LEVEL_CONFIG.dept_single.name }}
             </div>
             <div class="legend-item">
-                <div class="legend-color" style="background: #8c8c8c"></div>
-                处室级单点应用
+                <div
+                    class="legend-color"
+                    :style="{ background: LEVEL_CONFIG.office_single.color }"
+                ></div>
+                {{ LEVEL_CONFIG.office_single.name }}
             </div>
             <div class="legend-item">
-                <div class="legend-color" style="background: #722ed1"></div>
-                功能模块
+                <div class="legend-color" :style="{ background: LEVEL_CONFIG.module.color }"></div>
+                {{ LEVEL_CONFIG.module.name }}
             </div>
         </div>
 
@@ -112,6 +130,7 @@
  * ========================================================================
  */
 import type { SelectedNode } from '../types';
+import { EDGE_STYLES, INTEGRATION_TYPE_NAME, LEVEL_CONFIG } from '../types';
 
 /** 父组件传入的 props：已选节点 + 数量 */
 defineProps<{

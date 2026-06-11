@@ -57,12 +57,42 @@
                 @clear-selection="clearSelection"
                 @select-node="selectNode"
                 @toggle-select="toggleSelect"
-                @show-add-node-modal="showAddModal = true"
-                @show-add-module-modal="showAddModuleModal = true"
-                @show-bind-relation-modal="showBindRelationModal = true"
-                @show-edit-node-modal="showEditModal = true"
-                @show-integration-modal="showIntegrationModal = true"
-                @delete-node="deleteNode"
+                @show-add-node-modal="
+                    (nodeId) => {
+                        contextMenuNodeId = nodeId;
+                        showAddModal = true;
+                    }
+                "
+                @show-add-module-modal="
+                    (nodeId) => {
+                        contextMenuNodeId = nodeId;
+                        showAddModuleModal = true;
+                    }
+                "
+                @show-bind-relation-modal="
+                    (nodeId) => {
+                        contextMenuNodeId = nodeId;
+                        showBindRelationModal = true;
+                    }
+                "
+                @show-edit-node-modal="
+                    (nodeId) => {
+                        contextMenuNodeId = nodeId;
+                        showEditModal = true;
+                    }
+                "
+                @show-integration-modal="
+                    (nodeId) => {
+                        contextMenuNodeId = nodeId;
+                        showIntegrationModal = true;
+                    }
+                "
+                @delete-node="
+                    (nodeId) => {
+                        contextMenuNodeId = nodeId;
+                        deleteNode();
+                    }
+                "
                 @drop-to-target="handleDropToTarget"
                 @undo="handleUndo"
                 @redo="handleRedo"
@@ -80,9 +110,8 @@
         >
             <SidebarRight
                 :selected-node="selectedNodeData"
-                :selected-module-ids="selectedNodes.map((n) => n.id)"
                 @update-owner="updateOwner"
-                @toggle-select-module="toggleSelectModule"
+                @show-module-detail="handleShowModuleDetail"
                 @edit-relation="editRelation"
                 @delete-relation="deleteRelation"
             />
@@ -105,6 +134,9 @@
             :merge-target-id="mergeTargetId"
             :merge-source-label="mergeSourceLabel"
             :merge-target-label="mergeTargetLabel"
+            :bind-relation-source-label="bindRelationSourceLabel"
+            :show-module-detail-modal="showModuleDetailModal"
+            :selected-module-detail="selectedModuleDetail"
             @close-add-modal="showAddModal = false"
             @close-add-module-modal="showAddModuleModal = false"
             @close-integrate-modal="showIntegrateModal = false"
@@ -112,6 +144,7 @@
             @close-bind-relation-modal="showBindRelationModal = false"
             @close-integration-modal="showIntegrationModal = false"
             @close-merge-nodes-modal="showMergeNodesModal = false"
+            @close-module-detail-modal="showModuleDetailModal = false"
             @confirm-add-node="confirmAddNode"
             @confirm-add-module="confirmAddModule"
             @confirm-integrate-module="confirmIntegrateModule"
@@ -151,14 +184,14 @@
  *
  * ========================================================================
  */
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import * as d3 from 'd3';
 import { cloneDeep } from 'lodash-es';
 import SidebarLeft from './components/SidebarLeft.vue';
 import SidebarRight from './components/SidebarRight.vue';
 import GraphCanvas from './components/GraphCanvas.vue';
 import Modals from './components/Modals.vue';
-import type { TreeData, SelectedNode, IntegrationTypeKey } from './types';
+import type { TreeData, SelectedNode, IntegrationTypeKey, LevelKey } from './types';
 import { INTEGRATION_TYPE_NAME } from './types';
 import { initialTreeData } from './data/mockData';
 
@@ -183,6 +216,12 @@ const mergeSourceId = ref<string | null>(null);
 const mergeTargetId = ref<string | null>(null);
 const mergeSourceLabel = ref('');
 const mergeTargetLabel = ref('');
+/** 绑定关系弹框内：源节点名称 */
+const bindRelationSourceLabel = ref('');
+/** 模块详情弹框显隐 */
+const showModuleDetailModal = ref(false);
+/** 选中的模块详情数据 */
+const selectedModuleDetail = ref<TreeData | null>(null);
 
 // D3 变量
 let root: d3.HierarchyNode<TreeData>;
@@ -203,6 +242,16 @@ const availableApps = computed(() => {
     };
     collectApps(treeData.value);
     return apps;
+});
+
+/**
+ * 监听绑定关系弹框打开，设置源节点名称
+ */
+watch(showBindRelationModal, (val) => {
+    if (val && contextMenuNodeId.value) {
+        const node = root.descendants().find((d) => d.data.id === contextMenuNodeId.value);
+        bindRelationSourceLabel.value = node?.data.label || '';
+    }
 });
 
 /**
@@ -266,23 +315,17 @@ function toggleSelect(data: TreeData) {
 }
 
 /**
- * Drawer 内部"切换模块选中"按钮处理
+ * 显示模块详情弹框
  * ----------------------------------------------------------------------------
  * 步骤：
- *   1. 取 selectedNodeData.id 作为 parentId
- *   2. 在 selectedNodes 中查找模块
- *   3. 已选中则移除，未选中则加入
+ *   1. 把模块数据存入 selectedModuleDetail
+ *   2. showModuleDetailModal = true 显示弹框
  *
  * @param module 模块节点
  */
-function toggleSelectModule(module: TreeData) {
-    const parentId = selectedNodeData.value?.id || '';
-    const index = selectedNodes.value.findIndex((n) => n.id === module.id);
-    if (index > -1) {
-        selectedNodes.value.splice(index, 1);
-    } else {
-        selectedNodes.value.push({ id: module.id, label: module.label, parentId });
-    }
+function handleShowModuleDetail(module: TreeData) {
+    selectedModuleDetail.value = module;
+    showModuleDetailModal.value = true;
 }
 
 /**
@@ -398,7 +441,7 @@ function updateTreeData(newData: TreeData) {
  */
 function confirmAddNode(data: {
     name: string;
-    level: string;
+    level: LevelKey;
     integrationType: IntegrationTypeKey;
 }) {
     const parentNode = root.descendants().find((d) => d.data.id === contextMenuNodeId.value);
@@ -440,7 +483,7 @@ function confirmAddModule(data: { name: string; dept: string }) {
         const newModule: TreeData = {
             id: `module_${Date.now()}`,
             label: data.name,
-            level: '功能模块',
+            level: 'module',
             dept: data.dept || parentNode.data.dept,
             owner: ''
         };
@@ -476,7 +519,7 @@ function confirmIntegrateModule(data: { name: string; dept: string; type: Integr
         const newModule: TreeData = {
             id: `integrated_${Date.now()}`,
             label: data.name,
-            level: '功能模块',
+            level: 'module',
             dept: data.dept || parentNode.data.dept,
             owner: '',
             integrationType: data.type,
@@ -513,12 +556,19 @@ function confirmIntegrateModule(data: { name: string; dept: string; type: Integr
  *
  * @param data 包含 name / dept / level / owner 的表单数据
  */
-function confirmEditNode(data: { name: string; dept: string; level: string; owner: string }) {
+function confirmEditNode(data: {
+    name: string;
+    dept: string;
+    level: LevelKey | '';
+    owner: string;
+}) {
     const nodeData = root.descendants().find((d) => d.data.id === contextMenuNodeId.value);
     if (nodeData) {
         nodeData.data.label = data.name;
         nodeData.data.dept = data.dept;
-        nodeData.data.level = data.level;
+        if (data.level) {
+            nodeData.data.level = data.level;
+        }
         nodeData.data.owner = data.owner;
         updateTreeData(treeData.value);
         selectNode(nodeData.data);
@@ -531,14 +581,14 @@ function confirmEditNode(data: { name: string; dept: string; level: string; owne
  * ----------------------------------------------------------------------------
  * 步骤：
  *   1. 找到源节点和目标节点
- *   2. 在源节点的 relations 数组中追加 { targetId / targetName / type }
+ *   2. 在源节点的 relations 数组中追加 { targetId / targetName / type / name }
  *   3. 重新选中源节点（Drawer 刷新）
  *   4. 关闭模态框
  *
- * @param data 包含 targetId / type 的表单数据
- *             其中 type 是 IntegrationTypeKey 枚举
+ * @param data 包含 targetId / type / name 的表单数据
+ *             其中 type 是 IntegrationTypeKey 枚举，name 是整合名称
  */
-function confirmBindRelation(data: { targetId: string; type: IntegrationTypeKey }) {
+function confirmBindRelation(data: { targetId: string; type: IntegrationTypeKey; name: string }) {
     const nodeData = root.descendants().find((d) => d.data.id === contextMenuNodeId.value);
     const targetData = root.descendants().find((d) => d.data.id === data.targetId);
 
@@ -547,7 +597,8 @@ function confirmBindRelation(data: { targetId: string; type: IntegrationTypeKey 
         nodeData.data.relations.push({
             targetId: targetData.data.id,
             targetName: targetData.data.label,
-            type: data.type
+            type: data.type,
+            name: data.name
         });
         selectNode(nodeData.data);
         updateTreeData(treeData.value);
@@ -684,11 +735,11 @@ function confirmMergeNodes(data: {
 
     // 5. level 取更"高级"的那个（业务规则：领域级 > 部门级综合 > 部门级单点 > 处室级单点 > 功能模块）
     const levelPriority: Record<string, number> = {
-        领域级应用: 5,
-        部门级综合应用: 4,
-        部门级单点应用: 3,
-        处室级单点应用: 2,
-        功能模块: 1
+        domain: 5,
+        dept_composite: 4,
+        dept_single: 3,
+        office_single: 2,
+        module: 1
     };
     const sourceLevelScore = levelPriority[sourceNode.data.level] ?? 0;
     const targetLevelScore = levelPriority[targetNode.data.level] ?? 0;
@@ -785,7 +836,10 @@ function deleteNode() {
             selectNode(treeData.value);
         }
     }
-    document.getElementById('context-menu')!.style.display = 'none';
+    const contextMenu = document.getElementById('context-menu');
+    if (contextMenu) {
+        contextMenu.style.display = 'none';
+    }
 }
 
 /**

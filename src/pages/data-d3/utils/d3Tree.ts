@@ -20,7 +20,7 @@
  */
 import * as d3 from 'd3';
 import type { TreeData } from '../types';
-import { NODE_COLORS, EDGE_STYLES, INTEGRATION_TYPE_NAME, IntegrationTypeKey } from '../types';
+import { LEVEL_CONFIG, EDGE_STYLES, INTEGRATION_TYPE_NAME, IntegrationTypeKey } from '../types';
 import { saveAs } from 'file-saver';
 import { createPromise } from '@/utils/promise/util-create-promise';
 
@@ -235,12 +235,22 @@ export function initD3(
         .attr('d', linkGenerator);
 
     // 连线标签背景
-    const labelBg = link.append<SVGRectElement>('rect').attr('class', 'link-label-bg');
+    const labelBg = link
+        .append<SVGRectElement>('rect')
+        .attr('class', 'link-label-bg')
+        .attr('opacity', (d) => {
+            const integrationType = d.target.data.integrationType;
+            return integrationType !== IntegrationTypeKey.base ? 1 : 0;
+        });
 
     // 连线标签文字
     const labelText = link
         .append<SVGTextElement>('text')
         .attr('class', 'link-label')
+        .attr('opacity', (d) => {
+            const integrationType = d.target.data.integrationType;
+            return integrationType !== IntegrationTypeKey.base ? 1 : 0;
+        })
         .text((d) => d.target.data.integrationTypeName || '');
 
     // 绘制节点组
@@ -265,7 +275,10 @@ export function initD3(
     fo.append('xhtml:div')
         .attr('class', 'node-card')
         .classed('selected', (d) => isSelected(d.data.id))
-        .style('background-color', (d) => NODE_COLORS[d.data.level] || '#8c8c8c')
+        .style(
+            'background-color',
+            (d) => LEVEL_CONFIG[d.data.level]?.color || LEVEL_CONFIG.base.color
+        )
         .html((d) => {
             const moduleBadge =
                 d.data.modules && d.data.modules.length > 0
@@ -330,7 +343,11 @@ export function initD3(
     node.call(
         d3
             .drag<SVGGElement, d3.HierarchyNode<TreeData>>()
-            .on('start', function (this: unknown, _event, d) {
+            .on('start', function (this: unknown, event, d) {
+                // 检查点击目标是否是 more-btn，如果是则不触发拖拽
+                const target = event.sourceEvent?.target as HTMLElement;
+                if (target?.classList.contains('more-btn')) return;
+
                 // this 在 d3-drag v3 中是 d3 selection 或 DOM 元素（依赖 d3 版本细节）
                 // 不用 this，直接用 d 参数（d = event.subject = HierarchyNode）
                 if (d && d.data) dragStarted(instance, d);
@@ -596,6 +613,11 @@ function dragEnded(
         dY: d && typeof d === 'object' ? (d as { y?: unknown }).y : null,
         currentDraggingNodeId: instance.currentDraggingNodeId
     });
+
+    // 关键防御：如果没有有效的拖拽节点（比如点击 more-btn 时），直接返回
+    if (!instance.currentDraggingNodeId) {
+        return;
+    }
 
     // 关键防御：d3-drag 的 d 可能是 plain object（不是 HierarchyNode）
     // 此时用实例级变量 currentDraggingNodeId 找真正节点
@@ -1006,148 +1028,165 @@ export function renderTree(
     };
 
     // 使用 join() 正确处理 enter/update/exit
-    const linkUpdate = link
-        .data(linkData)
-        .join(
-            // enter: 创建新的连线组
-            (enter) => {
-                const linkGroup = enter.append('g').attr('class', 'link-group');
+    const linkUpdate = link.data(linkData).join(
+        // enter: 创建新的连线组
+        (enter) => {
+            const linkGroup = enter.append('g').attr('class', 'link-group');
 
-                // 添加路径
-                linkGroup
-                    .append('path')
-                    .attr('class', 'link')
-                    .attr('d', linkGenerator)
-                    .attr('stroke', (d) => {
-                        const type = d.target.data.integrationType as IntegrationTypeKey;
-                        return EDGE_STYLES[type] || defaultConfig.linkColor;
-                    })
-                    .attr('stroke-dasharray', (d) => {
-                        const type = d.target.data.integrationType as IntegrationTypeKey;
-                        return type === IntegrationTypeKey.deprecate ? '6,4' : 'none';
-                    });
+            // 添加路径
+            linkGroup
+                .append('path')
+                .attr('class', 'link')
+                .attr('d', linkGenerator)
+                .attr('stroke', (d) => {
+                    const type = d.target.data.integrationType as IntegrationTypeKey;
+                    return EDGE_STYLES[type] || defaultConfig.linkColor;
+                })
+                .attr('stroke-dasharray', (d) => {
+                    const type = d.target.data.integrationType as IntegrationTypeKey;
+                    return type === IntegrationTypeKey.deprecate ? '6,4' : 'none';
+                });
 
-                // 添加标签背景
-                linkGroup
-                    .append('rect')
-                    .attr('class', 'link-label-bg')
-                    .attr('x', (d) => getX(d) - 25)
-                    .attr('y', (d) => getY(d) - 10)
-                    .attr('width', 50)
-                    .attr('height', 20);
+            // 添加标签背景
+            linkGroup
+                .append('rect')
+                .attr('class', 'link-label-bg')
+                .attr('x', (d) => getX(d) - 25)
+                .attr('y', (d) => getY(d) - 10)
+                .attr('width', 50)
+                .attr('height', 20)
+                .attr('opacity', (d) => {
+                    const integrationType = d.target.data.integrationType;
+                    return d.target.data.integrationType !== IntegrationTypeKey.base ? 1 : 0;
+                });
 
-                // 添加标签文字
-                linkGroup
-                    .append('text')
-                    .attr('class', 'link-label')
-                    .attr('x', getX)
-                    .attr('y', getY)
-                    .text((d) =>
-                        d.target.data.integrationType
-                            ? INTEGRATION_TYPE_NAME[d.target.data.integrationType]
-                            : ''
-                    );
+            // 添加标签文字
+            linkGroup
+                .append('text')
+                .attr('class', 'link-label')
+                .attr('x', getX)
+                .attr('y', getY)
+                .attr('opacity', (d) => {
+                    const integrationType = d.target.data.integrationType;
+                    return integrationType !== IntegrationTypeKey.base ? 1 : 0;
+                })
+                .text((d) => {
+                    const integrationType = d.target.data.integrationType as IntegrationTypeKey;
+                    return INTEGRATION_TYPE_NAME[integrationType] || '';
+                });
 
-                return linkGroup;
-            },
-            // update: 更新现有连线
-            (update) => {
-                update.select('path')
-                    .attr('d', linkGenerator)
-                    .attr('stroke', (d) => {
-                        const type = d.target.data.integrationType as IntegrationTypeKey;
-                        return EDGE_STYLES[type] || defaultConfig.linkColor;
-                    })
-                    .attr('stroke-dasharray', (d) => {
-                        const type = d.target.data.integrationType as IntegrationTypeKey;
-                        return type === IntegrationTypeKey.deprecate ? '6,4' : 'none';
-                    });
+            return linkGroup;
+        },
+        // update: 更新现有连线
+        (update) => {
+            update
+                .select('path')
+                .attr('d', linkGenerator)
+                .attr('stroke', (d) => {
+                    const type = d.target.data.integrationType as IntegrationTypeKey;
+                    return EDGE_STYLES[type] || defaultConfig.linkColor;
+                })
+                .attr('stroke-dasharray', (d) => {
+                    const type = d.target.data.integrationType as IntegrationTypeKey;
+                    return type === IntegrationTypeKey.deprecate ? '6,4' : 'none';
+                });
 
-                update.select('.link-label-bg')
-                    .attr('x', (d) => getX(d) - 25)
-                    .attr('y', (d) => getY(d) - 10);
+            update
+                .select('.link-label-bg')
+                .attr('x', (d) => getX(d) - 25)
+                .attr('y', (d) => getY(d) - 10)
+                .attr('opacity', (d) => {
+                    const integrationType = d.target.data.integrationType;
+                    return integrationType !== IntegrationTypeKey.base ? 1 : 0;
+                });
 
-                update.select('.link-label')
-                    .attr('x', getX)
-                    .attr('y', getY)
-                    .text((d) =>
-                        d.target.data.integrationType
-                            ? INTEGRATION_TYPE_NAME[d.target.data.integrationType]
-                            : ''
-                    );
+            update
+                .select('.link-label')
+                .attr('x', getX)
+                .attr('y', getY)
+                .attr('opacity', (d) => {
+                    const integrationType = d.target.data.integrationType;
+                    return integrationType !== IntegrationTypeKey.base ? 1 : 0;
+                })
 
-                return update;
-            },
-            // exit: 移除多余连线
-            (exit) => exit.remove()
-        );
+                .text((d) => {
+                    const integrationType = d.target.data.integrationType as IntegrationTypeKey;
+                    return INTEGRATION_TYPE_NAME[integrationType] || '';
+                });
+
+            return update;
+        },
+        // exit: 移除多余连线
+        (exit) => exit.remove()
+    );
 
     // 更新实例中的 link selection
     instance.link = linkUpdate;
 
     // 更新节点数据
     const nodeData = root.descendants();
-    const nodeUpdate = node
-        .data(nodeData)
-        .join(
-            // enter: 创建新节点
-            (enter) => {
-                const nodeGroup = enter
-                    .append('g')
-                    .attr('class', 'node')
-                    .attr('data-id', (d) => d.data.id)
-                    .attr('transform', (d) => `translate(${d.y ?? 0},${d.x ?? 0})`);
+    const nodeUpdate = node.data(nodeData).join(
+        // enter: 创建新节点
+        (enter) => {
+            const nodeGroup = enter
+                .append('g')
+                .attr('class', 'node')
+                .attr('data-id', (d) => d.data.id)
+                .attr('transform', (d) => `translate(${d.y ?? 0},${d.x ?? 0})`);
 
-                nodeGroup
-                    .append('foreignObject')
-                    .attr('width', NODE_WIDTH)
-                    .attr('height', NODE_HEIGHT)
-                    .attr('x', -NODE_WIDTH / 2)
-                    .attr('y', -NODE_HEIGHT / 2)
-                    .html((d) => {
-                        const moduleBadge =
-                            d.data.modules && d.data.modules.length > 0
-                                ? `<div class="node-badge">${d.data.modules.length}个模块</div>`
-                                : '';
-                        return `
-                            <div class="node-card" style="background-color: ${NODE_COLORS[d.data.level] || '#8c8c8c'}">
+            nodeGroup
+                .append('foreignObject')
+                .attr('width', NODE_WIDTH)
+                .attr('height', NODE_HEIGHT)
+                .attr('x', -NODE_WIDTH / 2)
+                .attr('y', -NODE_HEIGHT / 2)
+                .html((d) => {
+                    const moduleBadge =
+                        d.data.modules && d.data.modules.length > 0
+                            ? `<div class="node-badge">${d.data.modules.length}个模块</div>`
+                            : '';
+                    return `
+                            <div class="node-card" style="background-color: ${LEVEL_CONFIG[d.data.level]?.color || '#8c8c8c'}">
                                 <div class="node-label" title="${d.data.label}">${d.data.label}</div>
                                 ${moduleBadge}
                                 <button class="more-btn" data-id="${d.data.id}">⋮</button>
                             </div>
                         `;
-                    });
+                });
 
-                return nodeGroup;
-            },
-            // update: 更新现有节点
-            (update) => {
-                update
-                    .transition()
-                    .duration(500)
-                    .attr('transform', (d) => `translate(${d.y ?? 0},${d.x ?? 0})`);
+            return nodeGroup;
+        },
+        // update: 更新现有节点
+        (update) => {
+            update
+                .transition()
+                .duration(500)
+                .attr('transform', (d) => `translate(${d.y ?? 0},${d.x ?? 0})`);
 
-                update
-                    .select('.node-card')
-                    .style('background-color', (d) => NODE_COLORS[d.data.level] || '#8c8c8c')
-                    .classed('selected', (d) => isSelected(d.data.id))
-                    .html((d) => {
-                        const moduleBadge =
-                            d.data.modules && d.data.modules.length > 0
-                                ? `<div class="node-badge">${d.data.modules.length}个模块</div>`
-                                : '';
-                        return `
+            update
+                .select('.node-card')
+                .style(
+                    'background-color',
+                    (d) => LEVEL_CONFIG[d.data.level]?.color || LEVEL_CONFIG.base.color
+                )
+                .classed('selected', (d) => isSelected(d.data.id))
+                .html((d) => {
+                    const moduleBadge =
+                        d.data.modules && d.data.modules.length > 0
+                            ? `<div class="node-badge">${d.data.modules.length}个模块</div>`
+                            : '';
+                    return `
                             <div class="node-label" title="${d.data.label}">${d.data.label}</div>
                             ${moduleBadge}
                             <button class="more-btn" data-id="${d.data.id}">⋮</button>
                         `;
-                    });
+                });
 
-                return update;
-            },
-            // exit: 移除多余节点
-            (exit) => exit.remove()
-        );
+            return update;
+        },
+        // exit: 移除多余节点
+        (exit) => exit.remove()
+    );
 
     // 更新实例中的 node selection
     instance.node = nodeUpdate;

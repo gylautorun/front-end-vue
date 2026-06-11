@@ -28,10 +28,10 @@
             <div class="form-group">
                 <label>应用层级</label>
                 <select v-model="newNodeLevel">
-                    <option value="领域级应用">领域级应用</option>
-                    <option value="部门级综合应用">部门级综合应用</option>
-                    <option value="部门级单点应用">部门级单点应用</option>
-                    <option value="处室级单点应用">处室级单点应用</option>
+                    <option value="domain">领域级应用</option>
+                    <option value="dept_composite">部门级综合应用</option>
+                    <option value="dept_single">部门级单点应用</option>
+                    <option value="office_single">处室级单点应用</option>
                 </select>
             </div>
             <div class="form-group">
@@ -114,11 +114,11 @@
             <div class="form-group">
                 <label>层级/类型</label>
                 <select v-model="editNodeLevel">
-                    <option value="领域级应用">领域级应用</option>
-                    <option value="部门级综合应用">部门级综合应用</option>
-                    <option value="部门级单点应用">部门级单点应用</option>
-                    <option value="处室级单点应用">处室级单点应用</option>
-                    <option value="功能模块">功能模块</option>
+                    <option value="domain">领域级应用</option>
+                    <option value="dept_composite">部门级综合应用</option>
+                    <option value="dept_single">部门级单点应用</option>
+                    <option value="office_single">处室级单点应用</option>
+                    <option value="module">功能模块</option>
                 </select>
             </div>
             <div class="form-group">
@@ -135,6 +135,11 @@
     <div class="modal-overlay" id="bind-relation-modal" :class="{ show: showBindRelationModal }">
         <div class="modal">
             <h3>🔗 绑定关联关系</h3>
+            <p style="color: #666; font-size: 12px; margin-bottom: 12px">
+                为节点
+                <b>{{ bindRelationSourceLabel }}</b>
+                绑定新的关联关系
+            </p>
             <div class="form-group">
                 <label>关联对象</label>
                 <select v-model="relationTarget">
@@ -150,6 +155,15 @@
                         {{ opt.name }}
                     </option>
                 </select>
+            </div>
+            <div class="form-group">
+                <label>整合名称 <span style="color: red">*</span></label>
+                <input
+                    v-model="relationName"
+                    type="text"
+                    placeholder="请输入整合名称"
+                    @keyup.enter="handleConfirmBindRelation"
+                />
             </div>
             <div class="modal-actions">
                 <button @click="$emit('close-bind-relation-modal')">取消</button>
@@ -216,6 +230,39 @@
             </div>
         </div>
     </div>
+
+    <!-- 模块详情弹框 -->
+    <div class="modal-overlay" id="module-detail-modal" :class="{ show: showModuleDetailModal }">
+        <div class="modal">
+            <h3>📦 模块详情</h3>
+            <div class="detail-info" v-if="selectedModuleDetail">
+                <div class="form-group">
+                    <label>模块名称</label>
+                    <div class="detail-value">{{ selectedModuleDetail.label }}</div>
+                </div>
+                <div class="form-group">
+                    <label>所属部门</label>
+                    <div class="detail-value">{{ selectedModuleDetail.dept || '-' }}</div>
+                </div>
+                <div class="form-group">
+                    <label>负责人</label>
+                    <div class="detail-value">{{ selectedModuleDetail.owner || '-' }}</div>
+                </div>
+                <div class="form-group">
+                    <label>层级</label>
+                    <div class="detail-value">
+                        {{
+                            LEVEL_CONFIG[selectedModuleDetail.level]?.name ||
+                            selectedModuleDetail.level
+                        }}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button @click="$emit('close-module-detail-modal')">关闭</button>
+            </div>
+        </div>
+    </div>
 </template>
 
 <script setup lang="ts">
@@ -251,8 +298,8 @@
  * ========================================================================
  */
 import { ref, watch } from 'vue';
-import type { TreeData, SelectedNode } from '../types';
-import { INTEGRATION_TYPE_OPTIONS, IntegrationTypeKey } from '../types';
+import type { TreeData, SelectedNode, LevelKey } from '../types';
+import { INTEGRATION_TYPE_OPTIONS, IntegrationTypeKey, LEVEL_CONFIG } from '../types';
 
 /** 父组件传入的 props：模态框显隐 + 选中状态 + 树数据 */
 const props = defineProps<{
@@ -273,6 +320,12 @@ const props = defineProps<{
     mergeTargetId: string | null;
     mergeSourceLabel: string;
     mergeTargetLabel: string;
+    /** 绑定关系弹框内：源节点名称（用于显示） */
+    bindRelationSourceLabel: string;
+    /** 模块详情弹框显隐 */
+    showModuleDetailModal: boolean;
+    /** 选中的模块详情数据 */
+    selectedModuleDetail: TreeData | null;
 }>();
 
 /** 父组件监听的事件：关闭模态框 + 确认提交表单数据 */
@@ -280,13 +333,14 @@ const emit = defineEmits<{
     (e: 'close-add-modal'): void;
     (e: 'close-add-module-modal'): void;
     (e: 'close-integrate-modal'): void;
+    (e: 'close-module-detail-modal'): void;
     (e: 'close-edit-modal'): void;
     (e: 'close-bind-relation-modal'): void;
     (e: 'close-integration-modal'): void;
     (e: 'close-merge-nodes-modal'): void;
     (
         e: 'confirm-add-node',
-        data: { name: string; level: string; integrationType: IntegrationTypeKey }
+        data: { name: string; level: LevelKey; integrationType: IntegrationTypeKey }
     ): void;
     (e: 'confirm-add-module', data: { name: string; dept: string }): void;
     (
@@ -295,9 +349,12 @@ const emit = defineEmits<{
     ): void;
     (
         e: 'confirm-edit-node',
-        data: { name: string; dept: string; level: string; owner: string }
+        data: { name: string; dept: string; level: LevelKey | ''; owner: string }
     ): void;
-    (e: 'confirm-bind-relation', data: { targetId: string; type: IntegrationTypeKey }): void;
+    (
+        e: 'confirm-bind-relation',
+        data: { targetId: string; type: IntegrationTypeKey; name: string }
+    ): void;
     (e: 'confirm-integration', data: { type: IntegrationTypeKey }): void;
     (
         e: 'confirm-merge-nodes',
@@ -312,8 +369,8 @@ const emit = defineEmits<{
 
 /** 各模态框表单的双向绑定状态（整合方式使用 IntegrationTypeKey 枚举 key） */
 const newNodeName = ref('');
-const newNodeLevel = ref('处室级单点应用');
-const newNodeIntegrationType = ref<IntegrationTypeKey>(IntegrationTypeKey.integration);
+const newNodeLevel = ref<LevelKey>('office_single');
+const newNodeIntegrationType = ref<IntegrationTypeKey>(IntegrationTypeKey.base);
 const newModuleName = ref('');
 const newModuleDept = ref('');
 const newIntegratedModuleName = ref('');
@@ -321,10 +378,11 @@ const newIntegratedModuleDept = ref('');
 const integrateType = ref<IntegrationTypeKey>(IntegrationTypeKey.merge);
 const editNodeName = ref('');
 const editNodeDept = ref('');
-const editNodeLevel = ref('');
+const editNodeLevel = ref<LevelKey | ''>('');
 const editNodeOwner = ref('');
 const relationTarget = ref('');
 const relationType = ref<IntegrationTypeKey>(IntegrationTypeKey.integration);
+const relationName = ref('');
 const integrationType = ref<IntegrationTypeKey>(IntegrationTypeKey.integration);
 /** 拖拽合并弹框的表单状态 */
 const mergeNodeName = ref('');
@@ -341,7 +399,7 @@ watch(
     (val) => {
         if (val) {
             newNodeName.value = '';
-            newNodeLevel.value = '处室级单点应用';
+            newNodeLevel.value = 'office_single';
             newNodeIntegrationType.value = IntegrationTypeKey.integration;
         }
     }
@@ -399,7 +457,7 @@ watch(
 
 /**
  * 监听"绑定关系"模态框打开
- * 步骤：清空目标 + 重置关系类型
+ * 步骤：清空目标 + 重置关系类型 + 清空整合名称
  */
 watch(
     () => props.showBindRelationModal,
@@ -407,6 +465,7 @@ watch(
         if (val) {
             relationTarget.value = '';
             relationType.value = IntegrationTypeKey.integration;
+            relationName.value = '';
         }
     }
 );
@@ -512,9 +571,11 @@ function handleConfirmEditNode() {
 /** 提交"绑定关系"表单 → emit 给父组件（type 是枚举 key） */
 function handleConfirmBindRelation() {
     if (!relationTarget.value) return alert('请选择关联对象');
+    if (!relationName.value.trim()) return alert('请输入整合名称');
     emit('confirm-bind-relation', {
         targetId: relationTarget.value,
-        type: relationType.value
+        type: relationType.value,
+        name: relationName.value.trim()
     });
 }
 
@@ -558,5 +619,21 @@ function handleConfirmMergeNodes() {
     background: #e6f7ff;
     color: #1890ff;
     border-radius: 4px;
+}
+
+.detail-info .form-group {
+    margin-bottom: 12px;
+}
+
+.detail-info label {
+    font-weight: 500;
+    color: #666;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.detail-value {
+    color: #333;
+    padding: 6px 0;
 }
 </style>

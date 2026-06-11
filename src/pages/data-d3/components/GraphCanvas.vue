@@ -162,12 +162,12 @@ const emit = defineEmits<{
     (e: 'select-node', data: TreeData): void;
     (e: 'toggle-select', data: TreeData): void;
     (e: 'show-context-menu', event: MouseEvent, nodeId: string): void;
-    (e: 'show-add-node-modal'): void;
-    (e: 'show-add-module-modal'): void;
-    (e: 'show-bind-relation-modal'): void;
-    (e: 'show-edit-node-modal'): void;
-    (e: 'show-integration-modal'): void;
-    (e: 'delete-node'): void;
+    (e: 'show-add-node-modal', nodeId: string): void;
+    (e: 'show-add-module-modal', nodeId: string): void;
+    (e: 'show-bind-relation-modal', nodeId: string): void;
+    (e: 'show-edit-node-modal', nodeId: string): void;
+    (e: 'show-integration-modal', nodeId: string): void;
+    (e: 'delete-node', nodeId: string): void;
     /**
      * 拖拽到同级节点时触发
      * @param sourceId 源节点 ID
@@ -246,13 +246,24 @@ const contextMenuNodeId = ref<string>('');
  * ----------------------------------------------------------------------------
  * 步骤：
  *   1. 先关闭菜单（contextMenuOpen = false）
- *   2. 通过 emit 把事件名转发给父组件（如 'show-add-node-modal'）
+ *   2. 通过 emit 把事件名和节点 ID 转发给父组件
  *
  * @param {string} event 事件名（对应 emit 中的事件）
  */
 function handleMenuClick(event: string) {
     contextMenuOpen.value = false;
-    emit(event as any);
+    const nodeId = contextMenuNodeId.value;
+    const emitMap: Record<string, (id: string) => void> = {
+        'show-add-node-modal': (id) => emit('show-add-node-modal', id),
+        'show-add-module-modal': (id) => emit('show-add-module-modal', id),
+        'show-bind-relation-modal': (id) => emit('show-bind-relation-modal', id),
+        'show-edit-node-modal': (id) => emit('show-edit-node-modal', id),
+        'show-integration-modal': (id) => emit('show-integration-modal', id),
+        'delete-node': (id) => emit('delete-node', id)
+    };
+    if (emitMap[event]) {
+        emitMap[event](nodeId);
+    }
 }
 
 /**

@@ -44,12 +44,11 @@
                 v-for="module in modules"
                 :key="module.id"
                 class="module-item"
-                :class="{ selected: isSelected(module.id) }"
-                @click="$emit('toggle-select-module', module)"
+                @click="$emit('show-module-detail', module)"
             >
                 <div class="module-name">{{ module.label }}</div>
-                <div class="module-type" :style="{ color: NODE_COLORS[module.level] }">
-                    {{ module.level }}
+                <div class="module-type" :style="{ color: LEVEL_CONFIG[module.level]?.color }">
+                    {{ LEVEL_CONFIG[module.level]?.name || module.level }}
                 </div>
             </div>
         </div>
@@ -86,16 +85,15 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { TreeData } from '../types';
-import { NODE_COLORS, EDGE_STYLES } from '../types';
+import { LEVEL_CONFIG, EDGE_STYLES } from '../types';
 
 const props = defineProps<{
     selectedNode: TreeData | null;
-    selectedModuleIds: string[];
 }>();
 
 const emit = defineEmits<{
     (e: 'update-owner', value: string): void;
-    (e: 'toggle-select-module', module: TreeData): void;
+    (e: 'show-module-detail', module: TreeData): void;
     (e: 'edit-relation', relation: { targetId: string; targetName: string; type: string }): void;
     (e: 'delete-relation', relation: { targetId: string; targetName: string; type: string }): void;
 }>();
@@ -109,10 +107,6 @@ const relations = computed(() => {
     if (!props.selectedNode?.relations) return [];
     return props.selectedNode.relations;
 });
-
-function isSelected(moduleId: string): boolean {
-    return props.selectedModuleIds.includes(moduleId);
-}
 
 function handleOwnerChange(event: Event) {
     const target = event.target as HTMLInputElement;
