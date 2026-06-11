@@ -19,7 +19,7 @@
 <template>
     <div class="sidebar-left">
         <div class="filter-section">
-            <label>📁 应用目录树</label>
+            <label>📁 应用整合目录树</label>
             <div class="tree-root">教育局 (根节点)</div>
         </div>
 
