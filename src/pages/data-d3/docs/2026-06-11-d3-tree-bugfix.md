@@ -252,6 +252,210 @@ update
 
 ---
 
+## 问题五：拖拽时原位置显示灰色虚线框占位
+
+### 问题描述
+
+拖拽节点时，被拖拽节点直接移开，原位置变空，用户无法理解节点原来的位置。
+
+### 原因分析
+
+原代码在 `dragStarted` 时没有在原位置创建占位元素。
+
+### 解决方案
+
+在 `dragStarted` 中创建独立的占位元素（SVG g 元素），添加到父容器中，保持在原位置：
+
+```typescript
+function dragStarted(instance, d) {
+    // ... 其他逻辑 ...
+
+    // 添加拖拽中样式
+    gEl.classList.add('dragging');
+
+    // 创建占位背景矩形（添加到父容器，保持在原位置）
+    const parentEl = gEl.parentElement;
+    if (parentEl) {
+        const parentG = parentEl as unknown as SVGGElement;
+        const placeholder = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        placeholder.setAttribute('class', 'drag-placeholder');
+        placeholder.setAttribute('data-target-id', nodeId);
+        placeholder.setAttribute('transform', `translate(${Number(d.y ?? 0)},${Number(d.x ?? 0)})`);
+
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', '-80');
+        rect.setAttribute('y', '-20');
+        rect.setAttribute('width', '160');
+        rect.setAttribute('height', '40');
+        rect.setAttribute('rx', '6');
+        rect.setAttribute('ry', '6');
+        rect.setAttribute('fill', 'rgba(140, 140, 140, 0.3)');
+        rect.setAttribute('stroke', '#8c8c8c');
+        rect.setAttribute('stroke-width', '2');
+        rect.setAttribute('stroke-dasharray', '4,4');
+        rect.setAttribute('pointer-events', 'none');
+
+        placeholder.appendChild(rect);
+        parentG.appendChild(placeholder);
+    }
+}
+```
+
+在 `dragEnded` 中移除占位元素：
+
+```typescript
+function dragEnded(instance, event, d, root, onDropToTarget) {
+    // ... 其他逻辑 ...
+
+    // 移除占位背景（从父容器移除）
+    const placeholder = document.querySelector(
+        `g.drag-placeholder[data-target-id="${CSS.escape(d.data.id)}"]`
+    );
+    if (placeholder) {
+        placeholder.remove();
+    }
+}
+```
+
+### 设计要点
+
+1. **独立占位元素**：占位元素是独立的 SVG g 元素，不是被拖拽节点的子元素
+2. **添加到父容器**：确保占位元素在原位置，不受拖拽 transform 影响
+3. **灰色虚线样式**：使用灰色半透明填充 + 虚线边框，视觉上表示"空位"
+4. **pointer-events: none**：占位元素不拦截鼠标事件
+
+---
+
+## 问题六：目标节点触发范围和放大效果
+
+### 问题描述
+
+1. 目标节点触发范围太大，还没到节点就触发了高亮
+2. 目标节点高亮效果不够明显
+
+### 解决方案
+
+### 6.1 精确的范围检测
+
+修改 `findSameLevelNodeAtDOM` 函数，只使用 DOM 命中检测，移除坐标计算的回退方案：
+
+```typescript
+function findSameLevelNodeAtDOM(root, source, clientX, clientY) {
+    // ... 前置逻辑 ...
+
+    for (const el of elements) {
+        const nodeG = (el as Element).closest('g.node[data-id]') as SVGGElement | null;
+        if (nodeG) {
+            const id = nodeG.getAttribute('data-id');
+            if (id && id !== source.data.id) {
+                // 精确检测：检查鼠标是否在节点卡片范围内
+                const cardEl = nodeG.querySelector('.node-card');
+                if (cardEl) {
+                    const rect = cardEl.getBoundingClientRect();
+                    // 检查鼠标是否在卡片范围内
+                    if (
+                        clientX >= rect.left &&
+                        clientX <= rect.right &&
+                        clientY >= rect.top &&
+                        clientY <= rect.bottom
+                    ) {
+                        targetId = id;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // 只使用精确的 DOM 命中检测，不使用坐标计算回退
+    return null;
+}
+```
+
+### 6.2 放大 foreignObject 区域
+
+修改拖拽高亮时的处理逻辑，增大 foreignObject 的宽高：
+
+```typescript
+// 添加 drop-target 高亮时
+clearDropTargetHighlight();
+const hit = findSameLevelNodeAtDOM(root, d, clientX, clientY);
+if (hit) {
+    const targetNodeEl = findNodeGElement(hit);
+    if (targetNodeEl) {
+        targetNodeEl.classList.add('drop-target');
+        // 增大 foreignObject 宽高以容纳放大的节点卡片
+        const fo = targetNodeEl.querySelector('foreignObject') as SVGForeignObjectElement | null;
+        if (fo) {
+            fo.setAttribute('width', String(NODE_WIDTH * 1.3));
+            fo.setAttribute('height', String(NODE_HEIGHT * 1.3));
+            fo.setAttribute('x', String(-(NODE_WIDTH * 1.3) / 2));
+            fo.setAttribute('y', String(-(NODE_HEIGHT * 1.3) / 2));
+        }
+    }
+}
+```
+
+清除高亮时重置 foreignObject：
+
+```typescript
+function clearDropTargetHighlight() {
+    const highlighted = document.querySelectorAll('g.node.drop-target');
+    highlighted.forEach((el) => {
+        el.classList.remove('drop-target');
+        // 重置 foreignObject 宽高
+        const fo = el.querySelector('foreignObject') as SVGForeignObjectElement | null;
+        if (fo) {
+            fo.setAttribute('width', String(NODE_WIDTH));
+            fo.setAttribute('height', String(NODE_HEIGHT));
+            fo.setAttribute('x', String(-NODE_WIDTH / 2));
+            fo.setAttribute('y', String(-NODE_HEIGHT / 2));
+        }
+    });
+}
+```
+
+### 6.3 CSS 样式
+
+```css
+/* 目标节点高亮样式 */
+g.node.drop-target .node-card {
+    box-shadow:
+        0 0 0 3px #52c41a,
+        0 4px 12px rgba(82, 196, 26, 0.4);
+    transform: scale(1.3);
+    opacity: 0.6;
+    transition:
+        transform 0.15s ease,
+        box-shadow 0.15s ease,
+        opacity 0.15s ease;
+}
+
+/* 被拖拽节点样式 */
+g.node.dragging .node-card {
+    opacity: 0.8;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+```
+
+### 设计要点
+
+1. **精确检测**：使用 `getBoundingClientRect()` 检查鼠标是否在卡片范围内
+2. **移除回退**：不使用坐标计算回退，避免误触发
+3. **整体放大**：修改 foreignObject 的宽高，确保整个区域都放大
+4. **多重效果**：放大 1.3 倍 + 半透明 + 绿色边框 + 阴影，视觉效果明显
+
+### 效果对比
+
+| 效果     | 修复前       | 修复后              |
+| -------- | ------------ | ------------------- |
+| 触发范围 | 节点周围区域 | 仅节点卡片内        |
+| 放大效果 | 仅内容 scale | 整体区域 scale(1.3) |
+| 透明度   | 无           | 0.6 半透明          |
+| 边框     | 无           | 绿色边框 + 阴影     |
+
+---
+
 ## 代码优化：抽离公共函数
 
 ### 问题描述
@@ -345,12 +549,13 @@ const copy = cloneDeep(data);
 
 ## 文件修改清单
 
-| 文件              | 修改内容                                                                |
-| ----------------- | ----------------------------------------------------------------------- |
-| `index.vue`       | 抽离公共函数、修复撤销/重做、合并节点关系引用更新                       |
-| `GraphCanvas.vue` | initialTreeData 改为 ref、renderTree 接收参数                           |
-| `d3Tree.ts`       | renderTree 使用 join() 处理 enter/update/exit；修复连线标签默认显示问题 |
-| `SidebarLeft.vue` | 使用 EDGE_STYLES 和 LEVEL_CONFIG 统一管理颜色配置                       |
+| 文件              | 修改内容                                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------------------- |
+| `index.vue`       | 抽离公共函数、修复撤销/重做、合并节点关系引用更新                                                   |
+| `GraphCanvas.vue` | initialTreeData 改为 ref、renderTree 接收参数                                                       |
+| `d3Tree.ts`       | renderTree 使用 join() 处理 enter/update/exit；修复连线标签默认显示问题；修复拖拽占位和目标节点高亮 |
+| `SidebarLeft.vue` | 使用 EDGE_STYLES 和 LEVEL_CONFIG 统一管理颜色配置                                                   |
+| `index.scss`      | 添加 drop-target 高亮样式、被拖拽节点样式                                                           |
 
 ---
 
@@ -365,3 +570,8 @@ const copy = cloneDeep(data);
 3. **合并节点**：
     - 选择两个节点合并
     - 合并后连线数量应正确（不增不减）
+4. **拖拽交互**：
+    - 拖拽节点时，原位置显示灰色虚线框占位
+    - 拖拽到目标节点卡片上方时，目标节点整体放大 1.3 倍
+    - 拖拽到目标节点时，目标节点半透明 + 绿色边框高亮
+    - 鼠标移开或释放后，目标节点恢复原状

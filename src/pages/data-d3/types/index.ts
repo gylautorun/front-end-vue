@@ -67,6 +67,12 @@ export interface TreeData {
         type: IntegrationTypeKey;
         name: string;
     }>;
+    /**
+     * 标记此节点是否是由多个节点整合而成
+     * 如果有值，数组中存储被整合的原始节点 ID
+     * 用于判断子层级是否可以触发下一层级节点之间的合并
+     */
+    integratedFrom?: string[];
 }
 
 /**

@@ -520,6 +520,27 @@ g.node.dragging .node-card {
     text-align: center;
 }
 
+/**
+ * 整合标记徽章（integrated-badge）
+ * --------------------------------------------------------------------------
+ * 当节点由多个节点整合而成时显示
+ * 显示在节点卡片左上角
+ */
+.integrated-badge {
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    background: #fa8c16;
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
 .more-btn {
     background: rgba(255, 255, 255, 0.2);
     border: none;

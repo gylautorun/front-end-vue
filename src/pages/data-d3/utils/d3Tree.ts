@@ -284,7 +284,13 @@ export function initD3(
                 d.data.modules && d.data.modules.length > 0
                     ? `<div class="node-badge">${d.data.modules.length}个模块</div>`
                     : '';
+            // 整合标记徽章：当节点有 integratedFrom 时显示
+            const integratedBadge =
+                d.data.integratedFrom && d.data.integratedFrom.length > 0
+                    ? `<div class="integrated-badge" title="由 ${d.data.integratedFrom.length} 个节点整合">🔗 整合</div>`
+                    : '';
             return `
+                ${integratedBadge}
                 <div class="node-label" title="${d.data.label}">${d.data.label}</div>
                 ${moduleBadge}
                 <button class="more-btn" data-id="${d.data.id}">⋮</button>
@@ -724,6 +730,26 @@ function dragEnded(
         return;
     }
 
+    // 检查层级：第一层（depth <= 1）不允许合并
+    // depth: 0 = 根节点, 1 = 第一层子节点, 2 = 第二层子节点...
+    if ((d.depth ?? 0) <= 1) {
+        return;
+    }
+
+    // 检查父节点整合标记：只有父节点有整合标记时，子节点才能合并
+    // 父节点需要有 integrationType（非 base）或有 integratedFrom
+    const parentData = d.parent?.data;
+    if (parentData) {
+        const hasIntegrationMark =
+            parentData.integrationType && parentData.integrationType !== IntegrationTypeKey.base;
+        const hasIntegratedFrom = parentData.integratedFrom && parentData.integratedFrom.length > 0;
+
+        if (!hasIntegrationMark && !hasIntegratedFrom) {
+            // 父节点没有整合标记，不允许子节点合并
+            return;
+        }
+    }
+
     // 触发父组件合并弹框
     onDropToTarget(d.data.id, hit.data.id, d.data, hit.data);
 }
@@ -1095,7 +1121,7 @@ export function renderTree(
     const getY = (d: d3.HierarchyLink<TreeData>): number => {
         const sourceX = d.source.x ?? 0;
         const targetX = d.target.x ?? 0;
-        return (sourceX + targetX) / 2;
+        return (sourceX + targetX) / 2 + 2; // +`2`，让标签居中
     };
 
     // 使用 join() 正确处理 enter/update/exit
@@ -1216,8 +1242,14 @@ export function renderTree(
                         d.data.modules && d.data.modules.length > 0
                             ? `<div class="node-badge">${d.data.modules.length}个模块</div>`
                             : '';
+                    // 整合标记徽章
+                    const integratedBadge =
+                        d.data.integratedFrom && d.data.integratedFrom.length > 0
+                            ? `<div class="integrated-badge" title="由 ${d.data.integratedFrom.length} 个节点整合">🔗 整合</div>`
+                            : '';
                     return `
                             <div class="node-card" style="background-color: ${LEVEL_CONFIG[d.data.level]?.color || '#8c8c8c'}">
+                                ${integratedBadge}
                                 <div class="node-label" title="${d.data.label}">${d.data.label}</div>
                                 ${moduleBadge}
                                 <button class="more-btn" data-id="${d.data.id}">⋮</button>
@@ -1246,10 +1278,18 @@ export function renderTree(
                         d.data.modules && d.data.modules.length > 0
                             ? `<div class="node-badge">${d.data.modules.length}个模块</div>`
                             : '';
+                    // 整合标记徽章
+                    const integratedBadge =
+                        d.data.integratedFrom && d.data.integratedFrom.length > 0
+                            ? `<div class="integrated-badge" title="由 ${d.data.integratedFrom.length} 个节点整合">🔗 整合</div>`
+                            : '';
                     return `
-                            <div class="node-label" title="${d.data.label}">${d.data.label}</div>
-                            ${moduleBadge}
-                            <button class="more-btn" data-id="${d.data.id}">⋮</button>
+                            <div class="node-card" style="background-color: ${LEVEL_CONFIG[d.data.level]?.color || '#8c8c8c'}">
+                                ${integratedBadge}
+                                <div class="node-label" title="${d.data.label}">${d.data.label}</div>
+                                ${moduleBadge}
+                                <button class="more-btn" data-id="${d.data.id}">⋮</button>
+                            </div>
                         `;
                 });
 

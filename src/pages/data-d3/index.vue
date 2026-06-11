@@ -757,7 +757,9 @@ function confirmMergeNodes(data: {
         integrationTypeName: INTEGRATION_TYPE_NAME[data.integrationType],
         children: mergedChildren,
         modules: mergedModules,
-        relations: mergedRelations
+        relations: mergedRelations,
+        // 标记此节点是由哪些节点整合而成
+        integratedFrom: [sourceNode.data.id, targetNode.data.id]
     };
 
     // 7. 在父节点的 children 中删除源/目标，插入新节点（保留顺序：在 source 原来的位置）
