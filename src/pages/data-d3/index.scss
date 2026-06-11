@@ -481,10 +481,22 @@ g.node.drop-target .node-card {
     box-shadow:
         0 0 0 3px #52c41a,
         0 4px 12px rgba(82, 196, 26, 0.4);
-    transform: scale(1.05);
+    transform: scale(1.3);
+    opacity: 0.6;
     transition:
         transform 0.15s ease,
-        box-shadow 0.15s ease;
+        box-shadow 0.15s ease,
+        opacity 0.15s ease;
+}
+
+/**
+ * 拖拽中的节点样式（g.node.dragging）
+ * --------------------------------------------------------------------------
+ * 被拖拽节点添加半透明效果
+ */
+g.node.dragging .node-card {
+    opacity: 0.8;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 .node-label {

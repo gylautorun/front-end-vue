@@ -426,6 +426,35 @@ function dragStarted(
     gEl.dataset.curTY = String(Number(d.x ?? 0));
     // 记录当前拖拽节点 id 到实例对象（供 dragEnded 读取）
     instance.currentDraggingNodeId = nodeId;
+
+    // 添加拖拽中样式
+    gEl.classList.add('dragging');
+
+    // 创建占位背景矩形（添加到父容器，保持在原位置）
+    const parentEl = gEl.parentElement;
+    if (parentEl) {
+        const parentG = parentEl as unknown as SVGGElement;
+        const placeholder = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        placeholder.setAttribute('class', 'drag-placeholder');
+        placeholder.setAttribute('data-target-id', nodeId);
+        placeholder.setAttribute('transform', `translate(${Number(d.y ?? 0)},${Number(d.x ?? 0)})`);
+
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', '-80');
+        rect.setAttribute('y', '-20');
+        rect.setAttribute('width', '160');
+        rect.setAttribute('height', '40');
+        rect.setAttribute('rx', '6');
+        rect.setAttribute('ry', '6');
+        rect.setAttribute('fill', 'rgba(140, 140, 140, 0.3)');
+        rect.setAttribute('stroke', '#8c8c8c');
+        rect.setAttribute('stroke-width', '2');
+        rect.setAttribute('stroke-dasharray', '4,4');
+        rect.setAttribute('pointer-events', 'none');
+
+        placeholder.appendChild(rect);
+        parentG.appendChild(placeholder);
+    }
 }
 
 /**
@@ -568,6 +597,16 @@ function dragged(
         const targetNodeEl = findNodeGElement(hit);
         if (targetNodeEl) {
             targetNodeEl.classList.add('drop-target');
+            // 增大 foreignObject 宽高以容纳放大的节点卡片
+            const fo = targetNodeEl.querySelector(
+                'foreignObject'
+            ) as SVGForeignObjectElement | null;
+            if (fo) {
+                fo.setAttribute('width', String(NODE_WIDTH * 1.3));
+                fo.setAttribute('height', String(NODE_HEIGHT * 1.3));
+                fo.setAttribute('x', String(-(NODE_WIDTH * 1.3) / 2));
+                fo.setAttribute('y', String(-(NODE_HEIGHT * 1.3) / 2));
+            }
         }
     }
 }
@@ -663,6 +702,15 @@ function dragEnded(
         delete draggedG.dataset.curTY;
         delete draggedG.dataset.origX;
         delete draggedG.dataset.origY;
+        // 移除拖拽中样式
+        draggedG.classList.remove('dragging');
+        // 移除占位背景（从父容器移除）
+        const placeholder = document.querySelector(
+            `g.drag-placeholder[data-target-id="${CSS.escape(d.data.id)}"]`
+        );
+        if (placeholder) {
+            placeholder.remove();
+        }
     }
 
     // 清空实例级 currentDraggingNodeId
@@ -723,8 +771,21 @@ function findSameLevelNodeAtDOM(
             const id = nodeG.getAttribute('data-id');
             // 不能是自己
             if (id && id !== source.data.id) {
-                targetId = id;
-                break;
+                // 精确检测：检查鼠标是否在节点卡片范围内
+                const cardEl = nodeG.querySelector('.node-card');
+                if (cardEl) {
+                    const rect = cardEl.getBoundingClientRect();
+                    // 检查鼠标是否在卡片范围内
+                    if (
+                        clientX >= rect.left &&
+                        clientX <= rect.right &&
+                        clientY >= rect.top &&
+                        clientY <= rect.bottom
+                    ) {
+                        targetId = id;
+                        break;
+                    }
+                }
             }
         }
     }
@@ -743,9 +804,9 @@ function findSameLevelNodeAtDOM(
         }
     }
 
-    // DOM 命中未找到、不是同级、或者是自己，都尝试基于坐标计算的方式
-    // 这种方式可以检测不在可视区内的节点
-    return findSameLevelNodeByCoord(root, source, clientX, clientY);
+    // 只使用精确的 DOM 命中检测，不使用坐标计算回退
+    // 这样只有鼠标真正进入节点卡片才会触发高亮
+    return null;
 }
 
 /**
@@ -866,7 +927,17 @@ function findNodeGElement(node: d3.HierarchyNode<TreeData>): SVGGElement | null 
  */
 function clearDropTargetHighlight() {
     const highlighted = document.querySelectorAll('g.node.drop-target');
-    highlighted.forEach((el) => el.classList.remove('drop-target'));
+    highlighted.forEach((el) => {
+        el.classList.remove('drop-target');
+        // 重置 foreignObject 宽高
+        const fo = el.querySelector('foreignObject') as SVGForeignObjectElement | null;
+        if (fo) {
+            fo.setAttribute('width', String(NODE_WIDTH));
+            fo.setAttribute('height', String(NODE_HEIGHT));
+            fo.setAttribute('x', String(-NODE_WIDTH / 2));
+            fo.setAttribute('y', String(-NODE_HEIGHT / 2));
+        }
+    });
 }
 
 /**
