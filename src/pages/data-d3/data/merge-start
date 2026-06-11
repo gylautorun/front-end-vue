@@ -1,0 +1,105 @@
+<svg width="2035" height="847" viewBox="0 0 2035 707" preserveAspectRatio="xMidYMid meet" style="cursor: grab; display: block;"><g transform="translate(649.503662109375,217.51898193359375) scale(1)"><g><g class="link-group"><path class="link" stroke="#f5222d" stroke-dasharray="none" d="M0,0C170,0,170,-780,340,-780"></path><rect class="link-label-bg" x="145" y="-400" width="50" height="20"></rect><text class="link-label" x="170" y="-390">合并</text></g><g class="link-group"><path class="link" stroke="#1890ff" stroke-dasharray="none" d="M0,0C170,0,170,-468,340,-468"></path><rect class="link-label-bg" x="145" y="-244" width="50" height="20"></rect><text class="link-label" x="170" y="-234">迁移</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M0,0C170,0,170,-156,340,-156"></path><rect class="link-label-bg" x="145" y="-87.99999999999997" width="50" height="20"></rect><text class="link-label" x="170" y="-77.99999999999997">接口对接</text></g><g class="link-group"><path class="link" stroke="#d9d9d9" stroke-dasharray="6,4" d="M0,0C170,0,170,0,340,0"></path><rect class="link-label-bg" x="145" y="-10" width="50" height="20"></rect><text class="link-label" x="170" y="0">停用下线</text></g><g class="link-group"><path class="link" stroke="#722ed1" stroke-dasharray="none" d="M0,0C170,0,170,156,340,156"></path><rect class="link-label-bg" x="145" y="68.00000000000004" width="50" height="20"></rect><text class="link-label" x="170" y="78.00000000000004">模块整合</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M0,0C170,0,170,468,340,468"></path><rect class="link-label-bg" x="145" y="224.00000000000006" width="50" height="20"></rect><text class="link-label" x="170" y="234.00000000000006">接口对接</text></g><g class="link-group"><path class="link" stroke="#1890ff" stroke-dasharray="none" d="M0,0C170,0,170,780,340,780"></path><rect class="link-label-bg" x="145" y="380" width="50" height="20"></rect><text class="link-label" x="170" y="390">迁移</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M340,-780C510,-780,510,-876,680,-876"></path><rect class="link-label-bg" x="485" y="-838" width="50" height="20"></rect><text class="link-label" x="510" y="-828">接口对接</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M340,-780C510,-780,510,-780,680,-780"></path><rect class="link-label-bg" x="485" y="-790" width="50" height="20"></rect><text class="link-label" x="510" y="-780">接口对接</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M340,-780C510,-780,510,-684,680,-684"></path><rect class="link-label-bg" x="485" y="-742" width="50" height="20"></rect><text class="link-label" x="510" y="-732">接口对接</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M340,-468C510,-468,510,-564,680,-564"></path><rect class="link-label-bg" x="485" y="-526" width="50" height="20"></rect><text class="link-label" x="510" y="-516">接口对接</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M340,-468C510,-468,510,-468,680,-468"></path><rect class="link-label-bg" x="485" y="-477.99999999999994" width="50" height="20"></rect><text class="link-label" x="510" y="-467.99999999999994">接口对接</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M340,-468C510,-468,510,-372,680,-372"></path><rect class="link-label-bg" x="485" y="-429.99999999999994" width="50" height="20"></rect><text class="link-label" x="510" y="-419.99999999999994">接口对接</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M340,-156C510,-156,510,-252,680,-252"></path><rect class="link-label-bg" x="485" y="-213.99999999999991" width="50" height="20"></rect><text class="link-label" x="510" y="-203.99999999999991">接口对接</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M340,-156C510,-156,510,-156,680,-156"></path><rect class="link-label-bg" x="485" y="-165.99999999999991" width="50" height="20"></rect><text class="link-label" x="510" y="-155.99999999999991">接口对接</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M340,-156C510,-156,510,-60,680,-60"></path><rect class="link-label-bg" x="485" y="-117.99999999999991" width="50" height="20"></rect><text class="link-label" x="510" y="-107.99999999999991">接口对接</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M340,156C510,156,510,60,680,60"></path><rect class="link-label-bg" x="485" y="98.00000000000011" width="50" height="20"></rect><text class="link-label" x="510" y="108.00000000000011">接口对接</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M340,156C510,156,510,156,680,156"></path><rect class="link-label-bg" x="485" y="146.0000000000001" width="50" height="20"></rect><text class="link-label" x="510" y="156.0000000000001">接口对接</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M340,156C510,156,510,252,680,252"></path><rect class="link-label-bg" x="485" y="194.0000000000001" width="50" height="20"></rect><text class="link-label" x="510" y="204.0000000000001">接口对接</text></g><g class="link-group"><path class="link" stroke="#f5222d" stroke-dasharray="none" d="M340,468C510,468,510,372,680,372"></path><rect class="link-label-bg" x="485" y="410.0000000000001" width="50" height="20"></rect><text class="link-label" x="510" y="420.0000000000001">合并</text></g><g class="link-group"><path class="link" stroke="#f5222d" stroke-dasharray="none" d="M340,468C510,468,510,468,680,468"></path><rect class="link-label-bg" x="485" y="458.0000000000001" width="50" height="20"></rect><text class="link-label" x="510" y="468.0000000000001">合并</text></g><g class="link-group"><path class="link" stroke="#f5222d" stroke-dasharray="none" d="M340,468C510,468,510,564,680,564"></path><rect class="link-label-bg" x="485" y="506.0000000000002" width="50" height="20"></rect><text class="link-label" x="510" y="516.0000000000002">合并</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M340,780C510,780,510,684,680,684"></path><rect class="link-label-bg" x="485" y="722" width="50" height="20"></rect><text class="link-label" x="510" y="732">接口对接</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M340,780C510,780,510,780,680,780"></path><rect class="link-label-bg" x="485" y="770" width="50" height="20"></rect><text class="link-label" x="510" y="780">接口对接</text></g><g class="link-group"><path class="link" stroke="#52c41a" stroke-dasharray="none" d="M340,780C510,780,510,876,680,876"></path><rect class="link-label-bg" x="485" y="818" width="50" height="20"></rect><text class="link-label" x="510" y="828">接口对接</text></g></g><g><g class="node" data-id="edu" transform="translate(0,0)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(245, 34, 45);">
+                <div class="node-label" title="教育局">教育局</div>
+                
+                <button class="more-btn" data-id="edu">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app1" transform="translate(340,-780)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(245, 34, 45);">
+                <div class="node-label" title="教育管理一体化平台">教育管理一体化平台</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app1">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app2" transform="translate(340,-468)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(250, 140, 22);">
+                <div class="node-label" title="学生学籍管理系统">学生学籍管理系统</div>
+                <div class="node-badge">4个模块</div>
+                <button class="more-btn" data-id="app2">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app3" transform="translate(340,-155.99999999999994)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(24, 144, 255);">
+                <div class="node-label" title="教师资格认定系统">教师资格认定系统</div>
+                <div class="node-badge">2个模块</div>
+                <button class="more-btn" data-id="app3">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app4" transform="translate(340, 0)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="教研成果登记">教研成果登记</div>
+                <div class="node-badge">1个模块</div>
+                <button class="more-btn" data-id="app4">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app8" transform="translate(340, 468)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(250, 140, 22);">
+                <div class="node-label" title="教育资源平台">教育资源平台</div>
+                <div class="node-badge">2个模块</div>
+                <button class="more-btn" data-id="app8">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app9" transform="translate(340, 780)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(250, 140, 22);">
+                <div class="node-label" title="财务管理系统">财务管理系统</div>
+                <div class="node-badge">2个模块</div>
+                <button class="more-btn" data-id="app9">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app1-c1" transform="translate(680, -876)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="数据中心">数据中心</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app1-c1">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app1-c2" transform="translate(680, -780)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="系统监控">系统监控</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app1-c2">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app1-c3" transform="translate(680, -684)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="权限中心">权限中心</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app1-c3">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app2-c1" transform="translate(680, -564)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="学籍异动">学籍异动</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app2-c1">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app2-c2" transform="translate(680, -468)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="毕业升学">毕业升学</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app2-c2">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app2-c3" transform="translate(680, -372)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="数据上报">数据上报</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app2-c3">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app5" transform="translate(680, -252)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(24, 144, 255);">
+                <div class="node-label" title="招生录取管理">招生录取管理</div>
+                <div class="node-badge">2个模块</div>
+                <button class="more-btn" data-id="app5">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app6" transform="translate(680, -156)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="课题申报系统">课题申报系统</div>
+                <div class="node-badge">2个模块</div>
+                <button class="more-btn" data-id="app6">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app3-c3" transform="translate(680, -60)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="继续教育">继续教育</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app3-c3">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app7-c1" transform="translate(680, 60)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="消防系统">消防系统</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app7-c1">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app7-c2" transform="translate(680, 156)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="值班管理">值班管理</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app7-c2">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app7-c3" transform="translate(680, 252)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="访客管理">访客管理</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app7-c3">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app8-c1" transform="translate(680, 372)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="数字图书馆">数字图书馆</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app8-c1">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app8-c2" transform="translate(680, 468)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="在线课程">在线课程</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app8-c2">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app8-c3" transform="translate(680, 564)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="题库系统">题库系统</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app8-c3">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app9-c1" transform="translate(680, 684)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="工资管理">工资管理</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app9-c1">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app9-c2" transform="translate(680, 780)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="资产管理">资产管理</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app9-c2">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app9-c3" transform="translate(680,876.0000000000001)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(140, 140, 140);">
+                <div class="node-label" title="采购管理">采购管理</div>
+                <div class="node-badge">3个模块</div>
+                <button class="more-btn" data-id="app9-c3">⋮</button>
+            </div></foreignObject></g><g class="node" data-id="app7" transform="translate(340, 156)"><foreignObject width="160" height="40" x="-80" y="-20"><div class="node-card" style="background-color: rgb(250, 140, 22);">
+                <div class="node-label" title="校园安全管理">校园安全管理</div>
+                <div class="node-badge">2个模块</div>
+                <button class="more-btn" data-id="app7">⋮</button>
+            </div></foreignObject></g></g></g></svg>

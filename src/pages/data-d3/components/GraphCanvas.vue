@@ -24,6 +24,9 @@
             <button @click="handleZoomIn" title="放大">➕</button>
             <button @click="handleResetZoom" title="重置缩放">🔍 100%</button>
             <button @click="handleFitView" title="适应屏幕">🎯 适应</button>
+            <button @click="handleUndo" :disabled="!canUndo" title="上一步（撤销）">↩️</button>
+            <button @click="handleRedo" :disabled="!canRedo" title="下一步（重做）">↪️</button>
+            <button @click="handleRefresh" title="刷新（恢复初始状态）">🔄</button>
             <button @click="handleDownload" title="下载图片">📥 下载</button>
             <button v-if="selectedCount > 0" @click="handleClearSelection" title="清除选择">
                 ✖️ 清除选择 ({{ selectedCount }})
@@ -108,6 +111,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import * as d3 from 'd3';
+import { cloneDeep } from 'lodash-es';
 import type { TreeData, SelectedNode } from '../types';
 import {
     initD3,
@@ -178,10 +182,42 @@ const emit = defineEmits<{
         sourceData: TreeData,
         targetData: TreeData
     ): void;
+    /**
+     * 撤销操作
+     * @param data 上一个状态的树数据
+     */
+    (e: 'undo', data: TreeData): void;
+    /**
+     * 重做操作
+     * @param data 下一个状态的树数据
+     */
+    (e: 'redo', data: TreeData): void;
+    /**
+     * 刷新（恢复初始状态）
+     * @param data 初始状态的树数据
+     */
+    (e: 'refresh', data: TreeData): void;
 }>();
 
 /** D3 树实例引用，用于调用 renderTree / zoomIn / zoomOut / fitView */
 let d3Instance: D3TreeInstance | null = null;
+
+// ---------- 撤销/重做状态管理 ----------
+
+/** 历史记录栈，保存每次操作后的完整树数据 */
+const historyStack = ref<TreeData[]>([]);
+
+/** 当前历史记录索引 */
+const historyIndex = ref<number>(-1);
+
+/** 初始数据备份（用于刷新恢复）- 使用 const 确保不会被意外修改 */
+const initialTreeData = ref<TreeData | null>(null);
+
+/** 是否可以撤销 */
+const canUndo = ref<boolean>(false);
+
+/** 是否可以重做 */
+const canRedo = ref<boolean>(false);
 
 // ---------- 右键菜单状态 ----------
 
@@ -329,6 +365,13 @@ function handleSvgClick() {
 onMounted(() => {
     document.addEventListener('d3-svg-click', handleSvgClick);
     document.addEventListener('click', handleGlobalClick);
+
+    // 备份初始数据（用于刷新恢复）
+    initialTreeData.value = cloneDeep(props.treeData);
+
+    // 初始化历史记录（保存初始状态）
+    pushHistory(props.treeData);
+
     d3Instance = initD3(
         'graph-container',
         props.treeData,
@@ -387,6 +430,126 @@ function handleResize() {
     const width = container.clientWidth;
     const height = container.clientHeight;
     d3Instance.svg.attr('width', width).attr('height', height);
+}
+
+/**
+ * 保存操作历史记录
+ * ----------------------------------------------------------------------------
+ * @param {TreeData} data 当前树数据
+ */
+function pushHistory(data: TreeData) {
+    // 如果当前不在历史记录末尾，清除后面的记录（截断重做栈）
+    if (historyIndex.value < historyStack.value.length - 1) {
+        historyStack.value = historyStack.value.slice(0, historyIndex.value + 1);
+    }
+
+    // 深拷贝数据并添加到历史记录（使用 lodash 的 cloneDeep）
+    historyStack.value.push(cloneDeep(data));
+    historyIndex.value = historyStack.value.length - 1;
+
+    // 更新按钮状态
+    updateUndoRedoState();
+}
+
+/**
+ * 更新撤销/重做按钮状态
+ */
+function updateUndoRedoState() {
+    canUndo.value = historyIndex.value > 0;
+    canRedo.value = historyIndex.value < historyStack.value.length - 1;
+}
+
+/**
+ * 撤销操作：恢复到上一个状态
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 检查是否可以撤销
+ *   2. 减少历史索引
+ *   3. 获取上一个状态的数据
+ *   4. emit 事件通知父组件恢复数据
+ */
+function handleUndo() {
+    try {
+        console.log('[handleUndo] historyIndex:', historyIndex.value);
+        if (!canUndo.value) {
+            console.warn('[handleUndo] cannot undo');
+            return;
+        }
+
+        historyIndex.value--;
+        const previousData = historyStack.value[historyIndex.value];
+        updateUndoRedoState();
+
+        // 通知父组件恢复到上一个状态
+        emit('undo', previousData);
+    } catch (e) {
+        console.error('[handleUndo] error:', e);
+    }
+}
+
+/**
+ * 重做操作：前进到下一个状态
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 检查是否可以重做
+ *   2. 增加历史索引
+ *   3. 获取下一个状态的数据
+ *   4. emit 事件通知父组件恢复数据
+ */
+function handleRedo() {
+    try {
+        console.log('[handleRedo] historyIndex:', historyIndex.value);
+        if (!canRedo.value) {
+            console.warn('[handleRedo] cannot redo');
+            return;
+        }
+
+        historyIndex.value++;
+        const nextData = historyStack.value[historyIndex.value];
+        updateUndoRedoState();
+
+        // 通知父组件恢复到下一个状态
+        emit('redo', nextData);
+    } catch (e) {
+        console.error('[handleRedo] error:', e);
+    }
+}
+
+/**
+ * 刷新按钮处理：恢复到初始状态
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 检查是否有初始数据备份
+ *   2. 重置历史记录
+ *   3. emit 事件通知父组件恢复初始状态
+ */
+function handleRefresh() {
+    try {
+        console.log('[handleRefresh] restoring to initial state');
+        if (!initialTreeData.value) {
+            console.warn('[handleRefresh] no initial data');
+            return;
+        }
+
+        // 重置历史记录
+        historyStack.value = [cloneDeep(initialTreeData.value)];
+        historyIndex.value = 0;
+        updateUndoRedoState();
+
+        // 通知父组件恢复初始状态
+        emit('refresh', initialTreeData.value);
+    } catch (e) {
+        console.error('[handleRefresh] error:', e);
+    }
+}
+
+/**
+ * 外部调用：记录操作（供父组件在数据变化时调用）
+ * ----------------------------------------------------------------------------
+ * @param {TreeData} data 操作后的树数据
+ */
+function recordOperation(data: TreeData) {
+    pushHistory(data);
 }
 
 /**
@@ -600,11 +763,13 @@ function handleClearSelection() {
  *   2. 调用 renderTree 工具函数重新构建 hierarchy + 重绘节点和连线
  *   3. 保持原有的事件回调（handleNodeClick 等）
  */
-function handleRenderTree() {
+function handleRenderTree(newTreeData?: TreeData) {
     if (!d3Instance) return;
+    // 使用传入的数据（如果有），否则使用 props.treeData
+    const dataToRender = newTreeData || props.treeData;
     renderTree(
         d3Instance,
-        props.treeData,
+        dataToRender,
         handleNodeClick,
         handleNodeDoubleClick,
         handleMoreClick,
@@ -615,16 +780,19 @@ function handleRenderTree() {
 /**
  * 暴露给父组件的方法（通过 ref 访问）
  * ----------------------------------------------------------------------------
- * @property {Function} renderTree - 重渲染 D3 树
- * @property {Function} zoomIn     - 放大
- * @property {Function} zoomOut    - 缩小
- * @property {Function} fitView    - 适应屏幕
+ * @property {Function} renderTree      - 重渲染 D3 树
+ * @property {Function} zoomIn          - 放大
+ * @property {Function} zoomOut         - 缩小
+ * @property {Function} fitView         - 适应屏幕
+ * @property {Function} resetZoom       - 重置缩放
+ * @property {Function} recordOperation - 记录操作到历史
  */
 defineExpose({
     renderTree: handleRenderTree,
     zoomIn: handleZoomIn,
     zoomOut: handleZoomOut,
     fitView: handleFitView,
-    resetZoom: handleResetZoom
+    resetZoom: handleResetZoom,
+    recordOperation: recordOperation
 });
 </script>

@@ -64,6 +64,9 @@
                 @show-integration-modal="showIntegrationModal = true"
                 @delete-node="deleteNode"
                 @drop-to-target="handleDropToTarget"
+                @undo="handleUndo"
+                @redo="handleRedo"
+                @refresh="handleRefresh"
             />
         </div>
 
@@ -150,6 +153,7 @@
  */
 import { ref, computed, onMounted } from 'vue';
 import * as d3 from 'd3';
+import { cloneDeep } from 'lodash-es';
 import SidebarLeft from './components/SidebarLeft.vue';
 import SidebarRight from './components/SidebarRight.vue';
 import GraphCanvas from './components/GraphCanvas.vue';
@@ -170,7 +174,7 @@ const showDrawer = ref(false);
 /** 拖拽合并节点弹框显隐（由 GraphCanvas 的 drop-to-target 事件打开） */
 const showMergeNodesModal = ref(false);
 
-const treeData = ref<TreeData>(JSON.parse(JSON.stringify(initialTreeData)));
+const treeData = ref<TreeData>(cloneDeep(initialTreeData));
 const selectedNodes = ref<SelectedNode[]>([]);
 const selectedNodeData = ref<TreeData | null>(null);
 const contextMenuNodeId = ref<string | null>(null);
@@ -340,14 +344,43 @@ function handleFitView() {
  *   5. 选中根节点 + 清空多选
  */
 function handleResetTree() {
-    treeData.value = JSON.parse(JSON.stringify(initialTreeData));
+    treeData.value = cloneDeep(initialTreeData);
     root = d3.hierarchy(treeData.value);
-    graphCanvasRef.value?.renderTree();
+    // 传入新的树数据，确保立即渲染
+    graphCanvasRef.value?.renderTree(treeData.value);
     // fitView 居中适应屏幕
     // graphCanvasRef.value?.fitView();
     graphCanvasRef.value?.resetZoom();
     selectNode(treeData.value);
     clearSelection();
+}
+
+/**
+ * 更新树数据但不记录到历史（用于撤销/重做操作）
+ * ----------------------------------------------------------------------------
+ * 统一处理：更新 treeData + 重新构建 hierarchy + 重绘
+ * @param {TreeData} newData 新的树数据
+ */
+function updateTreeDataWithoutHistory(newData: TreeData) {
+    treeData.value = cloneDeep(newData);
+    root = d3.hierarchy(treeData.value);
+    // 传入新的树数据，确保立即渲染
+    graphCanvasRef.value?.renderTree(treeData.value);
+}
+
+/**
+ * 更新树数据并记录到历史
+ * ----------------------------------------------------------------------------
+ * 统一处理：更新 treeData + 重新构建 hierarchy + 重绘 + 记录历史
+ * @param {TreeData} newData 新的树数据
+ */
+function updateTreeData(newData: TreeData) {
+    treeData.value = cloneDeep(newData);
+    root = d3.hierarchy(treeData.value);
+    // 传入新的树数据，确保立即渲染
+    graphCanvasRef.value?.renderTree(treeData.value);
+    // 记录操作到历史
+    graphCanvasRef.value?.recordOperation(treeData.value);
 }
 
 /**
@@ -383,8 +416,7 @@ function confirmAddNode(data: {
         };
         if (!parentNode.data.children) parentNode.data.children = [];
         parentNode.data.children.push(newNode);
-        root = d3.hierarchy(treeData.value);
-        graphCanvasRef.value?.renderTree();
+        updateTreeData(treeData.value);
     }
     showAddModal.value = false;
 }
@@ -415,8 +447,7 @@ function confirmAddModule(data: { name: string; dept: string }) {
         if (!parentNode.data.modules) parentNode.data.modules = [];
         parentNode.data.modules.push(newModule);
         selectNode(parentNode.data);
-        root = d3.hierarchy(treeData.value);
-        graphCanvasRef.value?.renderTree();
+        updateTreeData(treeData.value);
     }
     showAddModuleModal.value = false;
 }
@@ -462,8 +493,7 @@ function confirmIntegrateModule(data: { name: string; dept: string; type: Integr
             }
         });
 
-        root = d3.hierarchy(treeData.value);
-        graphCanvasRef.value?.renderTree();
+        updateTreeData(treeData.value);
         selectNode(parentNode.data);
         clearSelection();
     }
@@ -490,8 +520,7 @@ function confirmEditNode(data: { name: string; dept: string; level: string; owne
         nodeData.data.dept = data.dept;
         nodeData.data.level = data.level;
         nodeData.data.owner = data.owner;
-        root = d3.hierarchy(treeData.value);
-        graphCanvasRef.value?.renderTree();
+        updateTreeData(treeData.value);
         selectNode(nodeData.data);
     }
     showEditModal.value = false;
@@ -521,6 +550,7 @@ function confirmBindRelation(data: { targetId: string; type: IntegrationTypeKey 
             type: data.type
         });
         selectNode(nodeData.data);
+        updateTreeData(treeData.value);
     }
 
     showBindRelationModal.value = false;
@@ -543,8 +573,7 @@ function confirmIntegration(data: { type: IntegrationTypeKey }) {
     if (nodeData) {
         nodeData.data.integrationType = data.type;
         nodeData.data.integrationTypeName = INTEGRATION_TYPE_NAME[data.type];
-        root = d3.hierarchy(treeData.value);
-        graphCanvasRef.value?.renderTree();
+        updateTreeData(treeData.value);
     }
     showIntegrationModal.value = false;
 }
@@ -599,9 +628,29 @@ function handleDropToTarget(
  *   7. 从父节点 children 中删除 source 和 target，加入新节点
  *   8. 重新 d3.hierarchy + renderTree
  *   9. 重新选中新节点（Drawer 打开）
- *
- * @param data 来自 Modals 的表单数据 { name, integrationType, sourceId, targetId }
  */
+
+/**
+ * 通用深拷贝合并函数
+ * ----------------------------------------------------------------------------
+ * 功能：将两个数组合并去重，使用深拷贝避免引用问题
+ * @param source 源数组
+ * @param target 目标数组
+ * @param getKeyFn 获取元素唯一 key 的函数，默认使用 id 字段
+ * @returns 合并去重后的数组（新对象）
+ */
+function mergeById<T>(
+    source: T[] = [],
+    target: T[] = [],
+    getKeyFn: (item: T) => string = (item: any) => item.id
+): T[] {
+    const map = new Map<string, T>();
+    // 使用 lodash 的 cloneDeep 进行深拷贝，支持循环引用和特殊类型
+    (source ?? []).forEach((item) => map.set(getKeyFn(item), cloneDeep(item)));
+    (target ?? []).forEach((item) => map.set(getKeyFn(item), cloneDeep(item)));
+    return Array.from(map.values());
+}
+
 function confirmMergeNodes(data: {
     name: string;
     integrationType: IntegrationTypeKey;
@@ -624,30 +673,14 @@ function confirmMergeNodes(data: {
 
     const parentNode = sourceNode.parent;
 
-    // 2. 合并 children（去重）
-    const childrenMap = new Map<string, TreeData>();
-    (sourceNode.data.children ?? []).forEach((c) => childrenMap.set(c.id, c));
-    (targetNode.data.children ?? []).forEach((c) => childrenMap.set(c.id, c));
-    const mergedChildren: TreeData[] = Array.from(childrenMap.values());
-
-    // 3. 合并 modules（去重）
-    const modulesMap = new Map<string, TreeData>();
-    (sourceNode.data.modules ?? []).forEach((m) => modulesMap.set(m.id, m));
-    (targetNode.data.modules ?? []).forEach((m) => modulesMap.set(m.id, m));
-    const mergedModules: TreeData[] = Array.from(modulesMap.values());
-
-    // 4. 合并 relations（去重）
-    const relationsMap = new Map<
-        string,
-        { targetId: string; targetName: string; type: IntegrationTypeKey }
-    >();
-    (sourceNode.data.relations ?? []).forEach((r) =>
-        relationsMap.set(`${r.targetId}__${r.type}`, r)
+    // 2-4. 合并 children、modules、relations（使用通用函数进行深拷贝去重）
+    const mergedChildren = mergeById(sourceNode.data.children, targetNode.data.children);
+    const mergedModules = mergeById(sourceNode.data.modules, targetNode.data.modules);
+    const mergedRelations = mergeById(
+        sourceNode.data.relations,
+        targetNode.data.relations,
+        (r) => `${r.targetId}__${r.type}` // relations 的 key 是复合键
     );
-    (targetNode.data.relations ?? []).forEach((r) =>
-        relationsMap.set(`${r.targetId}__${r.type}`, r)
-    );
-    const mergedRelations = Array.from(relationsMap.values());
 
     // 5. level 取更"高级"的那个（业务规则：领域级 > 部门级综合 > 部门级单点 > 处室级单点 > 功能模块）
     const levelPriority: Record<string, number> = {
@@ -691,14 +724,36 @@ function confirmMergeNodes(data: {
     }
     parentNode.data.children = newParentChildren;
 
-    // 8. 重新 d3.hierarchy + 触发 renderTree 重绘
-    root = d3.hierarchy(treeData.value);
-    graphCanvasRef.value?.renderTree();
+    // 保存源/目标节点 ID，避免类型问题
+    const sourceId = sourceNode.data.id;
+    const targetId = targetNode.data.id;
 
-    // 9. 重新选中新节点（Drawer 自动打开显示详情）
+    // 8. 更新其他节点对源/目标节点的关系引用（改为引用新节点）
+    function updateRelationsReferences(node: TreeData) {
+        if (node.relations) {
+            for (const relation of node.relations) {
+                if (relation.targetId === sourceId || relation.targetId === targetId) {
+                    relation.targetId = newNode.id;
+                    relation.targetName = newNode.label;
+                }
+            }
+        }
+        if (node.children) {
+            for (const child of node.children) {
+                updateRelationsReferences(child);
+            }
+        }
+    }
+    updateRelationsReferences(treeData.value);
+
+    // 9. 重新 d3.hierarchy + 触发 renderTree 重绘
+    // 关键修复：必须更新 treeData.value 后再重新构建 hierarchy
+    updateTreeData(treeData.value);
+
+    // 10. 重新选中新节点（Drawer 自动打开显示详情）
     selectNode(newNode);
 
-    // 10. 关闭弹框 + 清空合并信息
+    // 11. 关闭弹框 + 清空合并信息
     showMergeNodesModal.value = false;
     mergeSourceId.value = null;
     mergeTargetId.value = null;
@@ -726,12 +781,55 @@ function deleteNode() {
             nodeData.parent.data.children = nodeData.parent.data.children!.filter(
                 (c) => c.id !== contextMenuNodeId.value
             );
-            root = d3.hierarchy(treeData.value);
-            graphCanvasRef.value?.renderTree();
+            updateTreeData(treeData.value);
             selectNode(treeData.value);
         }
     }
     document.getElementById('context-menu')!.style.display = 'none';
+}
+
+/**
+ * 撤销操作处理
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 接收子组件传递的历史数据
+ *   2. 更新 treeData
+ *   3. 重新构建 hierarchy 并渲染
+ */
+function handleUndo(data: TreeData) {
+    console.log('[handleUndo] restoring previous state');
+    updateTreeDataWithoutHistory(data);
+    selectNode(treeData.value);
+}
+
+/**
+ * 重做操作处理
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 接收子组件传递的历史数据
+ *   2. 更新 treeData
+ *   3. 重新构建 hierarchy 并渲染
+ */
+function handleRedo(data: TreeData) {
+    console.log('[handleRedo] restoring next state');
+    updateTreeDataWithoutHistory(data);
+    selectNode(treeData.value);
+}
+
+/**
+ * 刷新操作处理（恢复初始状态）
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 接收子组件传递的初始数据
+ *   2. 更新 treeData
+ *   3. 重新构建 hierarchy 并渲染
+ *   4. 清空选中状态
+ */
+function handleRefresh(data: TreeData) {
+    console.log('[handleRefresh] restoring initial state');
+    updateTreeDataWithoutHistory(data);
+    selectNode(treeData.value);
+    clearSelection();
 }
 
 /**
