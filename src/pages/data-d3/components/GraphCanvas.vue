@@ -24,6 +24,16 @@
             <button @click="handleZoomIn" title="放大">➕</button>
             <button @click="handleResetZoom" title="重置缩放">🔍 100%</button>
             <button @click="handleFitView" title="适应屏幕">🎯 适应</button>
+            <button
+                @click="handleToggleLayout"
+                :title="
+                    layoutOrientation === 'horizontal'
+                        ? '切换为上下布局（纵向）'
+                        : '切换为左右布局（横向）'
+                "
+            >
+                {{ layoutOrientation === 'horizontal' ? '↕️ 纵向' : '↔️ 横向' }}
+            </button>
             <button @click="handleUndo" :disabled="!canUndo" title="上一步（撤销）">↩️</button>
             <button @click="handleRedo" :disabled="!canRedo" title="下一步（重做）">↪️</button>
             <button @click="handleRefresh" title="刷新（恢复初始状态）">🔄</button>
@@ -120,9 +130,10 @@ import {
     zoomOut,
     fitView,
     resetZoom,
-    downloadTree
+    downloadTree,
+    setTreeOrientation
 } from '../utils/d3Tree';
-import type { D3TreeInstance } from '../utils/d3Tree';
+import type { D3TreeInstance, TreeLayoutOrientation } from '../utils/d3Tree';
 
 /**
  * 父组件传入的属性（只读）
@@ -201,6 +212,9 @@ const emit = defineEmits<{
 
 /** D3 树实例引用，用于调用 renderTree / zoomIn / zoomOut / fitView */
 let d3Instance: D3TreeInstance | null = null;
+
+/** 树布局方向：horizontal 左右 / vertical 上下 */
+const layoutOrientation = ref<TreeLayoutOrientation>('horizontal');
 
 // ---------- 撤销/重做状态管理 ----------
 
@@ -627,6 +641,18 @@ function handleZoomOut() {
  *   1. 检查 d3Instance 和容器是否存在
  *   2. 调用 fitView 工具函数，自动调整 viewBox
  */
+/**
+ * 切换树布局方向（左右 ↔ 上下）
+ */
+function handleToggleLayout() {
+    if (!d3Instance) return;
+    layoutOrientation.value =
+        layoutOrientation.value === 'horizontal' ? 'vertical' : 'horizontal';
+    setTreeOrientation(d3Instance, layoutOrientation.value);
+    handleRenderTree();
+    handleResetZoom();
+}
+
 function handleFitView() {
     try {
         console.log('[handleFitView] d3Instance =', !!d3Instance);

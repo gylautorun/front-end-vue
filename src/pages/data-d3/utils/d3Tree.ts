@@ -35,6 +35,136 @@ const NODE_WIDTH: number = 160;
 const NODE_HEIGHT: number = 40;
 const MARGIN = { top: 40, right: 40, bottom: 40, left: 40 };
 
+/** 树形图布局方向：horizontal=左右展开，vertical=上下展开 */
+export type TreeLayoutOrientation = 'horizontal' | 'vertical';
+
+/** 横向：宽扁卡片 160×40；纵向：竖长卡片 40×160 */
+function getNodeDimensions(orientation: TreeLayoutOrientation): { width: number; height: number } {
+    if (orientation === 'horizontal') {
+        return { width: NODE_WIDTH, height: NODE_HEIGHT };
+    }
+    return { width: NODE_HEIGHT, height: NODE_WIDTH };
+}
+
+function getForeignObjectMetrics(
+    orientation: TreeLayoutOrientation,
+    scale = 1
+): { width: number; height: number; x: number; y: number } {
+    const { width, height } = getNodeDimensions(orientation);
+    const w = width * scale;
+    const h = height * scale;
+    return { width: w, height: h, x: -w / 2, y: -h / 2 };
+}
+
+function applyForeignObjectAttrs(
+    el: SVGForeignObjectElement,
+    orientation: TreeLayoutOrientation,
+    scale = 1
+): void {
+    const m = getForeignObjectMetrics(orientation, scale);
+    el.setAttribute('width', String(m.width));
+    el.setAttribute('height', String(m.height));
+    el.setAttribute('x', String(m.x));
+    el.setAttribute('y', String(m.y));
+}
+
+export function applyTreeLayoutNodeSize(
+    treeLayout: d3.TreeLayout<TreeData>,
+    orientation: TreeLayoutOrientation
+): void {
+    const { width, height } = getNodeDimensions(orientation);
+    if (orientation === 'horizontal') {
+        treeLayout.nodeSize([height + 40, width + 180]);
+    } else {
+        treeLayout.nodeSize([width + 40, height + 180]);
+    }
+}
+
+function nodeScreenPosition(
+    node: d3.HierarchyNode<TreeData>,
+    orientation: TreeLayoutOrientation
+): { tx: number; ty: number } {
+    if (orientation === 'horizontal') {
+        return { tx: node.y ?? 0, ty: node.x ?? 0 };
+    }
+    return { tx: node.x ?? 0, ty: node.y ?? 0 };
+}
+
+function nodeTransformAttr(
+    node: d3.HierarchyNode<TreeData>,
+    orientation: TreeLayoutOrientation
+): string {
+    const { tx, ty } = nodeScreenPosition(node, orientation);
+    return `translate(${tx},${ty})`;
+}
+
+function createLinkGenerator(orientation: TreeLayoutOrientation) {
+    const { width, height } = getNodeDimensions(orientation);
+    if (orientation === 'horizontal') {
+        return d3
+            .linkHorizontal<d3.HierarchyLink<TreeData>, d3.HierarchyNode<TreeData>>()
+            .x((d) => d.y ?? 0)
+            .y((d) => d.x ?? 0)
+            .source(
+                (d) =>
+                    ({
+                        x: d.source.x ?? 0,
+                        y: (d.source.y ?? 0) + width / 2
+                    }) as unknown as d3.HierarchyNode<TreeData>
+            )
+            .target(
+                (d) =>
+                    ({
+                        x: d.target.x ?? 0,
+                        y: (d.target.y ?? 0) - width / 2
+                    }) as unknown as d3.HierarchyNode<TreeData>
+            );
+    }
+    return d3
+        .linkVertical<d3.HierarchyLink<TreeData>, d3.HierarchyNode<TreeData>>()
+        .x((d) => d.x ?? 0)
+        .y((d) => d.y ?? 0)
+        .source(
+            (d) =>
+                ({
+                    x: d.source.x ?? 0,
+                    y: (d.source.y ?? 0) + height / 2
+                }) as unknown as d3.HierarchyNode<TreeData>
+        )
+        .target(
+            (d) =>
+                ({
+                    x: d.target.x ?? 0,
+                    y: (d.target.y ?? 0) - height / 2
+                }) as unknown as d3.HierarchyNode<TreeData>
+        );
+}
+
+function linkLabelMidpoint(
+    link: d3.HierarchyLink<TreeData>,
+    orientation: TreeLayoutOrientation
+): { x: number; y: number } {
+    if (orientation === 'horizontal') {
+        return {
+            x: ((link.source.y ?? 0) + (link.target.y ?? 0)) / 2,
+            y: ((link.source.x ?? 0) + (link.target.x ?? 0)) / 2 + 2
+        };
+    }
+    return {
+        x: ((link.source.x ?? 0) + (link.target.x ?? 0)) / 2,
+        y: ((link.source.y ?? 0) + (link.target.y ?? 0)) / 2 + 2
+    };
+}
+
+/** 切换布局方向（需随后调用 renderTree 重绘） */
+export function setTreeOrientation(
+    instance: D3TreeInstance,
+    orientation: TreeLayoutOrientation
+): void {
+    instance.orientation = orientation;
+    applyTreeLayoutNodeSize(instance.treeLayout, orientation);
+}
+
 // 定义 D3 Selection 的基础类型
 // Selection<GElement, Datum, PElement, PDatum>
 type SvgSelection = d3.Selection<SVGSVGElement, null, HTMLElement, null>;
@@ -80,6 +210,8 @@ export interface D3TreeInstance {
     zoom: d3.ZoomBehavior<SVGSVGElement, null>;
     /** 当前正在拖拽的节点 id（实例级状态，支持多实例） */
     currentDraggingNodeId: string | null;
+    /** 布局方向：horizontal 左右 / vertical 上下 */
+    orientation: TreeLayoutOrientation;
 }
 
 const defaultConfig = {
@@ -171,11 +303,9 @@ export function initD3(
      *      - 不同父节点 (a.parent != b.parent)：1.5 倍基础间距
      *   4. 后面调用 treeLayout(root) 时计算每个节点的 x/y
      */
-    const treeLayout = d3
-        .tree<TreeData>()
-        // 与 d3.html 保持一致：水平间距 340（父子层之间），垂直间距 80（同级之间）
-        .nodeSize([NODE_HEIGHT + 40, NODE_WIDTH + 180]) // [垂直间距, 水平间距]
-        .separation((a, b) => (a.parent == b.parent ? 1.2 : 1.5));
+    const orientation: TreeLayoutOrientation = 'horizontal';
+    const treeLayout = d3.tree<TreeData>().separation((a, b) => (a.parent == b.parent ? 1.2 : 1.5));
+    applyTreeLayoutNodeSize(treeLayout, orientation);
 
     /**
      * 把 TreeData 转换为 D3 的层次结构
@@ -197,35 +327,7 @@ export function initD3(
         .append<SVGGElement>('g')
         .attr('class', 'link-group');
 
-    // 创建水平连线生成器，使用自定义 source/target 函数约束连接点位置
-    // ------------------------------------------------------------------------
-    // 默认的 d3.linkHorizontal 会从节点中心连线，我们需要：
-    //   - 源节点（父节点）：从右侧中间位置出发
-    //   - 目标节点（子节点）：从左侧中间位置进入
-    //
-    // 注意：.source()/.target() 返回的 {x, y} 会被 .x()/.y() 函数处理，
-    //       由于 .x((d) => d.y) 和 .y((d) => d.x) 交换了坐标，
-    //       所以这里需要反向设置：x 存垂直坐标，y 存水平坐标
-    const linkGenerator = d3
-        .linkHorizontal<d3.HierarchyLink<TreeData>, d3.HierarchyNode<TreeData>>()
-        .x((d) => d.y ?? 0)
-        .y((d) => d.x ?? 0)
-        // 自定义源节点连接点：右侧中间位置
-        .source(
-            (d) =>
-                ({
-                    x: d.source.x ?? 0, // 垂直坐标（传给 .y()）
-                    y: (d.source.y ?? 0) + NODE_WIDTH / 2 // 水平坐标（传给 .x()），向右偏移到右侧边缘
-                }) as unknown as d3.HierarchyNode<TreeData>
-        )
-        // 自定义目标节点连接点：左侧中间位置
-        .target(
-            (d) =>
-                ({
-                    x: d.target.x ?? 0, // 垂直坐标（传给 .y()）
-                    y: (d.target.y ?? 0) - NODE_WIDTH / 2 // 水平坐标（传给 .x()），向左偏移到左侧边缘
-                }) as unknown as d3.HierarchyNode<TreeData>
-        );
+    const linkGenerator = createLinkGenerator(orientation);
 
     // 使用连线生成器创建路径
     const path = link
@@ -269,15 +371,16 @@ export function initD3(
         .append<SVGGElement>('g')
         .attr('class', 'node')
         .attr('data-id', (d) => d.data.id) // 用于拖拽命中时查找 DOM
-        .attr('transform', (d) => `translate(${d.y ?? 0},${d.x ?? 0})`); // 交换 x/y 实现左右生长
+        .attr('transform', (d) => nodeTransformAttr(d, orientation));
 
     // 使用 foreignObject 嵌入 HTML 节点卡片
+    const foMetrics = getForeignObjectMetrics(orientation);
     const fo = node
         .append('foreignObject')
-        .attr('width', NODE_WIDTH)
-        .attr('height', NODE_HEIGHT)
-        .attr('x', -NODE_WIDTH / 2)
-        .attr('y', -NODE_HEIGHT / 2);
+        .attr('width', foMetrics.width)
+        .attr('height', foMetrics.height)
+        .attr('x', foMetrics.x)
+        .attr('y', foMetrics.y);
 
     fo.append('xhtml:div')
         .attr('class', 'node-card')
@@ -317,7 +420,8 @@ export function initD3(
         labelText,
         node,
         zoom,
-        currentDraggingNodeId: null // 初始化拖拽状态
+        currentDraggingNodeId: null,
+        orientation
     };
 
     // 拖拽功能（参考文件实现）
@@ -340,7 +444,7 @@ export function initD3(
     bindNodeDrag(node, instance, onDropToTarget);
 
     // 初始化标签位置
-    updateLinkLabels(labelBg, labelText);
+    updateLinkLabels(labelBg, labelText, orientation);
 
     // 窗口大小变化处理
     window.addEventListener('resize', () => handleResize(svg, container));
@@ -403,10 +507,7 @@ function resolveNodeIdFromElement(gEl: SVGGElement, d?: d3.HierarchyNode<TreeDat
 }
 
 function shouldShowIntegratedBadge(d: d3.HierarchyNode<TreeData>): boolean {
-    return (
-        (d.depth ?? 0) > 0 &&
-        !!(d.data.integratedFrom && d.data.integratedFrom.length > 0)
-    );
+    return (d.depth ?? 0) > 0 && !!(d.data.integratedFrom && d.data.integratedFrom.length > 0);
 }
 
 function buildNodeCardHtml(d: d3.HierarchyNode<TreeData>): string {
@@ -481,7 +582,7 @@ function bindNodeDrag(
 }
 
 function dragStarted(
-    instance: Pick<D3TreeInstance, 'currentDraggingNodeId' | 'root'>,
+    instance: Pick<D3TreeInstance, 'currentDraggingNodeId' | 'root' | 'orientation'>,
     d: d3.HierarchyNode<TreeData>,
     gEl: SVGGElement
 ) {
@@ -515,16 +616,14 @@ function dragStarted(
         const placeholder = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         placeholder.setAttribute('class', 'drag-placeholder');
         placeholder.setAttribute('data-target-id', nodeId);
-        placeholder.setAttribute(
-            'transform',
-            `translate(${Number(d.y ?? 0)},${Number(d.x ?? 0)})`
-        );
+        placeholder.setAttribute('transform', nodeTransformAttr(d, instance.orientation));
 
+        const { width, height } = getNodeDimensions(instance.orientation);
         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        rect.setAttribute('x', '-80');
-        rect.setAttribute('y', '-20');
-        rect.setAttribute('width', '160');
-        rect.setAttribute('height', '40');
+        rect.setAttribute('x', String(-width / 2));
+        rect.setAttribute('y', String(-height / 2));
+        rect.setAttribute('width', String(width));
+        rect.setAttribute('height', String(height));
         rect.setAttribute('rx', '6');
         rect.setAttribute('ry', '6');
         rect.setAttribute('fill', 'rgba(140, 140, 140, 0.3)');
@@ -575,10 +674,7 @@ function dragged(
     const d = getCurrentNode(instance, nodeId);
     if (!d) return;
 
-    // 当前累计 transform（始终使用最新的节点位置作为初始位置）
-    // 关键修复：合并等操作可能改变节点位置，必须使用最新的 d.y / d.x
-    const currentTX = Number.isFinite(Number(d?.y)) ? Number(d?.y) : 0;
-    const currentTY = Number.isFinite(Number(d?.x)) ? Number(d?.x) : 0;
+    const { tx: currentTX, ty: currentTY } = nodeScreenPosition(d, instance.orientation);
 
     // 获取上次拖拽的累计位移（如果存在）
     const prevDeltaX = Number.isFinite(Number(gEl.dataset.deltaX)) ? Number(gEl.dataset.deltaX) : 0;
@@ -676,7 +772,7 @@ function dragged(
         }
     }
 
-    clearDropTargetHighlight(svg);
+    clearDropTargetHighlight(svg, instance.orientation);
     // 使用 instance.root 作为单一数据源
     const currentRoot = instance.root;
     if (currentRoot) {
@@ -690,10 +786,11 @@ function dragged(
                     'foreignObject'
                 ) as SVGForeignObjectElement | null;
                 if (fo) {
-                    fo.setAttribute('width', String(NODE_WIDTH * 1.3));
-                    fo.setAttribute('height', String(NODE_HEIGHT * 1.3));
-                    fo.setAttribute('x', String(-(NODE_WIDTH * 1.3) / 2));
-                    fo.setAttribute('y', String(-(NODE_HEIGHT * 1.3) / 2));
+                    // fo.setAttribute('width', String(NODE_WIDTH * 1.3));
+                    // fo.setAttribute('height', String(NODE_HEIGHT * 1.3));
+                    // fo.setAttribute('x', String(-(NODE_WIDTH * 1.3) / 2));
+                    // fo.setAttribute('y', String(-(NODE_HEIGHT * 1.3) / 2));
+                    applyForeignObjectAttrs(fo, instance.orientation, 1.3);
                 }
             }
         }
@@ -717,7 +814,7 @@ function dragged(
  * @param onDropToTarget 命中同级节点时触发的回调
  */
 function dragEnded(
-    instance: Pick<D3TreeInstance, 'currentDraggingNodeId'> & { root?: d3.HierarchyNode<TreeData> },
+    instance: Pick<D3TreeInstance, 'currentDraggingNodeId' | 'orientation' | 'root' | 'svg'>,
     event: d3.D3DragEvent<SVGGElement, d3.HierarchyNode<TreeData>, d3.HierarchyNode<TreeData>>,
     d: d3.HierarchyNode<TreeData>,
     root: d3.HierarchyNode<TreeData>,
@@ -758,17 +855,16 @@ function dragEnded(
     // 找鼠标下方的同级节点（使用最新的 currentRoot）
     const hit = findSameLevelNodeAtDOM(currentRoot, d, clientX, clientY);
 
-    const svg = (instance as D3TreeInstance).svg;
+    const svg = instance.svg;
 
     // 清除所有 drop-target 高亮
-    clearDropTargetHighlight(svg);
+    clearDropTargetHighlight(svg, instance.orientation);
 
     // 释放后：把当前被拖拽节点的 transform 重置回原坐标
     const draggedG = svg ? findNodeGElementInSvg(svg, d.data.id) : null;
     if (draggedG) {
-        const latestNode = getCurrentNode(instance, d.data.id);
-        const resetX = latestNode?.y ?? d.y ?? 0;
-        const resetY = latestNode?.x ?? d.x ?? 0;
+        const latestNode = getCurrentNode(instance, d.data.id) ?? d;
+        const { tx: resetX, ty: resetY } = nodeScreenPosition(latestNode, instance.orientation);
         d3.select(draggedG).attr('transform', `translate(${Number(resetX)},${Number(resetY)})`);
         delete draggedG.dataset.deltaX;
         delete draggedG.dataset.deltaY;
@@ -1016,7 +1112,10 @@ function findSameLevelNodeByCoord(
 /**
  * 清除所有节点的 drop-target 高亮 class
  */
-function clearDropTargetHighlight(svg?: SvgSelection) {
+function clearDropTargetHighlight(
+    svg?: SvgSelection,
+    orientation: TreeLayoutOrientation = 'horizontal'
+) {
     const highlighted = svg
         ? svg.selectAll('g.node.drop-target')
         : d3.selectAll('g.node.drop-target');
@@ -1025,10 +1124,11 @@ function clearDropTargetHighlight(svg?: SvgSelection) {
         el.classList.remove('drop-target');
         const fo = el.querySelector('foreignObject') as SVGForeignObjectElement | null;
         if (fo) {
-            fo.setAttribute('width', String(NODE_WIDTH));
-            fo.setAttribute('height', String(NODE_HEIGHT));
-            fo.setAttribute('x', String(-NODE_WIDTH / 2));
-            fo.setAttribute('y', String(-NODE_HEIGHT / 2));
+            // fo.setAttribute('width', String(NODE_WIDTH));
+            // fo.setAttribute('height', String(NODE_HEIGHT));
+            // fo.setAttribute('x', String(-NODE_WIDTH / 2));
+            // fo.setAttribute('y', String(-NODE_HEIGHT / 2));
+            applyForeignObjectAttrs(fo, orientation);
         }
     });
 }
@@ -1045,34 +1145,14 @@ function clearDropTargetHighlight(svg?: SvgSelection) {
  * @param labelBg   标签背景 selection
  * @param labelText 标签文字 selection
  */
-export function updateLinks(path: PathSelection, labelBg: RectSelection, labelText: TextSelection) {
-    // 创建连线生成器（与初始化时相同的配置，约束连接点位置）
-    const linkGenerator = d3
-        .linkHorizontal<d3.HierarchyLink<TreeData>, d3.HierarchyNode<TreeData>>()
-        .x((d) => d.y ?? 0)
-        .y((d) => d.x ?? 0)
-        // 自定义源节点连接点：右侧中间位置
-        .source(
-            (d) =>
-                ({
-                    x: d.source.x ?? 0, // 垂直坐标（传给 .y()）
-                    y: (d.source.y ?? 0) + NODE_WIDTH / 2 // 水平坐标（传给 .x()），向右偏移到右侧边缘
-                }) as unknown as d3.HierarchyNode<TreeData>
-        )
-        // 自定义目标节点连接点：左侧中间位置
-        .target(
-            (d) =>
-                ({
-                    x: d.target.x ?? 0, // 垂直坐标（传给 .y()）
-                    y: (d.target.y ?? 0) - NODE_WIDTH / 2 // 水平坐标（传给 .x()），向左偏移到左侧边缘
-                }) as unknown as d3.HierarchyNode<TreeData>
-        );
-
-    // 更新连线路径
-    path.attr('d', linkGenerator);
-
-    // 更新标签位置
-    updateLinkLabels(labelBg, labelText);
+export function updateLinks(
+    path: PathSelection,
+    labelBg: RectSelection,
+    labelText: TextSelection,
+    orientation: TreeLayoutOrientation = 'horizontal'
+) {
+    path.attr('d', createLinkGenerator(orientation));
+    updateLinkLabels(labelBg, labelText, orientation);
 }
 
 /**
@@ -1086,27 +1166,20 @@ export function updateLinks(path: PathSelection, labelBg: RectSelection, labelTe
  * @param labelBg   标签背景 selection
  * @param labelText 标签文字 selection
  */
-export function updateLinkLabels(labelBg: RectSelection, labelText: TextSelection) {
-    // 获取坐标的辅助函数
-    const getX = (d: d3.HierarchyLink<TreeData>): number => {
-        const sourceY = d.source.y ?? 0;
-        const targetY = d.target.y ?? 0;
-        return (sourceY + targetY) / 2;
-    };
-
-    const getY = (d: d3.HierarchyLink<TreeData>): number => {
-        const sourceX = d.source.x ?? 0;
-        const targetX = d.target.x ?? 0;
-        return (sourceX + targetX) / 2;
-    };
-
+export function updateLinkLabels(
+    labelBg: RectSelection,
+    labelText: TextSelection,
+    orientation: TreeLayoutOrientation = 'horizontal'
+) {
     labelBg
-        .attr('x', (d) => getX(d) - 25)
-        .attr('y', (d) => getY(d) - 10)
+        .attr('x', (d) => linkLabelMidpoint(d, orientation).x - 25)
+        .attr('y', (d) => linkLabelMidpoint(d, orientation).y - 10)
         .attr('width', 50)
         .attr('height', 20);
 
-    labelText.attr('x', getX).attr('y', getY);
+    labelText
+        .attr('x', (d) => linkLabelMidpoint(d, orientation).x)
+        .attr('y', (d) => linkLabelMidpoint(d, orientation).y);
 }
 
 /**
@@ -1153,7 +1226,8 @@ export function renderTree(
         targetData: TreeData
     ) => void
 ): d3.HierarchyNode<TreeData> {
-    const { treeLayout, link, node, g } = instance;
+    const { treeLayout, link, node } = instance;
+    const orientation = instance.orientation ?? 'horizontal';
 
     // 重新计算布局
     const root = d3.hierarchy(treeData);
@@ -1161,193 +1235,175 @@ export function renderTree(
 
     // 更新连线数据
     const linkData = root.links();
-
-    // 创建连线生成器
-    const linkGenerator = d3
-        .linkHorizontal<d3.HierarchyLink<TreeData>, d3.HierarchyNode<TreeData>>()
-        .x((d) => d.y ?? 0)
-        .y((d) => d.x ?? 0)
-        // 自定义源节点连接点：右侧中间位置
-        .source(
-            (d) =>
-                ({
-                    x: d.source.x ?? 0,
-                    y: (d.source.y ?? 0) + NODE_WIDTH / 2
-                }) as unknown as d3.HierarchyNode<TreeData>
-        )
-        // 自定义目标节点连接点：左侧中间位置
-        .target(
-            (d) =>
-                ({
-                    x: d.target.x ?? 0,
-                    y: (d.target.y ?? 0) - NODE_WIDTH / 2
-                }) as unknown as d3.HierarchyNode<TreeData>
-        );
-
-    // 获取坐标的辅助函数
-    const getX = (d: d3.HierarchyLink<TreeData>): number => {
-        const sourceY = d.source.y ?? 0;
-        const targetY = d.target.y ?? 0;
-        return (sourceY + targetY) / 2;
-    };
-
-    const getY = (d: d3.HierarchyLink<TreeData>): number => {
-        const sourceX = d.source.x ?? 0;
-        const targetX = d.target.x ?? 0;
-        return (sourceX + targetX) / 2 + 2; // +`2`，让标签居中
-    };
+    const linkGenerator = createLinkGenerator(orientation);
+    const getLabelX = (d: d3.HierarchyLink<TreeData>) => linkLabelMidpoint(d, orientation).x;
+    const getLabelY = (d: d3.HierarchyLink<TreeData>) => linkLabelMidpoint(d, orientation).y;
 
     // 使用 join() 正确处理 enter/update/exit
     const linkUpdate = link
         .data(linkData, (d) => `${d.source.data.id}__${d.target.data.id}`)
         .join(
-        // enter: 创建新的连线组
-        (enter) => {
-            const linkGroup = enter.append('g').attr('class', 'link-group');
+            // enter: 创建新的连线组
+            (enter) => {
+                const linkGroup = enter.append('g').attr('class', 'link-group');
 
-            // 添加路径
-            linkGroup
-                .append('path')
-                .attr('class', 'link')
-                .attr('d', linkGenerator)
-                .attr('stroke', (d) => {
-                    const type = d.target.data.integrationType as IntegrationTypeKey;
-                    return EDGE_STYLES[type] || defaultConfig.linkColor;
-                })
-                .attr('stroke-dasharray', (d) => {
-                    const type = d.target.data.integrationType as IntegrationTypeKey;
-                    return type === IntegrationTypeKey.deprecate ? '6,4' : 'none';
-                });
+                // 添加路径
+                linkGroup
+                    .append('path')
+                    .attr('class', 'link')
+                    .attr('d', linkGenerator)
+                    .attr('stroke', (d) => {
+                        const type = d.target.data.integrationType as IntegrationTypeKey;
+                        return EDGE_STYLES[type] || defaultConfig.linkColor;
+                    })
+                    .attr('stroke-dasharray', (d) => {
+                        const type = d.target.data.integrationType as IntegrationTypeKey;
+                        return type === IntegrationTypeKey.deprecate ? '6,4' : 'none';
+                    });
 
-            // 添加标签背景
-            linkGroup
-                .append('rect')
-                .attr('class', 'link-label-bg')
-                .attr('x', (d) => getX(d) - 25)
-                .attr('y', (d) => getY(d) - 10)
-                .attr('width', 50)
-                .attr('height', 20)
-                .attr('opacity', (d) => {
-                    const integrationType = d.target.data.integrationType;
-                    return d.target.data.integrationType !== IntegrationTypeKey.base ? 1 : 0;
-                });
+                // 添加标签背景
+                linkGroup
+                    .append('rect')
+                    .attr('class', 'link-label-bg')
+                    .attr('x', (d) => getLabelX(d) - 25)
+                    .attr('y', (d) => getLabelY(d) - 10)
+                    .attr('width', 50)
+                    .attr('height', 20)
+                    .attr('opacity', (d) => {
+                        const integrationType = d.target.data.integrationType;
+                        return d.target.data.integrationType !== IntegrationTypeKey.base ? 1 : 0;
+                    });
 
-            // 添加标签文字
-            linkGroup
-                .append('text')
-                .attr('class', 'link-label')
-                .attr('x', getX)
-                .attr('y', getY)
-                .attr('opacity', (d) => {
-                    const integrationType = d.target.data.integrationType;
-                    return integrationType !== IntegrationTypeKey.base ? 1 : 0;
-                })
-                .text((d) => {
-                    const integrationType = d.target.data.integrationType as IntegrationTypeKey;
-                    return INTEGRATION_TYPE_NAME[integrationType] || '';
-                });
+                // 添加标签文字
+                linkGroup
+                    .append('text')
+                    .attr('class', 'link-label')
+                    .attr('x', getLabelX)
+                    .attr('y', getLabelY)
+                    .attr('opacity', (d) => {
+                        const integrationType = d.target.data.integrationType;
+                        return integrationType !== IntegrationTypeKey.base ? 1 : 0;
+                    })
+                    .text((d) => {
+                        const integrationType = d.target.data.integrationType as IntegrationTypeKey;
+                        return INTEGRATION_TYPE_NAME[integrationType] || '';
+                    });
 
-            return linkGroup;
-        },
-        // update: 更新现有连线
-        (update) => {
-            update
-                .select('path')
-                .attr('d', linkGenerator)
-                .attr('stroke', (d) => {
-                    const type = d.target.data.integrationType as IntegrationTypeKey;
-                    return EDGE_STYLES[type] || defaultConfig.linkColor;
-                })
-                .attr('stroke-dasharray', (d) => {
-                    const type = d.target.data.integrationType as IntegrationTypeKey;
-                    return type === IntegrationTypeKey.deprecate ? '6,4' : 'none';
-                });
+                return linkGroup;
+            },
+            // update: 更新现有连线
+            (update) => {
+                update
+                    .select('path')
+                    .attr('d', linkGenerator)
+                    .attr('stroke', (d) => {
+                        const type = d.target.data.integrationType as IntegrationTypeKey;
+                        return EDGE_STYLES[type] || defaultConfig.linkColor;
+                    })
+                    .attr('stroke-dasharray', (d) => {
+                        const type = d.target.data.integrationType as IntegrationTypeKey;
+                        return type === IntegrationTypeKey.deprecate ? '6,4' : 'none';
+                    });
 
-            update
-                .select('.link-label-bg')
-                .attr('x', (d) => getX(d) - 25)
-                .attr('y', (d) => getY(d) - 10)
-                .attr('opacity', (d) => {
-                    const integrationType = d.target.data.integrationType;
-                    return integrationType !== IntegrationTypeKey.base ? 1 : 0;
-                });
+                update
+                    .select('.link-label-bg')
+                    .attr('x', (d) => getLabelX(d) - 25)
+                    .attr('y', (d) => getLabelY(d) - 10)
+                    .attr('opacity', (d) => {
+                        const integrationType = d.target.data.integrationType;
+                        return integrationType !== IntegrationTypeKey.base ? 1 : 0;
+                    });
 
-            update
-                .select('.link-label')
-                .attr('x', getX)
-                .attr('y', getY)
-                .attr('opacity', (d) => {
-                    const integrationType = d.target.data.integrationType;
-                    return integrationType !== IntegrationTypeKey.base ? 1 : 0;
-                })
+                update
+                    .select('.link-label')
+                    .attr('x', getLabelX)
+                    .attr('y', getLabelY)
+                    .attr('opacity', (d) => {
+                        const integrationType = d.target.data.integrationType;
+                        return integrationType !== IntegrationTypeKey.base ? 1 : 0;
+                    })
 
-                .text((d) => {
-                    const integrationType = d.target.data.integrationType as IntegrationTypeKey;
-                    return INTEGRATION_TYPE_NAME[integrationType] || '';
-                });
+                    .text((d) => {
+                        const integrationType = d.target.data.integrationType as IntegrationTypeKey;
+                        return INTEGRATION_TYPE_NAME[integrationType] || '';
+                    });
 
-            return update;
-        },
-        // exit: 移除多余连线
-        (exit) => exit.remove()
-    );
+                return update;
+            },
+            // exit: 移除多余连线
+            (exit) => exit.remove()
+        );
 
     // 更新实例中的 link selection
     instance.link = linkUpdate;
 
     // 更新节点数据
     const nodeData = root.descendants();
-    const nodeUpdate = node.data(nodeData, (d) => d.data.id).join(
-        // enter: 创建新节点
-        (enter) => {
-            const nodeGroup = enter
-                .append('g')
-                .attr('class', 'node')
-                .attr('data-id', (d) => d.data.id)
-                .attr('transform', (d) => `translate(${d.y ?? 0},${d.x ?? 0})`);
+    const nodeUpdate = node
+        .data(nodeData, (d) => d.data.id)
+        .join(
+            // enter: 创建新节点
+            (enter) => {
+                const nodeGroup = enter
+                    .append('g')
+                    .attr('class', 'node')
+                    .attr('data-id', (d) => d.data.id)
+                    .attr('transform', (d) => nodeTransformAttr(d, orientation));
 
-            nodeGroup
-                .append('foreignObject')
-                .attr('width', NODE_WIDTH)
-                .attr('height', NODE_HEIGHT)
-                .attr('x', -NODE_WIDTH / 2)
-                .attr('y', -NODE_HEIGHT / 2)
-                .append('xhtml:div')
-                .attr('class', 'node-card')
-                .style(
-                    'background-color',
-                    (d) => LEVEL_CONFIG[d.data.level]?.color || LEVEL_CONFIG.base.color
-                )
-                .html((d) => buildNodeCardHtml(d));
+                const enterFoMetrics = getForeignObjectMetrics(orientation);
+                nodeGroup
+                    .append('foreignObject')
+                    .attr('width', enterFoMetrics.width)
+                    .attr('height', enterFoMetrics.height)
+                    .attr('x', enterFoMetrics.x)
+                    .attr('y', enterFoMetrics.y)
+                    .append('xhtml:div')
+                    .attr('class', 'node-card')
+                    .classed('vertical', orientation === 'vertical')
+                    .style(
+                        'background-color',
+                        (d) => LEVEL_CONFIG[d.data.level]?.color || LEVEL_CONFIG.base.color
+                    )
+                    .html((d) => buildNodeCardHtml(d));
 
-            return nodeGroup;
-        },
-        // update: 更新现有节点
-        (update) => {
-            update
-                .attr('data-id', (d) => d.data.id)
-                .attr('transform', function (d) {
-                    const el = this as SVGGElement;
-                    if (el.classList.contains('dragging')) {
-                        return el.getAttribute('transform') || `translate(${d.y ?? 0},${d.x ?? 0})`;
-                    }
-                    return `translate(${d.y ?? 0},${d.x ?? 0})`;
-                });
+                return nodeGroup;
+            },
+            // update: 更新现有节点
+            (update) => {
+                update
+                    .attr('data-id', (d) => d.data.id)
+                    .attr('transform', function (d) {
+                        const el = this as SVGGElement;
+                        const fallback = nodeTransformAttr(d, orientation);
+                        if (el.classList.contains('dragging')) {
+                            return el.getAttribute('transform') || fallback;
+                        }
+                        return fallback;
+                    });
 
-            update
-                .select('.node-card')
-                .style(
-                    'background-color',
-                    (d) => LEVEL_CONFIG[d.data.level]?.color || LEVEL_CONFIG.base.color
-                )
-                .classed('selected', (d) => isSelected(d.data.id))
-                .html((d) => buildNodeCardHtml(d));
+                const updateFoMetrics = getForeignObjectMetrics(orientation);
+                update
+                    .select('foreignObject')
+                    .attr('width', updateFoMetrics.width)
+                    .attr('height', updateFoMetrics.height)
+                    .attr('x', updateFoMetrics.x)
+                    .attr('y', updateFoMetrics.y);
 
-            return update;
-        },
-        // exit: 移除多余节点
-        (exit) => exit.remove()
-    );
+                update
+                    .select('.node-card')
+                    .style(
+                        'background-color',
+                        (d) => LEVEL_CONFIG[d.data.level]?.color || LEVEL_CONFIG.base.color
+                    )
+                    .classed('selected', (d) => isSelected(d.data.id))
+                    .classed('vertical', orientation === 'vertical')
+                    .html((d) => buildNodeCardHtml(d));
+
+                return update;
+            },
+            // exit: 移除多余节点
+            (exit) => exit.remove()
+        );
 
     // 更新实例中的 node selection
     instance.node = nodeUpdate;
