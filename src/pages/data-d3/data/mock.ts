@@ -14,7 +14,7 @@
  *      中文名通过 INTEGRATION_TYPE_NAME[key] 获取，写入 integrationTypeName
  */
 import type { TreeData } from '../types';
-import { INTEGRATION_TYPE_NAME, IntegrationTypeKey } from '../types';
+import { INTEGRATION_TYPE_NAME, IntegrationTypeKey, ROOT_DEFAULT_MERGE_MARKER } from '../types';
 
 /**
  * 初始树数据
@@ -45,6 +45,8 @@ export const initialTreeData: TreeData = {
     level: 'domain',
     dept: '教育局',
     owner: '管理员',
+    // 顶层默认视为已整合，其下一层级节点可进行同级合并
+    integratedFrom: [ROOT_DEFAULT_MERGE_MARKER],
     children: [
         {
             id: 'app1',

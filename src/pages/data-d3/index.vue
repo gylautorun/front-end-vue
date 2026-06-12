@@ -192,8 +192,9 @@ import SidebarRight from './components/SidebarRight.vue';
 import GraphCanvas from './components/GraphCanvas.vue';
 import Modals from './components/Modals.vue';
 import type { TreeData, SelectedNode, IntegrationTypeKey, LevelKey } from './types';
-import { INTEGRATION_TYPE_NAME } from './types';
+import { INTEGRATION_TYPE_NAME, canSiblingMerge } from './types';
 import { initialTreeData } from './data/mockData';
+import { TreeLogger } from './utils/treeLogger';
 
 // 响应式状态
 const graphCanvasRef = ref<InstanceType<typeof GraphCanvas> | null>(null);
@@ -208,6 +209,7 @@ const showDrawer = ref(false);
 const showMergeNodesModal = ref(false);
 
 const treeData = ref<TreeData>(cloneDeep(initialTreeData));
+TreeLogger.log('initialTreeData', treeData.value);
 const selectedNodes = ref<SelectedNode[]>([]);
 const selectedNodeData = ref<TreeData | null>(null);
 const contextMenuNodeId = ref<string | null>(null);
@@ -396,6 +398,9 @@ function handleResetTree() {
     graphCanvasRef.value?.resetZoom();
     selectNode(treeData.value);
     clearSelection();
+    TreeLogger.log('重置整棵树', treeData.value, {
+        action: 'reset'
+    });
 }
 
 /**
@@ -406,9 +411,10 @@ function handleResetTree() {
  */
 function updateTreeDataWithoutHistory(newData: TreeData) {
     treeData.value = cloneDeep(newData);
-    root = d3.hierarchy(treeData.value);
-    // 传入新的树数据，确保立即渲染
-    graphCanvasRef.value?.renderTree(treeData.value);
+    // 调用 renderTree，它会计算节点位置并返回带有位置数据的 root
+    const renderedRoot = graphCanvasRef.value?.renderTree(treeData.value);
+    // 更新 root 变量，确保后续操作使用最新的层级结构
+    root = renderedRoot || d3.hierarchy(treeData.value);
 }
 
 /**
@@ -419,11 +425,12 @@ function updateTreeDataWithoutHistory(newData: TreeData) {
  */
 function updateTreeData(newData: TreeData) {
     treeData.value = cloneDeep(newData);
-    root = d3.hierarchy(treeData.value);
-    // 传入新的树数据，确保立即渲染
-    graphCanvasRef.value?.renderTree(treeData.value);
+    // 调用 renderTree，它会计算节点位置并返回带有位置数据的 root
+    const renderedRoot = graphCanvasRef.value?.renderTree(treeData.value);
     // 记录操作到历史
     graphCanvasRef.value?.recordOperation(treeData.value);
+    // 使用 renderTree 返回的带有正确位置数据的 root
+    root = renderedRoot || d3.hierarchy(treeData.value);
 }
 
 /**
@@ -444,8 +451,9 @@ function confirmAddNode(data: {
     level: LevelKey;
     integrationType: IntegrationTypeKey;
 }) {
-    const parentNode = root.descendants().find((d) => d.data.id === contextMenuNodeId.value);
-    if (parentNode) {
+    // 在原始数据中找到父节点
+    const parentResult = findNodeInTreeData(treeData.value, contextMenuNodeId.value || '');
+    if (parentResult) {
         const newNode: TreeData = {
             id: `node_${Date.now()}`,
             label: data.name,
@@ -457,9 +465,15 @@ function confirmAddNode(data: {
             children: [],
             modules: []
         };
-        if (!parentNode.data.children) parentNode.data.children = [];
-        parentNode.data.children.push(newNode);
+        if (!parentResult.node.children) parentResult.node.children = [];
+        parentResult.node.children.push(newNode);
         updateTreeData(treeData.value);
+        TreeLogger.log('新增子节点', treeData.value, {
+            parentId: contextMenuNodeId.value,
+            newNodeId: newNode.id,
+            newNodeLabel: newNode.label,
+            newNodeLevel: newNode.level
+        });
     }
     showAddModal.value = false;
 }
@@ -478,19 +492,25 @@ function confirmAddNode(data: {
  * @param data 包含 name / dept 的表单数据
  */
 function confirmAddModule(data: { name: string; dept: string }) {
-    const parentNode = root.descendants().find((d) => d.data.id === contextMenuNodeId.value);
-    if (parentNode) {
+    // 在原始数据中找到父节点
+    const parentResult = findNodeInTreeData(treeData.value, contextMenuNodeId.value || '');
+    if (parentResult) {
         const newModule: TreeData = {
             id: `module_${Date.now()}`,
             label: data.name,
             level: 'module',
-            dept: data.dept || parentNode.data.dept,
+            dept: data.dept || parentResult.node.dept,
             owner: ''
         };
-        if (!parentNode.data.modules) parentNode.data.modules = [];
-        parentNode.data.modules.push(newModule);
-        selectNode(parentNode.data);
+        if (!parentResult.node.modules) parentResult.node.modules = [];
+        parentResult.node.modules.push(newModule);
+        selectNode(parentResult.node);
         updateTreeData(treeData.value);
+        TreeLogger.log('新增功能模块', treeData.value, {
+            parentId: contextMenuNodeId.value,
+            newModuleId: newModule.id,
+            newModuleLabel: newModule.label
+        });
     }
     showAddModuleModal.value = false;
 }
@@ -514,31 +534,39 @@ function confirmIntegrateModule(data: { name: string; dept: string; type: Integr
     const parentIds = [...new Set(selectedNodes.value.map((n) => n.parentId))];
     const parentId = parentIds.length === 1 ? parentIds[0] : 'edu';
 
-    const parentNode = root.descendants().find((d) => d.data.id === parentId);
-    if (parentNode) {
+    const parentResult = findNodeInTreeData(treeData.value, parentId);
+    if (parentResult) {
         const newModule: TreeData = {
             id: `integrated_${Date.now()}`,
             label: data.name,
             level: 'module',
-            dept: data.dept || parentNode.data.dept,
+            dept: data.dept || parentResult.node.dept,
             owner: '',
             integrationType: data.type,
             integrationTypeName: INTEGRATION_TYPE_NAME[data.type]
         };
 
-        if (!parentNode.data.modules) parentNode.data.modules = [];
-        parentNode.data.modules.push(newModule);
+        if (!parentResult.node.modules) parentResult.node.modules = [];
+        parentResult.node.modules.push(newModule);
 
         selectedNodes.value.forEach((selected) => {
-            const ownerNode = root.descendants().find((d) => d.data.id === selected.parentId);
-            if (ownerNode && ownerNode.data.modules) {
-                ownerNode.data.modules = ownerNode.data.modules.filter((m) => m.id !== selected.id);
+            const ownerResult = findNodeInTreeData(treeData.value, selected.parentId);
+            if (ownerResult && ownerResult.node.modules) {
+                ownerResult.node.modules = ownerResult.node.modules.filter(
+                    (m) => m.id !== selected.id
+                );
             }
         });
 
         updateTreeData(treeData.value);
-        selectNode(parentNode.data);
+        selectNode(parentResult.node);
         clearSelection();
+        TreeLogger.log('整合多选模块', treeData.value, {
+            parentId,
+            newModuleId: newModule.id,
+            newModuleLabel: newModule.label,
+            selectedCount: selectedNodes.value.length
+        });
     }
 
     showIntegrateModal.value = false;
@@ -562,16 +590,24 @@ function confirmEditNode(data: {
     level: LevelKey | '';
     owner: string;
 }) {
-    const nodeData = root.descendants().find((d) => d.data.id === contextMenuNodeId.value);
-    if (nodeData) {
-        nodeData.data.label = data.name;
-        nodeData.data.dept = data.dept;
+    // 在原始数据中找到节点
+    const nodeResult = findNodeInTreeData(treeData.value, contextMenuNodeId.value || '');
+    if (nodeResult) {
+        nodeResult.node.label = data.name;
+        nodeResult.node.dept = data.dept;
         if (data.level) {
-            nodeData.data.level = data.level;
+            nodeResult.node.level = data.level;
         }
-        nodeData.data.owner = data.owner;
+        nodeResult.node.owner = data.owner;
         updateTreeData(treeData.value);
-        selectNode(nodeData.data);
+        selectNode(nodeResult.node);
+        TreeLogger.log('编辑节点属性', treeData.value, {
+            nodeId: contextMenuNodeId.value,
+            newName: data.name,
+            newLevel: data.level,
+            newDept: data.dept,
+            newOwner: data.owner
+        });
     }
     showEditModal.value = false;
 }
@@ -589,19 +625,26 @@ function confirmEditNode(data: {
  *             其中 type 是 IntegrationTypeKey 枚举，name 是整合名称
  */
 function confirmBindRelation(data: { targetId: string; type: IntegrationTypeKey; name: string }) {
-    const nodeData = root.descendants().find((d) => d.data.id === contextMenuNodeId.value);
-    const targetData = root.descendants().find((d) => d.data.id === data.targetId);
+    // 在原始数据中找到源节点和目标节点
+    const nodeResult = findNodeInTreeData(treeData.value, contextMenuNodeId.value || '');
+    const targetResult = findNodeInTreeData(treeData.value, data.targetId);
 
-    if (nodeData && targetData) {
-        if (!nodeData.data.relations) nodeData.data.relations = [];
-        nodeData.data.relations.push({
-            targetId: targetData.data.id,
-            targetName: targetData.data.label,
+    if (nodeResult && targetResult) {
+        if (!nodeResult.node.relations) nodeResult.node.relations = [];
+        nodeResult.node.relations.push({
+            targetId: targetResult.node.id,
+            targetName: targetResult.node.label,
             type: data.type,
             name: data.name
         });
-        selectNode(nodeData.data);
+        selectNode(nodeResult.node);
         updateTreeData(treeData.value);
+        TreeLogger.log('绑定关联关系', treeData.value, {
+            sourceId: contextMenuNodeId.value,
+            targetId: data.targetId,
+            relationType: data.type,
+            relationName: data.name
+        });
     }
 
     showBindRelationModal.value = false;
@@ -620,11 +663,17 @@ function confirmBindRelation(data: { targetId: string; type: IntegrationTypeKey;
  *             其中 type 是 IntegrationTypeKey 枚举
  */
 function confirmIntegration(data: { type: IntegrationTypeKey }) {
-    const nodeData = root.descendants().find((d) => d.data.id === contextMenuNodeId.value);
-    if (nodeData) {
-        nodeData.data.integrationType = data.type;
-        nodeData.data.integrationTypeName = INTEGRATION_TYPE_NAME[data.type];
+    // 在原始数据中找到节点
+    const nodeResult = findNodeInTreeData(treeData.value, contextMenuNodeId.value || '');
+    if (nodeResult) {
+        nodeResult.node.integrationType = data.type;
+        nodeResult.node.integrationTypeName = INTEGRATION_TYPE_NAME[data.type];
         updateTreeData(treeData.value);
+        TreeLogger.log('标注整合方式', treeData.value, {
+            nodeId: contextMenuNodeId.value,
+            integrationType: data.type,
+            integrationTypeName: INTEGRATION_TYPE_NAME[data.type]
+        });
     }
     showIntegrationModal.value = false;
 }
@@ -682,6 +731,67 @@ function handleDropToTarget(
  */
 
 /**
+ * 在原始数据中递归查找节点
+ * @param node 当前节点
+ * @param nodeId 要查找的节点ID
+ * @returns 找到的节点及其父节点
+ */
+function findNodeInTreeData(
+    node: TreeData,
+    nodeId: string,
+    parent: TreeData | null = null,
+    depth = 0
+): { node: TreeData; parent: TreeData | null; depth: number } | null {
+    if (node.id === nodeId) {
+        return { node, parent, depth };
+    }
+    if (node.children) {
+        for (const child of node.children) {
+            const result = findNodeInTreeData(child, nodeId, node, depth + 1);
+            if (result) return result;
+        }
+    }
+    return null;
+}
+
+function canMergeNodesInTree(nodeId: string): boolean {
+    const meta = findNodeInTreeData(treeData.value, nodeId);
+    if (!meta) return false;
+    return canSiblingMerge({
+        depth: meta.depth,
+        parent: meta.parent ? { depth: meta.depth - 1, data: meta.parent } : null
+    });
+}
+
+/**
+ * 在原始数据中递归查找并更新关系引用
+ * @param node 当前节点
+ * @param oldIds 旧的节点ID列表
+ * @param newId 新的节点ID
+ * @param newLabel 新的节点名称
+ */
+function updateRelationsInTreeData(
+    node: TreeData,
+    oldIds: string[],
+    newId: string,
+    newLabel: string
+) {
+    if (node.relations) {
+        for (const relation of node.relations) {
+            if (oldIds.includes(relation.targetId)) {
+                relation.targetId = newId;
+                relation.targetName = newLabel;
+            }
+        }
+    }
+    if (node.children) {
+        for (const child of node.children) {
+            updateRelationsInTreeData(child, oldIds, newId, newLabel);
+        }
+    }
+}
+
+/**
  * 通用深拷贝合并函数
  * ----------------------------------------------------------------------------
  * 功能：将两个数组合并去重，使用深拷贝避免引用问题
@@ -708,28 +818,42 @@ function confirmMergeNodes(data: {
     sourceId: string;
     targetId: string;
 }) {
-    // 1. 在 d3.hierarchy 中找到源/目标节点及其父节点
-    const sourceNode = root.descendants().find((d) => d.data.id === data.sourceId);
-    const targetNode = root.descendants().find((d) => d.data.id === data.targetId);
+    // 1. 在原始数据中找到源/目标节点及其父节点
+    const sourceResult = findNodeInTreeData(treeData.value, data.sourceId);
+    const targetResult = findNodeInTreeData(treeData.value, data.targetId);
 
-    if (!sourceNode || !targetNode || !sourceNode.parent || !targetNode.parent) {
+    if (!sourceResult || !targetResult) {
         showMergeNodesModal.value = false;
         return alert('合并失败：源/目标节点未找到');
     }
-    // 必须同父节点（d3Tree.ts 中已经校验过，这里防御一下）
-    if (sourceNode.parent.data.id !== targetNode.parent.data.id) {
+
+    if (!canMergeNodesInTree(data.sourceId)) {
+        showMergeNodesModal.value = false;
+        return alert('合并失败：需先完成上一层级节点合并后，当前层级才可合并');
+    }
+
+    const sourceNode = sourceResult.node;
+    const targetNode = targetResult.node;
+    const sourceParent = sourceResult.parent;
+    const targetParent = targetResult.parent;
+
+    if (!sourceParent || !targetParent) {
+        showMergeNodesModal.value = false;
+        return alert('合并失败：源/目标节点没有父节点');
+    }
+
+    // 必须同父节点
+    if (sourceParent.id !== targetParent.id) {
         showMergeNodesModal.value = false;
         return alert('合并失败：源/目标不是同级节点');
     }
 
-    const parentNode = sourceNode.parent;
-
     // 2-4. 合并 children、modules、relations（使用通用函数进行深拷贝去重）
-    const mergedChildren = mergeById(sourceNode.data.children, targetNode.data.children);
-    const mergedModules = mergeById(sourceNode.data.modules, targetNode.data.modules);
+    const mergedChildren = mergeById(sourceNode.children, targetNode.children);
+    const mergedModules = mergeById(sourceNode.modules, targetNode.modules);
     const mergedRelations = mergeById(
-        sourceNode.data.relations,
-        targetNode.data.relations,
+        sourceNode.relations,
+        targetNode.relations,
         (r) => `${r.targetId}__${r.type}` // relations 的 key 是复合键
     );
 
@@ -741,63 +865,47 @@ function confirmMergeNodes(data: {
         office_single: 2,
         module: 1
     };
-    const sourceLevelScore = levelPriority[sourceNode.data.level] ?? 0;
-    const targetLevelScore = levelPriority[targetNode.data.level] ?? 0;
-    const mergedLevel =
-        sourceLevelScore >= targetLevelScore ? sourceNode.data.level : targetNode.data.level;
+    const sourceLevelScore = levelPriority[sourceNode.level] ?? 0;
+    const targetLevelScore = levelPriority[targetNode.level] ?? 0;
+    const mergedLevel = sourceLevelScore >= targetLevelScore ? sourceNode.level : targetNode.level;
 
     // 6. 构造新节点
     const newNode: TreeData = {
         id: `merge_${Date.now()}`,
         label: data.name,
         level: mergedLevel,
-        dept: sourceNode.data.dept || targetNode.data.dept,
-        owner: sourceNode.data.owner || targetNode.data.owner,
+        dept: sourceNode.dept || targetNode.dept,
+        owner: sourceNode.owner || targetNode.owner,
         integrationType: data.integrationType,
         integrationTypeName: INTEGRATION_TYPE_NAME[data.integrationType],
         children: mergedChildren,
         modules: mergedModules,
         relations: mergedRelations,
         // 标记此节点是由哪些节点整合而成
-        integratedFrom: [sourceNode.data.id, targetNode.data.id]
+        integratedFrom: [sourceNode.id, targetNode.id]
     };
 
     // 7. 在父节点的 children 中删除源/目标，插入新节点（保留顺序：在 source 原来的位置）
-    const parentChildren = parentNode.data.children ?? [];
     const newParentChildren: TreeData[] = [];
-    for (const child of parentChildren) {
-        if (child.id === sourceNode.data.id) {
+    for (const child of sourceParent.children ?? []) {
+        if (child.id === sourceNode.id) {
             newParentChildren.push(newNode);
-        } else if (child.id === targetNode.data.id) {
+        } else if (child.id === targetNode.id) {
             // 跳过 target（target 已被替换）
             continue;
         } else {
             newParentChildren.push(child);
         }
     }
-    parentNode.data.children = newParentChildren;
-
-    // 保存源/目标节点 ID，避免类型问题
-    const sourceId = sourceNode.data.id;
-    const targetId = targetNode.data.id;
+    sourceParent.children = newParentChildren;
 
     // 8. 更新其他节点对源/目标节点的关系引用（改为引用新节点）
-    function updateRelationsReferences(node: TreeData) {
-        if (node.relations) {
-            for (const relation of node.relations) {
-                if (relation.targetId === sourceId || relation.targetId === targetId) {
-                    relation.targetId = newNode.id;
-                    relation.targetName = newNode.label;
-                }
-            }
-        }
-        if (node.children) {
-            for (const child of node.children) {
-                updateRelationsReferences(child);
-            }
-        }
-    }
-    updateRelationsReferences(treeData.value);
+    updateRelationsInTreeData(
+        treeData.value,
+        [sourceNode.id, targetNode.id],
+        newNode.id,
+        newNode.label
+    );
 
     // 9. 重新 d3.hierarchy + 触发 renderTree 重绘
     // 关键修复：必须更新 treeData.value 后再重新构建 hierarchy
@@ -812,6 +920,17 @@ function confirmMergeNodes(data: {
     mergeTargetId.value = null;
     mergeSourceLabel.value = '';
     mergeTargetLabel.value = '';
+
+    TreeLogger.log('拖拽合并节点', treeData.value, {
+        sourceId: data.sourceId,
+        targetId: data.targetId,
+        newNodeId: newNode.id,
+        newNodeLabel: newNode.label,
+        newNodeLevel: newNode.level,
+        mergedChildrenCount: mergedChildren.length,
+        mergedModulesCount: mergedModules.length,
+        integratedFrom: newNode.integratedFrom
+    });
 }
 
 /**
@@ -820,22 +939,45 @@ function confirmMergeNodes(data: {
  * 步骤：
  *   1. 阻止删除根节点（id='edu'）
  *   2. 弹窗确认
- *   3. 在 hierarchy 树中找到目标节点及其父节点
+ *   3. 在原始数据中找到目标节点及其父节点
  *   4. 从父节点的 children 数组中过滤掉目标节点
  *   5. renderTree 重绘
  *   6. 重新选中根节点
  *   7. 隐藏右键菜单
  */
+/**
+ * 删除节点时更新关系引用（移除对被删除节点的引用）
+ * @param node 当前节点
+ * @param deletedId 被删除节点的ID
+ */
+function removeRelationsToNode(node: TreeData, deletedId: string) {
+    if (node.relations) {
+        node.relations = node.relations.filter((relation) => relation.targetId !== deletedId);
+    }
+    if (node.children) {
+        for (const child of node.children) {
+            removeRelationsToNode(child, deletedId);
+        }
+    }
+}
+
 function deleteNode() {
     if (contextMenuNodeId.value === 'edu') return alert('不能删除根节点');
     if (confirm('确定删除该节点及其所有子节点和模块吗？')) {
-        const nodeData = root.descendants().find((d) => d.data.id === contextMenuNodeId.value);
-        if (nodeData && nodeData.parent) {
-            nodeData.parent.data.children = nodeData.parent.data.children!.filter(
+        const nodeResult = findNodeInTreeData(treeData.value, contextMenuNodeId.value || '');
+        if (nodeResult && nodeResult.parent) {
+            nodeResult.parent.children = nodeResult.parent.children!.filter(
                 (c) => c.id !== contextMenuNodeId.value
             );
+            // 删除节点时更新其他节点对该节点的关系引用
+            removeRelationsToNode(treeData.value, contextMenuNodeId.value || '');
             updateTreeData(treeData.value);
             selectNode(treeData.value);
+            TreeLogger.log('删除节点', treeData.value, {
+                deletedNodeId: contextMenuNodeId.value,
+                deletedNodeLabel: nodeResult.node.label,
+                parentId: nodeResult.parent.id
+            });
         }
     }
     const contextMenu = document.getElementById('context-menu');
@@ -856,6 +998,9 @@ function handleUndo(data: TreeData) {
     console.log('[handleUndo] restoring previous state');
     updateTreeDataWithoutHistory(data);
     selectNode(treeData.value);
+    TreeLogger.log('撤销操作', treeData.value, {
+        action: 'undo'
+    });
 }
 
 /**
@@ -870,6 +1015,9 @@ function handleRedo(data: TreeData) {
     console.log('[handleRedo] restoring next state');
     updateTreeDataWithoutHistory(data);
     selectNode(treeData.value);
+    TreeLogger.log('重做操作', treeData.value, {
+        action: 'redo'
+    });
 }
 
 /**
@@ -886,6 +1034,9 @@ function handleRefresh(data: TreeData) {
     updateTreeDataWithoutHistory(data);
     selectNode(treeData.value);
     clearSelection();
+    TreeLogger.log('刷新操作', treeData.value, {
+        action: 'refresh'
+    });
 }
 
 /**

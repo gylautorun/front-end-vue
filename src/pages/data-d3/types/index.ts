@@ -75,6 +75,33 @@ export interface TreeData {
     integratedFrom?: string[];
 }
 
+/** 根节点默认整合标记（表示顶层已"合并"，其直接子节点所在层级可继续向下合并） */
+export const ROOT_DEFAULT_MERGE_MARKER = '__root__';
+
+/**
+ * 判断节点是否已完成整合（或视为已整合）
+ * - depth=0 的根节点始终视为已整合
+ * - 其他节点需有 integratedFrom 记录
+ */
+export function isMergedNode(node: Pick<TreeData, 'integratedFrom'>, depth = 0): boolean {
+    if (depth === 0) return true;
+    return !!(node.integratedFrom && node.integratedFrom.length > 0);
+}
+
+/**
+ * 判断同级节点是否允许拖拽合并
+ * 规则：父节点必须已整合，子层级才能进行同级合并
+ */
+export function canSiblingMerge(node: {
+    depth: number;
+    parent?: { depth: number; data: TreeData } | null;
+}): boolean {
+    if (node.depth <= 0) return false;
+    const parent = node.parent;
+    if (!parent) return false;
+    return isMergedNode(parent.data, parent.depth);
+}
+
 /**
  * 多选模式下被选中节点的简化结构（用于右侧 Drawer 展示）
  * ----------------------------------------------------------------------------

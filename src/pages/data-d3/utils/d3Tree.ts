@@ -20,9 +20,16 @@
  */
 import * as d3 from 'd3';
 import type { TreeData } from '../types';
-import { LEVEL_CONFIG, EDGE_STYLES, INTEGRATION_TYPE_NAME, IntegrationTypeKey } from '../types';
+import {
+    LEVEL_CONFIG,
+    EDGE_STYLES,
+    INTEGRATION_TYPE_NAME,
+    IntegrationTypeKey,
+    canSiblingMerge
+} from '../types';
 import { saveAs } from 'file-saver';
 import { createPromise } from '@/utils/promise/util-create-promise';
+import { logDragState } from './treeLogger';
 
 const NODE_WIDTH: number = 160;
 const NODE_HEIGHT: number = 40;
@@ -279,23 +286,7 @@ export function initD3(
             'background-color',
             (d) => LEVEL_CONFIG[d.data.level]?.color || LEVEL_CONFIG.base.color
         )
-        .html((d) => {
-            const moduleBadge =
-                d.data.modules && d.data.modules.length > 0
-                    ? `<div class="node-badge">${d.data.modules.length}个模块</div>`
-                    : '';
-            // 整合标记徽章：当节点有 integratedFrom 时显示
-            const integratedBadge =
-                d.data.integratedFrom && d.data.integratedFrom.length > 0
-                    ? `<div class="integrated-badge" title="由 ${d.data.integratedFrom.length} 个节点整合">🔗 整合</div>`
-                    : '';
-            return `
-                ${integratedBadge}
-                <div class="node-label" title="${d.data.label}">${d.data.label}</div>
-                ${moduleBadge}
-                <button class="more-btn" data-id="${d.data.id}">⋮</button>
-            `;
-        })
+        .html((d) => buildNodeCardHtml(d))
         .on('click', function (event, d) {
             event.stopPropagation();
             onNodeClick(d.data);
@@ -346,33 +337,7 @@ export function initD3(
     // 关键细节：d3-drag 的 .on(type, listener) 回调的 `this` 指向当前被拖拽元素
     //     但是 d3-drag v3 的类型签名是 `this: D3DragEvent`，TypeScript 会推错。
     //     这里用 `function (this: SVGGElement, ...)` + 显式类型断言规避。
-    node.call(
-        d3
-            .drag<SVGGElement, d3.HierarchyNode<TreeData>>()
-            .on('start', function (this: unknown, event, d) {
-                // 检查点击目标是否是 more-btn，如果是则不触发拖拽
-                const target = event.sourceEvent?.target as HTMLElement;
-                if (target?.classList.contains('more-btn')) return;
-
-                // this 在 d3-drag v3 中是 d3 selection 或 DOM 元素（依赖 d3 版本细节）
-                // 不用 this，直接用 d 参数（d = event.subject = HierarchyNode）
-                if (d && d.data) dragStarted(instance, d);
-            })
-            .on('drag', function (this: unknown, event, d) {
-                if (!d) return;
-                // 用 event.subject 的 data.id 找 DOM 元素（最可靠）
-                const nodeId = d.data?.id;
-                if (!nodeId) return;
-                const gEl = document.querySelector(
-                    `g.node[data-id="${CSS.escape(nodeId)}"]`
-                ) as SVGGElement | null;
-                if (gEl) dragged(gEl, event, d, root, svg, zoom);
-            })
-            .on('end', function (this: unknown, event, d) {
-                // dragend 中 this 不可靠 —— 用 instance.currentDraggingNodeId（dragstart 时记录）
-                dragEnded(instance, event, d, root, onDropToTarget);
-            })
-    );
+    bindNodeDrag(node, instance, onDropToTarget);
 
     // 初始化标签位置
     updateLinkLabels(labelBg, labelText);
@@ -411,30 +376,137 @@ export function initD3(
  * @param instance D3TreeInstance 实例（用于存储拖拽状态，支持多实例）
  * @param d        被拖拽的 HierarchyNode
  */
-function dragStarted(
-    instance: Pick<D3TreeInstance, 'currentDraggingNodeId'>,
-    d: d3.HierarchyNode<TreeData>
+/**
+ * 统一获取当前节点的函数（单一数据源）
+ * ----------------------------------------------------------------------------
+ * 从 instance.root 中获取最新的节点信息，这是所有事件处理的唯一数据源
+ *
+ * @param instance 包含 root 属性的对象
+ * @param nodeId 节点ID
+ * @returns 最新的 HierarchyNode 或 null
+ */
+function getCurrentNode(
+    instance: { root?: d3.HierarchyNode<TreeData> },
+    nodeId: string
+): d3.HierarchyNode<TreeData> | null {
+    const root = instance.root;
+    if (!root) return null;
+    return root.descendants().find((n) => n.data.id === nodeId) || null;
+}
+
+function findNodeGElementInSvg(svg: SvgSelection, nodeId: string): SVGGElement | null {
+    return svg.select(`g.node[data-id="${CSS.escape(nodeId)}"]`).node() as SVGGElement | null;
+}
+
+function resolveNodeIdFromElement(gEl: SVGGElement, d?: d3.HierarchyNode<TreeData>): string | null {
+    return gEl.getAttribute('data-id') || d?.data?.id || null;
+}
+
+function shouldShowIntegratedBadge(d: d3.HierarchyNode<TreeData>): boolean {
+    return (
+        (d.depth ?? 0) > 0 &&
+        !!(d.data.integratedFrom && d.data.integratedFrom.length > 0)
+    );
+}
+
+function buildNodeCardHtml(d: d3.HierarchyNode<TreeData>): string {
+    const moduleBadge =
+        d.data.modules && d.data.modules.length > 0
+            ? `<div class="node-badge">${d.data.modules.length}个模块</div>`
+            : '';
+    const integratedBadge = shouldShowIntegratedBadge(d)
+        ? `<div class="integrated-badge" title="由 ${d.data.integratedFrom!.length} 个节点整合">🔗 整合</div>`
+        : '';
+    return `
+        ${integratedBadge}
+        <div class="node-label" title="${d.data.label}">${d.data.label}</div>
+        ${moduleBadge}
+        <button class="more-btn" data-id="${d.data.id}">⋮</button>
+    `;
+}
+
+function bindNodeDrag(
+    nodeSelection: d3.Selection<
+        SVGGElement,
+        d3.HierarchyNode<TreeData>,
+        SVGGElement,
+        d3.HierarchyLink<TreeData> | null
+    >,
+    instance: D3TreeInstance,
+    onDropToTarget: (
+        sourceId: string,
+        targetId: string,
+        sourceData: TreeData,
+        targetData: TreeData
+    ) => void
 ) {
-    // 防御：d 可能是 plain object（d3-drag v3 subject fallback）
-    if (!d || !d.data) return;
+    // 清除旧拖拽监听，避免 renderTree 重复绑定导致错乱
+    nodeSelection.call(
+        d3
+            .drag<SVGGElement, d3.HierarchyNode<TreeData>>()
+            .on('start', null)
+            .on('drag', null)
+            .on('end', null)
+    );
+
+    nodeSelection.call(
+        d3
+            .drag<SVGGElement, d3.HierarchyNode<TreeData>>()
+            .on('start', function (this: SVGGElement, event) {
+                const target = event.sourceEvent?.target as HTMLElement;
+                if (target?.classList.contains('more-btn')) return;
+
+                const nodeId = resolveNodeIdFromElement(this);
+                if (!nodeId) return;
+
+                const currentNode = getCurrentNode(instance, nodeId);
+                if (!currentNode) return;
+
+                dragStarted(instance, currentNode, this);
+            })
+            .on('drag', function (this: SVGGElement, event) {
+                const nodeId = resolveNodeIdFromElement(this);
+                if (!nodeId) return;
+                if (!instance.currentDraggingNodeId) return;
+                dragged(this, event, instance, instance.svg, instance.zoom);
+            })
+            .on('end', function (this: SVGGElement, event) {
+                const nodeId = resolveNodeIdFromElement(this);
+                if (!nodeId) return;
+                const currentNode = getCurrentNode(instance, nodeId);
+                if (!currentNode) return;
+                dragEnded(instance, event, currentNode, instance.root, onDropToTarget);
+            })
+    );
+}
+
+function dragStarted(
+    instance: Pick<D3TreeInstance, 'currentDraggingNodeId' | 'root'>,
+    d: d3.HierarchyNode<TreeData>,
+    gEl: SVGGElement
+) {
+    if (!d?.data) return;
     const nodeId = d.data.id;
-    const gEl = document.querySelector(
-        `g.node[data-id="${CSS.escape(nodeId)}"]`
-    ) as SVGGElement | null;
-    if (!gEl) return;
 
     d3.select(gEl).raise();
-    // 记录原始 d.x / d.y（debug 用）
     gEl.dataset.origX = String(Number(d.x ?? 0));
     gEl.dataset.origY = String(Number(d.y ?? 0));
-    // 关键：初始化"当前累计 transform"
-    gEl.dataset.curTX = String(Number(d.y ?? 0));
-    gEl.dataset.curTY = String(Number(d.x ?? 0));
+    // 关键：初始化累计位移为 0
+    gEl.dataset.deltaX = '0';
+    gEl.dataset.deltaY = '0';
     // 记录当前拖拽节点 id 到实例对象（供 dragEnded 读取）
     instance.currentDraggingNodeId = nodeId;
 
     // 添加拖拽中样式
     gEl.classList.add('dragging');
+
+    // 记录拖拽开始日志
+    logDragState({
+        nodeId: nodeId,
+        nodeLabel: d.data.label,
+        sourceX: d.x,
+        sourceY: d.y
+    });
 
     // 创建占位背景矩形（添加到父容器，保持在原位置）
     const parentEl = gEl.parentElement;
@@ -443,7 +515,10 @@ function dragStarted(
         const placeholder = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         placeholder.setAttribute('class', 'drag-placeholder');
         placeholder.setAttribute('data-target-id', nodeId);
-        placeholder.setAttribute('transform', `translate(${Number(d.y ?? 0)},${Number(d.x ?? 0)})`);
+        placeholder.setAttribute(
+            'transform',
+            `translate(${Number(d.y ?? 0)},${Number(d.x ?? 0)})`
+        );
 
         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         rect.setAttribute('x', '-80');
@@ -490,46 +565,50 @@ function dragStarted(
 function dragged(
     gEl: SVGGElement,
     event: d3.D3DragEvent<SVGGElement, d3.HierarchyNode<TreeData>, d3.HierarchyNode<TreeData>>,
-    d: d3.HierarchyNode<TreeData>,
-    root: d3.HierarchyNode<TreeData>,
+    instance: D3TreeInstance,
     svg: SvgSelection,
     zoom: d3.ZoomBehavior<SVGSVGElement, null>
 ) {
-    // 关键防御：检查 d 是否真的拿到了 HierarchyNode
-    // d3-drag v3 的 d = event.subject
-    //     event.subject = drag.subject(event, datum) 默认返回 datum（即 selection.data() 绑定的 data）
-    //     但 selection.call(d3.drag()) 时如果 datum 是 undefined，subject 会变成 {x: clientX, y: clientY}
-    //     此时 d 是一个 plain object，不是 HierarchyNode
-    if (!d || typeof (d as { parent?: unknown }).parent === 'undefined') {
-        // 防御：d 不是 HierarchyNode，尝试从 DOM 找 data-id
-        const nodeId = gEl.getAttribute('data-id');
-        if (nodeId) {
-            const realNode = root.descendants().find((n) => n.data.id === nodeId);
-            if (realNode) {
-                d = realNode as d3.HierarchyNode<TreeData>;
-            }
-        }
-    }
+    const nodeId = resolveNodeIdFromElement(gEl);
+    if (!nodeId) return;
 
-    // 当前累计 transform（dragstart 时初始化为 d.y / d.x）
-    // 用 ?? 0 防御 undefined，Number() 防御 string
-    const initialTX = Number.isFinite(Number(d?.y)) ? Number(d?.y) : 0;
-    const initialTY = Number.isFinite(Number(d?.x)) ? Number(d?.x) : 0;
-    let curTX = Number(gEl.dataset.curTX ?? initialTX);
-    let curTY = Number(gEl.dataset.curTY ?? initialTY);
-    if (!Number.isFinite(curTX)) curTX = initialTX;
-    if (!Number.isFinite(curTY)) curTY = initialTY;
+    const d = getCurrentNode(instance, nodeId);
+    if (!d) return;
+
+    // 当前累计 transform（始终使用最新的节点位置作为初始位置）
+    // 关键修复：合并等操作可能改变节点位置，必须使用最新的 d.y / d.x
+    const currentTX = Number.isFinite(Number(d?.y)) ? Number(d?.y) : 0;
+    const currentTY = Number.isFinite(Number(d?.x)) ? Number(d?.x) : 0;
+
+    // 获取上次拖拽的累计位移（如果存在）
+    const prevDeltaX = Number.isFinite(Number(gEl.dataset.deltaX)) ? Number(gEl.dataset.deltaX) : 0;
+    const prevDeltaY = Number.isFinite(Number(gEl.dataset.deltaY)) ? Number(gEl.dataset.deltaY) : 0;
+
+    // 当前位置 = 最新节点位置 + 累计位移
+    let curTX = currentTX + prevDeltaX;
+    let curTY = currentTY + prevDeltaY;
 
     // d3-drag 提供 event.dx / event.dy：本次 drag 事件相对上次的屏幕坐标增量
     const dx = Number.isFinite(Number(event.dx)) ? Number(event.dx) : 0;
     const dy = Number.isFinite(Number(event.dy)) ? Number(event.dy) : 0;
 
-    curTX += dx;
-    curTY += dy;
+    // 关键修复：除以当前 zoom 缩放比例，避免拖拽漂移
+    const currentTransform = d3.zoomTransform(svg.node() as SVGGElement);
+    const currentScale = currentTransform?.k ?? 1;
+    const scaledDx = dx / currentScale;
+    const scaledDy = dy / currentScale;
 
-    // 写回 dataset 累计
-    gEl.dataset.curTX = String(curTX);
-    gEl.dataset.curTY = String(curTY);
+    // 计算新的位移增量
+    const newDeltaX = prevDeltaX + scaledDx;
+    const newDeltaY = prevDeltaY + scaledDy;
+
+    // 更新当前位置
+    curTX = currentTX + newDeltaX;
+    curTY = currentTY + newDeltaY;
+
+    // 写回 dataset 累计位移（不是绝对位置）
+    gEl.dataset.deltaX = String(newDeltaX);
+    gEl.dataset.deltaY = String(newDeltaY);
 
     // 更新节点 g 元素 transform
     d3.select(gEl).attr('transform', `translate(${curTX},${curTY})`);
@@ -597,21 +676,25 @@ function dragged(
         }
     }
 
-    clearDropTargetHighlight();
-    const hit = findSameLevelNodeAtDOM(root, d, clientX, clientY);
-    if (hit) {
-        const targetNodeEl = findNodeGElement(hit);
-        if (targetNodeEl) {
-            targetNodeEl.classList.add('drop-target');
-            // 增大 foreignObject 宽高以容纳放大的节点卡片
-            const fo = targetNodeEl.querySelector(
-                'foreignObject'
-            ) as SVGForeignObjectElement | null;
-            if (fo) {
-                fo.setAttribute('width', String(NODE_WIDTH * 1.3));
-                fo.setAttribute('height', String(NODE_HEIGHT * 1.3));
-                fo.setAttribute('x', String(-(NODE_WIDTH * 1.3) / 2));
-                fo.setAttribute('y', String(-(NODE_HEIGHT * 1.3) / 2));
+    clearDropTargetHighlight(svg);
+    // 使用 instance.root 作为单一数据源
+    const currentRoot = instance.root;
+    if (currentRoot) {
+        const hit = findSameLevelNodeAtDOM(currentRoot, d, clientX, clientY);
+        if (hit) {
+            const targetNodeEl = findNodeGElementInSvg(svg, hit.data.id);
+            if (targetNodeEl) {
+                targetNodeEl.classList.add('drop-target');
+                // 增大 foreignObject 宽高以容纳放大的节点卡片
+                const fo = targetNodeEl.querySelector(
+                    'foreignObject'
+                ) as SVGForeignObjectElement | null;
+                if (fo) {
+                    fo.setAttribute('width', String(NODE_WIDTH * 1.3));
+                    fo.setAttribute('height', String(NODE_HEIGHT * 1.3));
+                    fo.setAttribute('x', String(-(NODE_WIDTH * 1.3) / 2));
+                    fo.setAttribute('y', String(-(NODE_HEIGHT * 1.3) / 2));
+                }
             }
         }
     }
@@ -634,7 +717,7 @@ function dragged(
  * @param onDropToTarget 命中同级节点时触发的回调
  */
 function dragEnded(
-    instance: Pick<D3TreeInstance, 'currentDraggingNodeId'>,
+    instance: Pick<D3TreeInstance, 'currentDraggingNodeId'> & { root?: d3.HierarchyNode<TreeData> },
     event: d3.D3DragEvent<SVGGElement, d3.HierarchyNode<TreeData>, d3.HierarchyNode<TreeData>>,
     d: d3.HierarchyNode<TreeData>,
     root: d3.HierarchyNode<TreeData>,
@@ -645,37 +728,18 @@ function dragEnded(
         targetData: TreeData
     ) => void
 ) {
-    // ⚠️ DEBUG：记录到 window.__dragDebug，让用户在控制台查看
-    (window as Window & { __dragDebug?: unknown[] }).__dragDebug =
-        (window as Window & { __dragDebug?: unknown[] }).__dragDebug ?? [];
-    ((window as Window & { __dragDebug?: unknown[] }).__dragDebug as unknown[]).push({
-        type: 'dragEnded',
-        dType: typeof d,
-        dIsHierarchyNode: d && typeof d === 'object' && 'parent' in d,
-        dHasData: d && typeof d === 'object' && 'data' in d,
-        dData: d && typeof d === 'object' ? (d as { data?: unknown }).data : null,
-        dX: d && typeof d === 'object' ? (d as { x?: unknown }).x : null,
-        dY: d && typeof d === 'object' ? (d as { y?: unknown }).y : null,
-        currentDraggingNodeId: instance.currentDraggingNodeId
-    });
-
     // 关键防御：如果没有有效的拖拽节点（比如点击 more-btn 时），直接返回
     if (!instance.currentDraggingNodeId) {
         return;
     }
 
-    // 关键防御：d3-drag 的 d 可能是 plain object（不是 HierarchyNode）
-    // 此时用实例级变量 currentDraggingNodeId 找真正节点
-    if (!d || !d.data) {
-        // 优先用 currentDraggingNodeId（dragstart 时记录）
-        if (instance.currentDraggingNodeId) {
-            const realNode = root
-                .descendants()
-                .find((n) => n.data.id === instance.currentDraggingNodeId);
-            if (realNode) {
-                d = realNode as d3.HierarchyNode<TreeData>;
-            }
-        }
+    // 关键：始终使用 instance.root 作为单一数据源
+    const currentRoot = instance.root ?? root;
+
+    // 关键：从单一数据源获取最新节点（D3 v7 中 d 参数是绑定时的快照）
+    const currentNode = getCurrentNode(instance, instance.currentDraggingNodeId);
+    if (currentNode) {
+        d = currentNode;
     }
 
     // 用 DOM 命中（elementFromPoint）找鼠标下方的同级节点
@@ -691,31 +755,28 @@ function dragEnded(
         clientY = (sourceEvent as MouseEvent).clientY;
     }
 
-    // 找鼠标下方的同级节点
-    const hit = findSameLevelNodeAtDOM(root, d, clientX, clientY);
+    // 找鼠标下方的同级节点（使用最新的 currentRoot）
+    const hit = findSameLevelNodeAtDOM(currentRoot, d, clientX, clientY);
+
+    const svg = (instance as D3TreeInstance).svg;
 
     // 清除所有 drop-target 高亮
-    clearDropTargetHighlight();
+    clearDropTargetHighlight(svg);
 
-    // 释放后：把当前被拖拽节点的 transform 重置回 d.x / d.y 决定的原坐标
-    const draggedG = document.querySelector(
-        `g.node[data-id="${CSS.escape(d.data.id)}"]`
-    ) as SVGGElement | null;
+    // 释放后：把当前被拖拽节点的 transform 重置回原坐标
+    const draggedG = svg ? findNodeGElementInSvg(svg, d.data.id) : null;
     if (draggedG) {
-        d3.select(draggedG).attr('transform', `translate(${Number(d.y ?? 0)},${Number(d.x ?? 0)})`);
-        // 清理 dataset（避免下次拖拽残留状态）
-        delete draggedG.dataset.curTX;
-        delete draggedG.dataset.curTY;
+        const latestNode = getCurrentNode(instance, d.data.id);
+        const resetX = latestNode?.y ?? d.y ?? 0;
+        const resetY = latestNode?.x ?? d.x ?? 0;
+        d3.select(draggedG).attr('transform', `translate(${Number(resetX)},${Number(resetY)})`);
+        delete draggedG.dataset.deltaX;
+        delete draggedG.dataset.deltaY;
         delete draggedG.dataset.origX;
         delete draggedG.dataset.origY;
-        // 移除拖拽中样式
         draggedG.classList.remove('dragging');
-        // 移除占位背景（从父容器移除）
-        const placeholder = document.querySelector(
-            `g.drag-placeholder[data-target-id="${CSS.escape(d.data.id)}"]`
-        );
-        if (placeholder) {
-            placeholder.remove();
+        if (svg) {
+            svg.select(`g.drag-placeholder[data-target-id="${CSS.escape(d.data.id)}"]`).remove();
         }
     }
 
@@ -730,25 +791,18 @@ function dragEnded(
         return;
     }
 
-    // 检查层级：第一层（depth <= 1）不允许合并
-    // depth: 0 = 根节点, 1 = 第一层子节点, 2 = 第二层子节点...
-    if ((d.depth ?? 0) <= 1) {
+    // 通用规则：父层级已整合后，当前层级才允许同级合并
+    if (!canSiblingMerge(d)) {
         return;
     }
 
-    // 检查父节点整合标记：只有父节点有整合标记时，子节点才能合并
-    // 父节点需要有 integrationType（非 base）或有 integratedFrom
-    const parentData = d.parent?.data;
-    if (parentData) {
-        const hasIntegrationMark =
-            parentData.integrationType && parentData.integrationType !== IntegrationTypeKey.base;
-        const hasIntegratedFrom = parentData.integratedFrom && parentData.integratedFrom.length > 0;
-
-        if (!hasIntegrationMark && !hasIntegratedFrom) {
-            // 父节点没有整合标记，不允许子节点合并
-            return;
-        }
-    }
+    // 记录拖拽结束日志
+    logDragState({
+        nodeId: d.data.id,
+        nodeLabel: d.data.label,
+        targetNodeId: hit.data.id,
+        targetNodeLabel: hit.data.label
+    });
 
     // 触发父组件合并弹框
     onDropToTarget(d.data.id, hit.data.id, d.data, hit.data);
@@ -780,8 +834,21 @@ function findSameLevelNodeAtDOM(
     clientX: number,
     clientY: number
 ): d3.HierarchyNode<TreeData> | null {
-    // 防御：source.parent 可能为 undefined（如果 source 就是根节点）
-    const sourceParentId = source?.parent?.data?.id;
+    // 关键修复：始终从 root 中获取最新的源节点信息
+    // 因为 source 参数可能是旧的快照，层级结构可能已变化
+    const sourceNodeId = source?.data?.id;
+    if (!sourceNodeId) {
+        return null;
+    }
+
+    // 从最新的 root 中查找源节点
+    const currentSourceNode = root.descendants().find((n) => n.data.id === sourceNodeId);
+    if (!currentSourceNode) {
+        return null;
+    }
+
+    // 防御：currentSourceNode.parent 可能为 undefined（如果是根节点）
+    const sourceParentId = currentSourceNode.parent?.data?.id;
     if (sourceParentId === undefined) {
         return null;
     }
@@ -795,8 +862,8 @@ function findSameLevelNodeAtDOM(
         const nodeG = (el as Element).closest('g.node[data-id]') as SVGGElement | null;
         if (nodeG) {
             const id = nodeG.getAttribute('data-id');
-            // 不能是自己
-            if (id && id !== source.data.id) {
+            // 不能是自己（使用最新的源节点ID）
+            if (id && id !== sourceNodeId) {
                 // 精确检测：检查鼠标是否在节点卡片范围内
                 const cardEl = nodeG.querySelector('.node-card');
                 if (cardEl) {
@@ -819,12 +886,12 @@ function findSameLevelNodeAtDOM(
     // 如果通过 DOM 命中找到了目标，验证同级后返回
     if (targetId) {
         const targetNode = root.descendants().find((n) => n.data.id === targetId);
-        // 双重检查：必须是同级，且不能是自己
+        // 双重检查：必须是同级，且不能是自己（使用最新的源节点ID）
         if (
             targetNode &&
             targetNode.parent &&
             targetNode.parent.data.id === sourceParentId &&
-            targetNode.data.id !== source.data.id
+            targetNode.data.id !== sourceNodeId
         ) {
             return targetNode;
         }
@@ -856,17 +923,29 @@ function findSameLevelNodeByCoord(
     clientX: number,
     clientY: number
 ): d3.HierarchyNode<TreeData> | null {
-    // 防御：source.parent 可能为 undefined（如果 source 就是根节点）
-    const sourceParentId = source?.parent?.data?.id;
+    // 关键：始终从 root 中获取最新的源节点信息
+    const sourceNodeId = source?.data?.id;
+    if (!sourceNodeId) {
+        return null;
+    }
+
+    // 从最新的 root 中查找源节点
+    const currentSourceNode = root.descendants().find((n) => n.data.id === sourceNodeId);
+    if (!currentSourceNode) {
+        return null;
+    }
+
+    // 防御：currentSourceNode.parent 可能为 undefined（如果是根节点）
+    const sourceParentId = currentSourceNode.parent?.data?.id;
     if (sourceParentId === undefined) {
         return null;
     }
 
-    // 找到所有同级节点
+    // 找到所有同级节点（使用最新的源节点ID）
     const siblings = root
         .descendants()
         .filter(
-            (n) => n.parent && n.parent.data.id === sourceParentId && n.data.id !== source.data.id
+            (n) => n.parent && n.parent.data.id === sourceParentId && n.data.id !== sourceNodeId
         );
 
     if (siblings.length === 0) {
@@ -935,27 +1014,15 @@ function findSameLevelNodeByCoord(
 }
 
 /**
- * 找到某个 HierarchyNode 对应的 DOM g 元素
- * （通过遍历 SVG 内的 g.node 元素，对比 data-id）
- */
-function findNodeGElement(node: d3.HierarchyNode<TreeData>): SVGGElement | null {
-    const gNodes = document.querySelectorAll('g.node[data-id]');
-    for (const el of Array.from(gNodes)) {
-        if (el.getAttribute('data-id') === node.data.id) {
-            return el as SVGGElement;
-        }
-    }
-    return null;
-}
-
-/**
  * 清除所有节点的 drop-target 高亮 class
  */
-function clearDropTargetHighlight() {
-    const highlighted = document.querySelectorAll('g.node.drop-target');
-    highlighted.forEach((el) => {
+function clearDropTargetHighlight(svg?: SvgSelection) {
+    const highlighted = svg
+        ? svg.selectAll('g.node.drop-target')
+        : d3.selectAll('g.node.drop-target');
+    highlighted.each(function () {
+        const el = this as SVGGElement;
         el.classList.remove('drop-target');
-        // 重置 foreignObject 宽高
         const fo = el.querySelector('foreignObject') as SVGForeignObjectElement | null;
         if (fo) {
             fo.setAttribute('width', String(NODE_WIDTH));
@@ -1078,8 +1145,14 @@ export function renderTree(
     onNodeClick: (data: TreeData) => void,
     onNodeDoubleClick: (data: TreeData) => void,
     onMoreClick: (event: MouseEvent, nodeId: string) => void,
-    isSelected: (nodeId: string) => boolean
-) {
+    isSelected: (nodeId: string) => boolean,
+    onDropToTarget?: (
+        sourceId: string,
+        targetId: string,
+        sourceData: TreeData,
+        targetData: TreeData
+    ) => void
+): d3.HierarchyNode<TreeData> {
     const { treeLayout, link, node, g } = instance;
 
     // 重新计算布局
@@ -1125,7 +1198,9 @@ export function renderTree(
     };
 
     // 使用 join() 正确处理 enter/update/exit
-    const linkUpdate = link.data(linkData).join(
+    const linkUpdate = link
+        .data(linkData, (d) => `${d.source.data.id}__${d.target.data.id}`)
+        .join(
         // enter: 创建新的连线组
         (enter) => {
             const linkGroup = enter.append('g').attr('class', 'link-group');
@@ -1222,7 +1297,7 @@ export function renderTree(
 
     // 更新节点数据
     const nodeData = root.descendants();
-    const nodeUpdate = node.data(nodeData).join(
+    const nodeUpdate = node.data(nodeData, (d) => d.data.id).join(
         // enter: 创建新节点
         (enter) => {
             const nodeGroup = enter
@@ -1237,34 +1312,27 @@ export function renderTree(
                 .attr('height', NODE_HEIGHT)
                 .attr('x', -NODE_WIDTH / 2)
                 .attr('y', -NODE_HEIGHT / 2)
-                .html((d) => {
-                    const moduleBadge =
-                        d.data.modules && d.data.modules.length > 0
-                            ? `<div class="node-badge">${d.data.modules.length}个模块</div>`
-                            : '';
-                    // 整合标记徽章
-                    const integratedBadge =
-                        d.data.integratedFrom && d.data.integratedFrom.length > 0
-                            ? `<div class="integrated-badge" title="由 ${d.data.integratedFrom.length} 个节点整合">🔗 整合</div>`
-                            : '';
-                    return `
-                            <div class="node-card" style="background-color: ${LEVEL_CONFIG[d.data.level]?.color || '#8c8c8c'}">
-                                ${integratedBadge}
-                                <div class="node-label" title="${d.data.label}">${d.data.label}</div>
-                                ${moduleBadge}
-                                <button class="more-btn" data-id="${d.data.id}">⋮</button>
-                            </div>
-                        `;
-                });
+                .append('xhtml:div')
+                .attr('class', 'node-card')
+                .style(
+                    'background-color',
+                    (d) => LEVEL_CONFIG[d.data.level]?.color || LEVEL_CONFIG.base.color
+                )
+                .html((d) => buildNodeCardHtml(d));
 
             return nodeGroup;
         },
         // update: 更新现有节点
         (update) => {
             update
-                .transition()
-                .duration(500)
-                .attr('transform', (d) => `translate(${d.y ?? 0},${d.x ?? 0})`);
+                .attr('data-id', (d) => d.data.id)
+                .attr('transform', function (d) {
+                    const el = this as SVGGElement;
+                    if (el.classList.contains('dragging')) {
+                        return el.getAttribute('transform') || `translate(${d.y ?? 0},${d.x ?? 0})`;
+                    }
+                    return `translate(${d.y ?? 0},${d.x ?? 0})`;
+                });
 
             update
                 .select('.node-card')
@@ -1273,25 +1341,7 @@ export function renderTree(
                     (d) => LEVEL_CONFIG[d.data.level]?.color || LEVEL_CONFIG.base.color
                 )
                 .classed('selected', (d) => isSelected(d.data.id))
-                .html((d) => {
-                    const moduleBadge =
-                        d.data.modules && d.data.modules.length > 0
-                            ? `<div class="node-badge">${d.data.modules.length}个模块</div>`
-                            : '';
-                    // 整合标记徽章
-                    const integratedBadge =
-                        d.data.integratedFrom && d.data.integratedFrom.length > 0
-                            ? `<div class="integrated-badge" title="由 ${d.data.integratedFrom.length} 个节点整合">🔗 整合</div>`
-                            : '';
-                    return `
-                            <div class="node-card" style="background-color: ${LEVEL_CONFIG[d.data.level]?.color || '#8c8c8c'}">
-                                ${integratedBadge}
-                                <div class="node-label" title="${d.data.label}">${d.data.label}</div>
-                                ${moduleBadge}
-                                <button class="more-btn" data-id="${d.data.id}">⋮</button>
-                            </div>
-                        `;
-                });
+                .html((d) => buildNodeCardHtml(d));
 
             return update;
         },
@@ -1323,7 +1373,14 @@ export function renderTree(
         }
     });
 
+    // 关键修复：在重新绑定拖拽事件之前更新 instance.root，确保拖拽事件使用最新的层级结构
     instance.root = root;
+
+    if (onDropToTarget) {
+        bindNodeDrag(nodeUpdate, instance, onDropToTarget);
+    }
+
+    return root;
 }
 
 /**

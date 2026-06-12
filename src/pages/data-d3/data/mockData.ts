@@ -15,7 +15,12 @@
  *       - 节点上的 integrationType (key) 决定连线颜色（参考 EDGE_STYLES）
  *       - 中文名通过 INTEGRATION_TYPE_NAME[key] 获取，写入 integrationTypeName
  */
-import { TreeData, INTEGRATION_TYPE_NAME, IntegrationTypeKey } from '../types';
+import {
+    TreeData,
+    INTEGRATION_TYPE_NAME,
+    IntegrationTypeKey,
+    ROOT_DEFAULT_MERGE_MARKER
+} from '../types';
 
 /**
  * 初始树数据
@@ -48,6 +53,7 @@ export const initialTreeData: TreeData = {
     level: 'domain',
     dept: '教育局',
     owner: '管理员',
+    integratedFrom: [ROOT_DEFAULT_MERGE_MARKER],
     children: [
         {
             id: 'app1',

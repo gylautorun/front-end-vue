@@ -775,16 +775,20 @@ function handleClearSelection() {
  *   3. 保持原有的事件回调（handleNodeClick 等）
  */
 function handleRenderTree(newTreeData?: TreeData) {
-    if (!d3Instance) return;
+    if (!d3Instance) return null;
     // 使用传入的数据（如果有），否则使用 props.treeData
     const dataToRender = newTreeData || props.treeData;
-    renderTree(
+    return renderTree(
         d3Instance,
         dataToRender,
         handleNodeClick,
         handleNodeDoubleClick,
         handleMoreClick,
-        isSelected
+        isSelected,
+        // 拖拽到同级节点时 → emit 给父组件 → 父组件弹"合并节点"模态框
+        (sourceId, targetId, sourceData, targetData) => {
+            emit('drop-to-target', sourceId, targetId, sourceData, targetData);
+        }
     );
 }
 
