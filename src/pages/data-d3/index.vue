@@ -197,12 +197,13 @@ import {
     D3TreeGraph,
     TreeLogger,
     TreeContext,
-    initialTreeData,
+    // initialTreeData,
     type TreeData,
     type SelectedNode,
     type IntegrationTypeKey,
     type LevelKey
 } from '@/lib/d3-tree-sdk';
+import { initialTreeData } from './data/mockData';
 import { DATA_D3_TREE_SCHEMA, DATA_D3_ROOT_ID } from './config/treeConfig';
 
 /** 与 GraphCanvas 内 D3TreeGraph 使用同一套 schema */
@@ -589,8 +590,7 @@ function confirmIntegrateModule(data: { name: string; dept: string; type: Integr
     );
     if (newModule) {
         const parentIds = [...new Set(selected.map((n) => n.parentId))];
-        const parentId =
-            parentIds.length === 1 ? parentIds[0] : getCtx().getRootId(treeData.value);
+        const parentId = parentIds.length === 1 ? parentIds[0] : getCtx().getRootId(treeData.value);
         const parent = getCtx().findNodeInTree(treeData.value, parentId);
         if (parent) selectNode(parent.node);
         clearSelection();
