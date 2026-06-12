@@ -1,6 +1,11 @@
 # D3 Tree 树状图问题修复文档
 
-**日期**: 2026-06-11
+> 按时间线记录问题修复。架构与核心设计见 [tech-doc.md](./tech-doc.md)，文档索引见 [README.md](./README.md)。
+
+| 批次 | 日期 | 范围 |
+| ---- | ---- | ---- |
+| 问题一～六 + 优化 | 2026-06-11 | 刷新/撤销、join、拖拽占位与高亮 |
+| 问题七～九 | 2026-06-12 | 合并后拖拽错乱、层级规则通用化 |
 
 ---
 
@@ -307,13 +312,8 @@ function dragStarted(instance, d) {
 function dragEnded(instance, event, d, root, onDropToTarget) {
     // ... 其他逻辑 ...
 
-    // 移除占位背景（从父容器移除）
-    const placeholder = document.querySelector(
-        `g.drag-placeholder[data-target-id="${CSS.escape(d.data.id)}"]`
-    );
-    if (placeholder) {
-        placeholder.remove();
-    }
+    // 移除占位背景（限定在当前 SVG 实例内）
+    svg.select(`g.drag-placeholder[data-target-id="${CSS.escape(d.data.id)}"]`).remove();
 }
 ```
 
@@ -381,7 +381,7 @@ function findSameLevelNodeAtDOM(root, source, clientX, clientY) {
 clearDropTargetHighlight();
 const hit = findSameLevelNodeAtDOM(root, d, clientX, clientY);
 if (hit) {
-    const targetNodeEl = findNodeGElement(hit);
+    const targetNodeEl = findNodeGElementInSvg(svg, hit.data.id);
     if (targetNodeEl) {
         targetNodeEl.classList.add('drop-target');
         // 增大 foreignObject 宽高以容纳放大的节点卡片
@@ -547,31 +547,154 @@ const copy = cloneDeep(data);
 
 ---
 
+---
+
+## 问题七：合并后拖拽错乱、操作上层却命中下层（2026-06-12）
+
+### 问题描述
+
+1. 节点合并后，拖拽 A 层节点却变成 B 层第一个节点在动
+2. 第三层多次合并后，拖拽触发后部分节点直接消失
+3. 同层级或跨层级拖拽表现混乱
+
+### 原因分析
+
+1. **`renderTree` 的 `join()` 未使用 key 函数**：合并增删节点后 DOM 元素被复用，但 `data-id` 仅在 enter 时设置，update 未同步 → DOM 属性与 datum 不一致
+2. **每次 `renderTree` 重复 `call(d3.drag())`**：未清除旧监听，多次合并后一次拖拽触发多个 handler
+3. **拖拽用 `document.querySelector` 全局查节点**：可能命中错误 SVG/节点
+4. **update 阶段对 transform 做 transition**：与拖拽中的 transform 冲突
+
+### 解决方案
+
+**1. Keyed join + update 同步 data-id**
+
+```typescript
+link.data(linkData, (d) => `${d.source.data.id}__${d.target.data.id}`).join(...)
+
+node.data(nodeData, (d) => d.data.id).join(
+    (enter) => enter.attr('data-id', (d) => d.data.id)...,
+    (update) => update
+        .attr('data-id', (d) => d.data.id)
+        .attr('transform', function (d) {
+            if (this.classList.contains('dragging')) {
+                return this.getAttribute('transform') || `translate(${d.y},${d.x})`;
+            }
+            return `translate(${d.y},${d.x})`;
+        }),
+    (exit) => exit.remove()
+);
+```
+
+**2. 抽取 `bindNodeDrag`，重绑前先清除**
+
+```typescript
+function bindNodeDrag(nodeSelection, instance, onDropToTarget) {
+    nodeSelection.call(d3.drag().on('start', null).on('drag', null).on('end', null));
+    nodeSelection.call(d3.drag()
+        .on('start', function (event) {
+            const nodeId = this.getAttribute('data-id');
+            const currentNode = getCurrentNode(instance, nodeId);
+            if (currentNode) dragStarted(instance, currentNode, this);
+        })
+        // drag / end 同样以 data-id + getCurrentNode 为准
+    );
+}
+```
+
+**3. 单一数据源 `getCurrentNode(instance, nodeId)`**，DOM 查询限定 `instance.svg`。
+
+---
+
+## 问题八：合并层级规则硬编码（2026-06-12）
+
+### 问题描述
+
+原先用 `depth >= 2` 判断父节点是否有 `integratedFrom`，规则分散、不易扩展到更深层级；顶层未标记默认整合。
+
+### 解决方案
+
+在 `types/index.ts` 抽取通用函数：
+
+```typescript
+export const ROOT_DEFAULT_MERGE_MARKER = '__root__';
+
+export function isMergedNode(node, depth = 0): boolean {
+    if (depth === 0) return true;
+    return !!(node.integratedFrom?.length);
+}
+
+export function canSiblingMerge(node): boolean {
+    if (node.depth <= 0) return false;
+    const parent = node.parent;
+    if (!parent) return false;
+    return isMergedNode(parent.data, parent.depth);
+}
+```
+
+- `mockData.ts` 根节点：`integratedFrom: [ROOT_DEFAULT_MERGE_MARKER]`
+- `dragEnded`：`if (!canSiblingMerge(d)) return`
+- `confirmMergeNodes`：`canMergeNodesInTree(sourceId)` 二次校验
+- 合并产物：`integratedFrom: [sourceId, targetId]`，供下一层使用
+
+### 合并层级表
+
+| depth | 可合并 | 条件 |
+| ----- | ------ | ---- |
+| 0 | ❌ | 根节点 |
+| 1 | ✅ | 父为根（视为已整合） |
+| ≥2 | ✅ | 父节点 `integratedFrom` 非空 |
+
+---
+
+## 问题九：拖拽位移与 zoom 未折算（2026-06-12，补充）
+
+### 问题描述
+
+缩放后拖拽漂移。
+
+### 解决方案
+
+```typescript
+const currentScale = d3.zoomTransform(svg.node()).k ?? 1;
+const scaledDx = event.dx / currentScale;
+const scaledDy = event.dy / currentScale;
+gEl.dataset.deltaX = String(prevDeltaX + scaledDx);
+gEl.dataset.deltaY = String(prevDeltaY + scaledDy);
+```
+
+使用 `deltaX/deltaY` 存累计位移（相对布局坐标），而非已废弃的 `curTX/curTY` 存绝对坐标。
+
+---
+
 ## 文件修改清单
 
-| 文件              | 修改内容                                                                                            |
-| ----------------- | --------------------------------------------------------------------------------------------------- |
-| `index.vue`       | 抽离公共函数、修复撤销/重做、合并节点关系引用更新                                                   |
-| `GraphCanvas.vue` | initialTreeData 改为 ref、renderTree 接收参数                                                       |
-| `d3Tree.ts`       | renderTree 使用 join() 处理 enter/update/exit；修复连线标签默认显示问题；修复拖拽占位和目标节点高亮 |
-| `SidebarLeft.vue` | 使用 EDGE_STYLES 和 LEVEL_CONFIG 统一管理颜色配置                                                   |
-| `index.scss`      | 添加 drop-target 高亮样式、被拖拽节点样式                                                           |
+| 文件 | 修改内容 |
+| ---- | -------- |
+| `index.vue` | `updateTreeData`、撤销/重做、`canMergeNodesInTree` 校验 |
+| `GraphCanvas.vue` | `initialTreeData` ref、`renderTree(newTreeData)` |
+| `d3Tree.ts` | keyed join、`bindNodeDrag`、`getCurrentNode`、精确 DOM 命中、占位与高亮 |
+| `types/index.ts` | `canSiblingMerge`、`ROOT_DEFAULT_MERGE_MARKER` |
+| `mockData.ts` | 根节点默认 `integratedFrom` |
+| `utils/treeLogger.ts` | 拖拽/合并调试日志 |
+| `SidebarLeft.vue` | `EDGE_STYLES` / `LEVEL_CONFIG` |
+| `index.scss` | `drop-target`、`dragging` 样式 |
+| `docs/*` | 文档结构与内容同步 |
 
 ---
 
 ## 测试验证
 
-1. **刷新功能**：点击刷新按钮，树状图应恢复到初始状态
-2. **撤销/重做**：
-    - 执行操作（如新增节点）
-    - 点击撤销，应恢复到上一步
-    - 点击重做，应前进到下一步
-    - 按钮应在无法操作时禁用
-3. **合并节点**：
-    - 选择两个节点合并
-    - 合并后连线数量应正确（不增不减）
-4. **拖拽交互**：
-    - 拖拽节点时，原位置显示灰色虚线框占位
-    - 拖拽到目标节点卡片上方时，目标节点整体放大 1.3 倍
-    - 拖拽到目标节点时，目标节点半透明 + 绿色边框高亮
-    - 鼠标移开或释放后，目标节点恢复原状
+### 2026-06-11 批次
+
+1. **刷新**：树恢复初始状态
+2. **撤销/重做**：操作可回退/前进，按钮禁用态正确
+3. **合并连线**：合并后连线数量正确，无多余线
+4. **拖拽视觉**：占位虚线框、目标高亮 1.3 倍、释放后复位
+
+### 2026-06-12 批次（合并 + 多层级拖拽）
+
+1. **第一层**：两个子节点拖拽合并 → 成功，新节点带 `integratedFrom`
+2. **第二层**：仅在父节点已合并后，同级子节点可合并；未合并父节点时拖拽不弹框
+3. **第三层多次合并**：连续合并后拖拽，节点不错位、不消失
+4. **缩放后拖拽**：zoom 放大/缩小后，节点仍跟手
+5. **跨层误触**：拖到非同级节点卡片上，不触发合并

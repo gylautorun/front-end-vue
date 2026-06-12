@@ -1,18 +1,23 @@
 # D3 树形图问题修复代码片段
 
+> 可复制的修复示例。架构说明见 [tech-doc.md](./tech-doc.md)，完整时间线见 [2026-06-11-d3-tree-bugfix.md](./2026-06-11-d3-tree-bugfix.md)。
+
 ---
 
 ## 目录
 
 1. [交互功能问题](#1-交互功能问题)
     - [1.1 拖拽节点不在鼠标位置](#11-拖拽节点不在鼠标位置)
-    - [1.2 拖拽到其他节点无反应](#12-拖拽到其他节点无反应)
+    - [1.2 ~~拖拽到其他节点无反应~~（已废弃：坐标回退）](#12-拖拽到其他节点无反应已废弃坐标回退)
     - [1.3 非同级节点响应拖拽](#13-非同级节点响应拖拽)
     - [1.4 拖拽到自己触发整合](#14-拖拽到自己触发整合)
     - [1.5 画布边缘不自动平移](#15-画布边缘不自动平移)
     - [1.6 平移方向相反](#16-平移方向相反)
-    - [1.7 可视区外节点无法命中](#17-可视区外节点无法命中)
+    - [1.7 ~~可视区外节点无法命中~~（已废弃，函数保留未调用）](#17-可视区外节点无法命中已废弃函数保留未调用)
     - [1.8 连线连接点位置不对](#18-连线连接点位置不对)
+    - [1.9 合并后拖拽错乱 / 节点消失（keyed join）](#19-合并后拖拽错乱--节点消失keyed-join)
+    - [1.10 拖拽事件重复绑定（bindNodeDrag）](#110-拖拽事件重复绑定bindnodedrag)
+    - [1.11 合并层级规则（canSiblingMerge）](#111-合并层级规则cansiblingmerge)
 2. [视觉样式问题](#2-视觉样式问题)
 3. [数据结构问题](#3-数据结构问题)
 4. [下载功能问题](#4-下载功能问题)
@@ -31,40 +36,37 @@
 
 ### 1.1 拖拽节点不在鼠标位置
 
-**问题根因**：`event.dx/dy` 是增量，未正确累加
+**问题根因**：`event.dx/dy` 是屏幕增量未累加；zoom 缩放未折算
 
-**解决方案**：使用 `dataset` 维护累计 transform
+**解决方案**：`dataset.deltaX/deltaY` 存相对布局的累计位移，除以 `zoomTransform.k`
 
 ```typescript
-// d3Tree.ts - dragged() 函数
-// 当前累计 transform（dragstart 时初始化为 d.y / d.x）
-const initialTX = Number.isFinite(Number(d?.y)) ? Number(d?.y) : 0;
-const initialTY = Number.isFinite(Number(d?.x)) ? Number(d?.x) : 0;
-let curTX = Number(gEl.dataset.curTX ?? initialTX);
-let curTY = Number(gEl.dataset.curTY ?? initialTY);
+// d3Tree.ts - dragged()
+const d = getCurrentNode(instance, resolveNodeIdFromElement(gEl)!);
+const currentTX = Number(d?.y ?? 0);
+const currentTY = Number(d?.x ?? 0);
+const prevDeltaX = Number(gEl.dataset.deltaX ?? 0);
+const prevDeltaY = Number(gEl.dataset.deltaY ?? 0);
 
-// d3-drag 提供 event.dx / event.dy：本次 drag 事件相对上次的屏幕坐标增量
-const dx = Number.isFinite(Number(event.dx)) ? Number(event.dx) : 0;
-const dy = Number.isFinite(Number(event.dy)) ? Number(event.dy) : 0;
+const currentScale = d3.zoomTransform(svg.node()!).k ?? 1;
+const newDeltaX = prevDeltaX + event.dx / currentScale;
+const newDeltaY = prevDeltaY + event.dy / currentScale;
 
-curTX += dx; // 累加增量
-curTY += dy;
-
-// 写回 dataset 累计
-gEl.dataset.curTX = String(curTX);
-gEl.dataset.curTY = String(curTY);
-
-// 更新节点 g 元素 transform
-d3.select(gEl).attr('transform', `translate(${curTX},${curTY})`);
+gEl.dataset.deltaX = String(newDeltaX);
+gEl.dataset.deltaY = String(newDeltaY);
+d3.select(gEl).attr(
+    'transform',
+    `translate(${currentTX + newDeltaX},${currentTY + newDeltaY})`
+);
 ```
 
 ---
 
-### 1.2 拖拽到其他节点无反应
+### 1.2 拖拽到其他节点无反应（已废弃：坐标回退）
 
-**问题根因**：DOM 命中检测无法识别可视区外节点
+> **当前实现**：仅使用 DOM + `getBoundingClientRect` 精确命中，**不再回退**到 `findSameLevelNodeByCoord`，避免误触发。详见 [1.9](#19-合并后拖拽错乱--节点消失keyed-join) 与 `tech-doc.md` 2.3.3。
 
-**解决方案**：添加坐标计算回退机制
+**历史方案**（已废弃）：坐标计算回退机制
 
 ```typescript
 // d3Tree.ts - findSameLevelNodeAtDOM() 函数
@@ -221,11 +223,11 @@ else if (relativeY > canvasHeight - edgeMargin) {
 
 ---
 
-### 1.7 可视区外节点无法命中
+### 1.7 可视区外节点无法命中（已废弃，函数保留未调用）
 
-**问题根因**：手动解析 transform 不准确
+> `findSameLevelNodeByCoord()` 仍存在于 `d3Tree.ts`，但 `findSameLevelNodeAtDOM` **不再调用**它。保留代码仅供参考，新功能请勿依赖。
 
-**解决方案**：使用 SVG 矩阵变换 API
+**历史方案**：使用 SVG 矩阵变换 API
 
 ```typescript
 // d3Tree.ts - findSameLevelNodeByCoord() 函数
@@ -297,6 +299,131 @@ const path = link.append('path').attr('class', 'link').attr('d', linkGenerator);
 >
 > -   `x` 属性存储垂直坐标（传给 `.y()` 函数）
 > -   `y` 属性存储水平坐标（传给 `.x()` 函数）
+
+---
+
+### 1.9 合并后拖拽错乱 / 节点消失（keyed join）
+
+**问题根因**：`join()` 无 key → DOM 复用后 `data-id` 与 datum 不一致；拖拽中 transition 覆盖 transform
+
+**解决方案**：
+
+```typescript
+// renderTree() - 连线与节点都必须带 key
+const linkUpdate = link
+    .data(linkData, (d) => `${d.source.data.id}__${d.target.data.id}`)
+    .join(enter, update, (exit) => exit.remove());
+
+const nodeUpdate = node.data(nodeData, (d) => d.data.id).join(
+    (enter) =>
+        enter
+            .attr('class', 'node')
+            .attr('data-id', (d) => d.data.id)
+            .attr('transform', (d) => `translate(${d.y ?? 0},${d.x ?? 0})`),
+    (update) =>
+        update
+            .attr('data-id', (d) => d.data.id) // update 必须同步
+            .attr('transform', function (d) {
+                const el = this as SVGGElement;
+                if (el.classList.contains('dragging')) {
+                    return el.getAttribute('transform') || `translate(${d.y ?? 0},${d.x ?? 0})`;
+                }
+                return `translate(${d.y ?? 0},${d.x ?? 0})`;
+            }),
+    (exit) => exit.remove()
+);
+
+instance.root = root; // 重绑拖拽前更新 root
+```
+
+---
+
+### 1.10 拖拽事件重复绑定（bindNodeDrag）
+
+**问题根因**：每次 `renderTree` 调用 `call(d3.drag())` 未清除旧监听
+
+**解决方案**：
+
+```typescript
+function bindNodeDrag(nodeSelection, instance, onDropToTarget) {
+    nodeSelection.call(d3.drag().on('start', null).on('drag', null).on('end', null));
+    nodeSelection.call(
+        d3
+            .drag()
+            .on('start', function (event) {
+                if ((event.sourceEvent?.target as HTMLElement)?.classList.contains('more-btn')) return;
+                const nodeId = this.getAttribute('data-id');
+                const currentNode = getCurrentNode(instance, nodeId!);
+                if (currentNode) dragStarted(instance, currentNode, this);
+            })
+            .on('drag', function (event) {
+                if (!instance.currentDraggingNodeId) return;
+                dragged(this, event, instance, instance.svg, instance.zoom);
+            })
+            .on('end', function (event) {
+                const currentNode = getCurrentNode(instance, this.getAttribute('data-id')!);
+                if (currentNode) dragEnded(instance, event, currentNode, instance.root, onDropToTarget);
+            })
+    );
+}
+
+// initD3 与 renderTree 末尾均调用
+bindNodeDrag(node, instance, onDropToTarget);
+```
+
+**单一数据源**：
+
+```typescript
+function getCurrentNode(instance, nodeId: string) {
+    return instance.root?.descendants().find((n) => n.data.id === nodeId) ?? null;
+}
+
+function findNodeGElementInSvg(svg, nodeId: string) {
+    return svg.select(`g.node[data-id="${CSS.escape(nodeId)}"]`).node();
+}
+```
+
+---
+
+### 1.11 合并层级规则（canSiblingMerge）
+
+**业务规则**：父层级已整合后，子层级才允许同级拖拽合并。
+
+```typescript
+// types/index.ts
+export const ROOT_DEFAULT_MERGE_MARKER = '__root__';
+
+export function isMergedNode(node: Pick<TreeData, 'integratedFrom'>, depth = 0): boolean {
+    if (depth === 0) return true;
+    return !!(node.integratedFrom && node.integratedFrom.length > 0);
+}
+
+export function canSiblingMerge(node: {
+    depth: number;
+    parent?: { depth: number; data: TreeData } | null;
+}): boolean {
+    if (node.depth <= 0) return false;
+    const parent = node.parent;
+    if (!parent) return false;
+    return isMergedNode(parent.data, parent.depth);
+}
+```
+
+```typescript
+// mockData.ts 根节点
+integratedFrom: [ROOT_DEFAULT_MERGE_MARKER],
+
+// d3Tree.ts dragEnded
+if (!canSiblingMerge(d)) return;
+
+// index.vue confirmMergeNodes
+if (!canMergeNodesInTree(data.sourceId)) {
+    return alert('合并失败：需先完成上一层级节点合并后，当前层级才可合并');
+}
+
+// 合并产物
+integratedFrom: [sourceNode.id, targetNode.id],
+```
 
 ---
 
