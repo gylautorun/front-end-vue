@@ -18,9 +18,10 @@
       └──────────────┴──────────────────────────────┘
 
     数据流：
-      1. initialTreeData → deepClone → 响应式 treeData
-      2. treeData (props) → GraphCanvas → d3Tree.initD3()
-      3. 节点操作回调 → 修改 treeData → watch → renderTree()
+      1. initialTreeData → treeData（Vue 响应式，供 Modals/Drawer）
+      2. GraphCanvas mount → D3TreeGraph 持有同一份数据的深拷贝
+      3. 业务操作 → applyTreeChange* → tree-operations → graph.commit()
+      4. syncFromGraph() 回写 treeData；撤销/重做由 graph 历史栈驱动
 
     模态框列表（见 Modals.vue）：
       showAddModal          新增子节点
@@ -49,6 +50,7 @@
             <GraphCanvas
                 ref="graphCanvasRef"
                 :tree-data="treeData"
+                :schema="DATA_D3_TREE_SCHEMA"
                 :selected-nodes="selectedNodes"
                 :selected-count="selectedNodes.length"
                 @zoom-in="handleZoomIn"
@@ -171,9 +173,10 @@
  *   - 6 个 showXxxModal    控制各业务模态框的显隐
  *   - showDrawer           控制右侧详情 Drawer 显隐
  *
- * D3 集成：
- *   - root = d3.hierarchy(treeData) 在 onMounted 时构建层级结构
- *   - 任何修改 treeData 的操作后都会重新 d3.hierarchy + renderTree
+ * D3 集成（SDK）：
+ *   - GraphCanvas 内 D3TreeGraph 负责渲染、缩放、历史、布局方向
+ *   - index.vue 通过 getGraph() + applyTreeChange* 调用 tree-operations
+ *   - mutateData() 取得可写根节点 → 纯函数变更 → commit() 重绘+入栈
  *
  * 主要业务方法：
  *   1. 选择相关：selectNode / toggleSelect / toggleSelectModule / clearSelection
@@ -185,16 +188,25 @@
  * ========================================================================
  */
 import { ref, computed, onMounted, watch } from 'vue';
-import * as d3 from 'd3';
 import { cloneDeep } from 'lodash-es';
 import SidebarLeft from './components/SidebarLeft.vue';
 import SidebarRight from './components/SidebarRight.vue';
 import GraphCanvas from './components/GraphCanvas.vue';
 import Modals from './components/Modals.vue';
-import type { TreeData, SelectedNode, IntegrationTypeKey, LevelKey } from './types';
-import { INTEGRATION_TYPE_NAME, canSiblingMerge } from './types';
-import { initialTreeData } from './data/mockData';
-import { TreeLogger } from './utils/treeLogger';
+import {
+    D3TreeGraph,
+    TreeLogger,
+    TreeContext,
+    initialTreeData,
+    type TreeData,
+    type SelectedNode,
+    type IntegrationTypeKey,
+    type LevelKey
+} from '@/lib/d3-tree-sdk';
+import { DATA_D3_TREE_SCHEMA, DATA_D3_ROOT_ID } from './config/treeConfig';
+
+/** 与 GraphCanvas 内 D3TreeGraph 使用同一套 schema */
+const pageTreeCtx = new TreeContext(DATA_D3_TREE_SCHEMA);
 
 // 响应式状态
 const graphCanvasRef = ref<InstanceType<typeof GraphCanvas> | null>(null);
@@ -225,8 +237,59 @@ const showModuleDetailModal = ref(false);
 /** 选中的模块详情数据 */
 const selectedModuleDetail = ref<TreeData | null>(null);
 
-// D3 变量
-let root: d3.HierarchyNode<TreeData>;
+/** 从 GraphCanvas 内的 D3TreeGraph 实例同步 treeData */
+function getGraph(): D3TreeGraph | null {
+    return graphCanvasRef.value?.getGraph() ?? null;
+}
+
+/** 优先使用 graph 内 context（与渲染一致），否则用页面级 pageTreeCtx */
+function getCtx(): TreeContext {
+    return getGraph()?.getContext() ?? pageTreeCtx;
+}
+
+/**
+ * 将 SDK 内部树数据同步到页面响应式 treeData
+ * ----------------------------------------------------------------------------
+ * GraphCanvas 内 D3TreeGraph 是渲染与历史的真实数据源；
+ * index.vue 的 treeData 供 Modals / Drawer / computed 使用，需在每次 commit 后同步。
+ */
+function syncFromGraph(): void {
+    const graph = getGraph();
+    if (graph) treeData.value = graph.getData();
+}
+
+/**
+ * 执行树变更（无返回值）
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. graph.mutateData() 取得可写根节点引用
+ *   2. 调用 tree-operations 纯函数完成变更
+ *   3. graph.commit() 重绘 + 写入历史栈
+ *   4. syncFromGraph() 回写 Vue 响应式 treeData
+ */
+function applyTreeChange(mutator: (root: TreeData, ctx: TreeContext) => boolean): boolean {
+    const graph = getGraph();
+    if (!graph) return false;
+    const ctx = graph.getContext();
+    const ok = mutator(graph.mutateData(), ctx);
+    if (!ok) return false;
+    graph.commit({ recordHistory: true });
+    syncFromGraph();
+    return true;
+}
+
+function applyTreeChangeWithResult<T>(
+    mutator: (root: TreeData, ctx: TreeContext) => T | null
+): T | null {
+    const graph = getGraph();
+    if (!graph) return null;
+    const ctx = graph.getContext();
+    const result = mutator(graph.mutateData(), ctx);
+    if (result === null) return null;
+    graph.commit({ recordHistory: true });
+    syncFromGraph();
+    return result;
+}
 
 /**
  * 可用于"绑定关系"的目标节点列表
@@ -236,23 +299,17 @@ let root: d3.HierarchyNode<TreeData>;
  *   2. 收集除根节点 (id='edu') 外的所有节点
  *   3. 用作 Modals 中"绑定关系"下拉框的选项
  */
-const availableApps = computed(() => {
-    const apps: TreeData[] = [];
-    const collectApps = (node: TreeData) => {
-        if (node.id !== 'edu') apps.push(node);
-        if (node.children) node.children.forEach(collectApps);
-    };
-    collectApps(treeData.value);
-    return apps;
-});
+const availableApps = computed(() =>
+    getCtx().collectDescendantApps(treeData.value, getCtx().getRootId(treeData.value))
+);
 
 /**
  * 监听绑定关系弹框打开，设置源节点名称
  */
 watch(showBindRelationModal, (val) => {
     if (val && contextMenuNodeId.value) {
-        const node = root.descendants().find((d) => d.data.id === contextMenuNodeId.value);
-        bindRelationSourceLabel.value = node?.data.label || '';
+        const meta = getCtx().findNodeInTree(treeData.value, contextMenuNodeId.value);
+        bindRelationSourceLabel.value = meta ? getCtx().accessors.getLabel(meta.node) : '';
     }
 });
 
@@ -265,9 +322,7 @@ watch(showBindRelationModal, (val) => {
  *   3. 100ms 延迟是为了避开 Vue 首次渲染未完成导致容器尺寸为 0 的问题
  */
 onMounted(() => {
-    root = d3.hierarchy(treeData.value);
     setTimeout(() => {
-        // graphCanvasRef.value?.fitView();
         graphCanvasRef.value?.resetZoom();
     }, 100);
 });
@@ -382,66 +437,69 @@ function handleFitView() {
  * 重置整棵树（恢复初始数据）
  * ----------------------------------------------------------------------------
  * 步骤：
- *   1. treeData 重新指向 initialTreeData 的深拷贝
- *   2. 重建 d3.HierarchyNode 树
- *   3. 调用 GraphCanvas 的 renderTree() 重绘
- *   4. 调用 fitView() 重新居中
- *   5. 选中根节点 + 清空多选
+ *   1. graph.resetToInitialData(initialTreeData) 恢复 SDK 内部数据并重绘
+ *   2. syncFromGraph() 同步到 Vue treeData
+ *   3. resetZoom() 重置视口缩放
+ *   4. 选中根节点 + 清空多选
  */
 function handleResetTree() {
-    treeData.value = cloneDeep(initialTreeData);
-    root = d3.hierarchy(treeData.value);
-    // 传入新的树数据，确保立即渲染
-    graphCanvasRef.value?.renderTree(treeData.value);
-    // fitView 居中适应屏幕
-    // graphCanvasRef.value?.fitView();
+    const graph = getGraph();
+    if (!graph) return;
+    graph.resetToInitialData(cloneDeep(initialTreeData));
+    syncFromGraph();
     graphCanvasRef.value?.resetZoom();
     selectNode(treeData.value);
     clearSelection();
-    TreeLogger.log('重置整棵树', treeData.value, {
-        action: 'reset'
-    });
+    TreeLogger.log('重置整棵树', treeData.value, { action: 'reset' });
 }
 
 /**
- * 更新树数据但不记录到历史（用于撤销/重做操作）
+ * 撤销操作（GraphCanvas 内 graph.undo() 已完成渲染，此处同步 Vue 状态）
  * ----------------------------------------------------------------------------
- * 统一处理：更新 treeData + 重新构建 hierarchy + 重绘
- * @param {TreeData} newData 新的树数据
+ * 步骤：
+ *   1. 接收 GraphCanvas emit 的历史快照 data
+ *   2. 深拷贝写入 treeData
+ *   3. 重新选中根节点刷新 Drawer
  */
-function updateTreeDataWithoutHistory(newData: TreeData) {
-    treeData.value = cloneDeep(newData);
-    // 调用 renderTree，它会计算节点位置并返回带有位置数据的 root
-    const renderedRoot = graphCanvasRef.value?.renderTree(treeData.value);
-    // 更新 root 变量，确保后续操作使用最新的层级结构
-    root = renderedRoot || d3.hierarchy(treeData.value);
+function handleUndo(data: TreeData) {
+    treeData.value = cloneDeep(data);
+    selectNode(treeData.value);
+    TreeLogger.log('撤销操作', treeData.value, { action: 'undo' });
 }
 
 /**
- * 更新树数据并记录到历史
+ * 重做操作（GraphCanvas 内 graph.redo() 已完成渲染）
  * ----------------------------------------------------------------------------
- * 统一处理：更新 treeData + 重新构建 hierarchy + 重绘 + 记录历史
- * @param {TreeData} newData 新的树数据
+ * 步骤同 handleUndo
  */
-function updateTreeData(newData: TreeData) {
-    treeData.value = cloneDeep(newData);
-    // 调用 renderTree，它会计算节点位置并返回带有位置数据的 root
-    const renderedRoot = graphCanvasRef.value?.renderTree(treeData.value);
-    // 记录操作到历史
-    graphCanvasRef.value?.recordOperation(treeData.value);
-    // 使用 renderTree 返回的带有正确位置数据的 root
-    root = renderedRoot || d3.hierarchy(treeData.value);
+function handleRedo(data: TreeData) {
+    treeData.value = cloneDeep(data);
+    selectNode(treeData.value);
+    TreeLogger.log('重做操作', treeData.value, { action: 'redo' });
+}
+
+/**
+ * 刷新操作（恢复 GraphCanvas mount 时的 initialTreeData）
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 接收 graph.refresh() 后的快照
+ *   2. 同步 treeData + 选中根节点 + 清空多选
+ */
+function handleRefresh(data: TreeData) {
+    treeData.value = cloneDeep(data);
+    selectNode(treeData.value);
+    clearSelection();
+    TreeLogger.log('刷新操作', treeData.value, { action: 'refresh' });
 }
 
 /**
  * 确认新增子节点
  * ----------------------------------------------------------------------------
  * 步骤：
- *   1. 在 d3.HierarchyNode 树中找到右键触发的父节点
- *   2. 构造新节点对象（id = node_${Date.now()} 保证唯一）
- *   3. 把新节点 push 到父节点的 children 数组
- *   4. 重新构建 hierarchy + 触发 renderTree
- *   5. 关闭新增子节点模态框
+ *   1. applyTreeChangeWithResult + SDK addChildNode()
+ *   2. addChildNode 内部：找父节点 → 构造节点 → push 到 children
+ *   3. graph.commit() 重绘并记录历史
+ *   4. 关闭新增子节点模态框
  *
  * @param data 包含 name / level / integrationType 的表单数据
  *             其中 integrationType 是 IntegrationTypeKey 枚举（不是中文）
@@ -451,25 +509,22 @@ function confirmAddNode(data: {
     level: LevelKey;
     integrationType: IntegrationTypeKey;
 }) {
-    // 在原始数据中找到父节点
-    const parentResult = findNodeInTreeData(treeData.value, contextMenuNodeId.value || '');
-    if (parentResult) {
-        const newNode: TreeData = {
-            id: `node_${Date.now()}`,
-            label: data.name,
+    const parentId = contextMenuNodeId.value;
+    if (!parentId) {
+        showAddModal.value = false;
+        return;
+    }
+    const newNode = applyTreeChangeWithResult((root, ctx) =>
+        ctx.addChildNode(root, {
+            parentId,
+            name: data.name,
             level: data.level,
-            dept: '教育局',
-            owner: '',
-            integrationType: data.integrationType,
-            integrationTypeName: INTEGRATION_TYPE_NAME[data.integrationType],
-            children: [],
-            modules: []
-        };
-        if (!parentResult.node.children) parentResult.node.children = [];
-        parentResult.node.children.push(newNode);
-        updateTreeData(treeData.value);
+            integrationType: data.integrationType
+        })
+    );
+    if (newNode) {
         TreeLogger.log('新增子节点', treeData.value, {
-            parentId: contextMenuNodeId.value,
+            parentId,
             newNodeId: newNode.id,
             newNodeLabel: newNode.label,
             newNodeLevel: newNode.level
@@ -482,32 +537,26 @@ function confirmAddNode(data: {
  * 确认新增功能模块
  * ----------------------------------------------------------------------------
  * 步骤：
- *   1. 找到父节点
- *   2. 构造新模块（level 固定为"功能模块"）
- *   3. 推入父节点的 modules 数组
- *   4. 重新选中新模块的父节点（Drawer 自动打开）
- *   5. renderTree 重绘
- *   6. 关闭模态框
+ *   1. applyTreeChangeWithResult + SDK addModule()
+ *   2. 重新选中父节点（Drawer 自动打开）
+ *   3. 关闭模态框
  *
  * @param data 包含 name / dept 的表单数据
  */
 function confirmAddModule(data: { name: string; dept: string }) {
-    // 在原始数据中找到父节点
-    const parentResult = findNodeInTreeData(treeData.value, contextMenuNodeId.value || '');
-    if (parentResult) {
-        const newModule: TreeData = {
-            id: `module_${Date.now()}`,
-            label: data.name,
-            level: 'module',
-            dept: data.dept || parentResult.node.dept,
-            owner: ''
-        };
-        if (!parentResult.node.modules) parentResult.node.modules = [];
-        parentResult.node.modules.push(newModule);
-        selectNode(parentResult.node);
-        updateTreeData(treeData.value);
+    const parentId = contextMenuNodeId.value;
+    if (!parentId) {
+        showAddModuleModal.value = false;
+        return;
+    }
+    const newModule = applyTreeChangeWithResult((root, ctx) =>
+        ctx.addModule(root, { parentId, name: data.name, dept: data.dept })
+    );
+    if (newModule) {
+        const parent = getCtx().findNodeInTree(treeData.value, parentId);
+        if (parent) selectNode(parent.node);
         TreeLogger.log('新增功能模块', treeData.value, {
-            parentId: contextMenuNodeId.value,
+            parentId,
             newModuleId: newModule.id,
             newModuleLabel: newModule.label
         });
@@ -519,56 +568,39 @@ function confirmAddModule(data: { name: string; dept: string }) {
  * 整合多选模块 → 合并为新模块
  * ----------------------------------------------------------------------------
  * 步骤：
- *   1. 确定整合后的新父节点（所有选中模块的 parentId 相同则用 parentId，否则用 'edu'）
- *   2. 构造新模块（带 integrationType）
- *   3. 把新模块 push 到父节点的 modules 数组
- *   4. **关键**：从原父节点移除所有被选中的模块
- *   5. renderTree 重绘
- *   6. 重新选中父节点 + 清空多选
- *   7. 关闭模态框
+ *   1. applyTreeChangeWithResult + SDK integrateSelectedModules()
+ *   2. 确定 parentId（多选 parentId 相同则用该 id，否则 'edu'）
+ *   3. 新建 integrated 模块并从各父节点 modules 移除选中项
+ *   4. 重新选中父节点 + 清空多选
+ *   5. 关闭模态框
  *
  * @param data 包含 name / dept / type 的表单数据
  *             其中 type 是 IntegrationTypeKey 枚举
  */
 function confirmIntegrateModule(data: { name: string; dept: string; type: IntegrationTypeKey }) {
-    const parentIds = [...new Set(selectedNodes.value.map((n) => n.parentId))];
-    const parentId = parentIds.length === 1 ? parentIds[0] : 'edu';
-
-    const parentResult = findNodeInTreeData(treeData.value, parentId);
-    if (parentResult) {
-        const newModule: TreeData = {
-            id: `integrated_${Date.now()}`,
-            label: data.name,
-            level: 'module',
-            dept: data.dept || parentResult.node.dept,
-            owner: '',
-            integrationType: data.type,
-            integrationTypeName: INTEGRATION_TYPE_NAME[data.type]
-        };
-
-        if (!parentResult.node.modules) parentResult.node.modules = [];
-        parentResult.node.modules.push(newModule);
-
-        selectedNodes.value.forEach((selected) => {
-            const ownerResult = findNodeInTreeData(treeData.value, selected.parentId);
-            if (ownerResult && ownerResult.node.modules) {
-                ownerResult.node.modules = ownerResult.node.modules.filter(
-                    (m) => m.id !== selected.id
-                );
-            }
-        });
-
-        updateTreeData(treeData.value);
-        selectNode(parentResult.node);
+    const selected = selectedNodes.value.map((n) => ({ id: n.id, parentId: n.parentId }));
+    const newModule = applyTreeChangeWithResult((root, ctx) =>
+        ctx.integrateSelectedModules(root, {
+            selected: selected.map((n) => ({ ...n })),
+            name: data.name,
+            dept: data.dept,
+            type: data.type
+        })
+    );
+    if (newModule) {
+        const parentIds = [...new Set(selected.map((n) => n.parentId))];
+        const parentId =
+            parentIds.length === 1 ? parentIds[0] : getCtx().getRootId(treeData.value);
+        const parent = getCtx().findNodeInTree(treeData.value, parentId);
+        if (parent) selectNode(parent.node);
         clearSelection();
         TreeLogger.log('整合多选模块', treeData.value, {
             parentId,
             newModuleId: newModule.id,
             newModuleLabel: newModule.label,
-            selectedCount: selectedNodes.value.length
+            selectedCount: selected.length
         });
     }
-
     showIntegrateModal.value = false;
 }
 
@@ -576,11 +608,10 @@ function confirmIntegrateModule(data: { name: string; dept: string; type: Integr
  * 确认编辑节点属性
  * ----------------------------------------------------------------------------
  * 步骤：
- *   1. 在 d3.HierarchyNode 树中找到目标节点
- *   2. 直接修改其 data 字段（label / dept / level / owner）
- *   3. renderTree 重绘
- *   4. 重新选中该节点（Drawer 刷新显示）
- *   5. 关闭模态框
+ *   1. applyTreeChange + SDK editNode()
+ *   2. 修改 label / dept / level / owner
+ *   3. 重新选中该节点（Drawer 刷新）
+ *   4. 关闭模态框
  *
  * @param data 包含 name / dept / level / owner 的表单数据
  */
@@ -590,25 +621,30 @@ function confirmEditNode(data: {
     level: LevelKey | '';
     owner: string;
 }) {
-    // 在原始数据中找到节点
-    const nodeResult = findNodeInTreeData(treeData.value, contextMenuNodeId.value || '');
-    if (nodeResult) {
-        nodeResult.node.label = data.name;
-        nodeResult.node.dept = data.dept;
-        if (data.level) {
-            nodeResult.node.level = data.level;
-        }
-        nodeResult.node.owner = data.owner;
-        updateTreeData(treeData.value);
-        selectNode(nodeResult.node);
-        TreeLogger.log('编辑节点属性', treeData.value, {
-            nodeId: contextMenuNodeId.value,
-            newName: data.name,
-            newLevel: data.level,
-            newDept: data.dept,
-            newOwner: data.owner
-        });
+    const nodeId = contextMenuNodeId.value;
+    if (!nodeId) {
+        showEditModal.value = false;
+        return;
     }
+    applyTreeChange((root, ctx) => {
+        ctx.editNode(root, {
+            nodeId,
+            name: data.name,
+            dept: data.dept,
+            level: data.level || undefined,
+            owner: data.owner
+        });
+        return true;
+    });
+    const updated = getCtx().findNodeInTree(treeData.value, nodeId);
+    if (updated) selectNode(updated.node);
+    TreeLogger.log('编辑节点属性', treeData.value, {
+        nodeId,
+        newName: data.name,
+        newLevel: data.level,
+        newDept: data.dept,
+        newOwner: data.owner
+    });
     showEditModal.value = false;
 }
 
@@ -616,37 +652,35 @@ function confirmEditNode(data: {
  * 确认绑定关联关系
  * ----------------------------------------------------------------------------
  * 步骤：
- *   1. 找到源节点和目标节点
- *   2. 在源节点的 relations 数组中追加 { targetId / targetName / type / name }
- *   3. 重新选中源节点（Drawer 刷新）
- *   4. 关闭模态框
+ *   1. applyTreeChange + SDK bindRelation()
+ *   2. 在源节点 relations 追加 { targetId, targetName, type, name }
+ *   3. 重新选中源节点 + 关闭模态框
  *
  * @param data 包含 targetId / type / name 的表单数据
  *             其中 type 是 IntegrationTypeKey 枚举，name 是整合名称
  */
 function confirmBindRelation(data: { targetId: string; type: IntegrationTypeKey; name: string }) {
-    // 在原始数据中找到源节点和目标节点
-    const nodeResult = findNodeInTreeData(treeData.value, contextMenuNodeId.value || '');
-    const targetResult = findNodeInTreeData(treeData.value, data.targetId);
-
-    if (nodeResult && targetResult) {
-        if (!nodeResult.node.relations) nodeResult.node.relations = [];
-        nodeResult.node.relations.push({
-            targetId: targetResult.node.id,
-            targetName: targetResult.node.label,
+    const sourceId = contextMenuNodeId.value;
+    if (!sourceId) {
+        showBindRelationModal.value = false;
+        return;
+    }
+    applyTreeChange((root, ctx) =>
+        ctx.bindRelation(root, {
+            sourceId,
+            targetId: data.targetId,
             type: data.type,
             name: data.name
-        });
-        selectNode(nodeResult.node);
-        updateTreeData(treeData.value);
-        TreeLogger.log('绑定关联关系', treeData.value, {
-            sourceId: contextMenuNodeId.value,
-            targetId: data.targetId,
-            relationType: data.type,
-            relationName: data.name
-        });
-    }
-
+        })
+    );
+    const source = getCtx().findNodeInTree(treeData.value, sourceId);
+    if (source) selectNode(source.node);
+    TreeLogger.log('绑定关联关系', treeData.value, {
+        sourceId,
+        targetId: data.targetId,
+        relationType: data.type,
+        relationName: data.name
+    });
     showBindRelationModal.value = false;
 }
 
@@ -654,27 +688,25 @@ function confirmBindRelation(data: { targetId: string; type: IntegrationTypeKey;
  * 确认标注整合方式
  * ----------------------------------------------------------------------------
  * 步骤：
- *   1. 找到目标节点
- *   2. 设置其 integrationType
- *   3. renderTree 重绘（连线颜色会跟着变）
+ *   1. applyTreeChange + SDK setNodeIntegration()
+ *   2. 设置 integrationType / integrationTypeName
+ *   3. graph.commit() 重绘（连线样式随类型变化）
  *   4. 关闭模态框
  *
  * @param data 包含 type 的表单数据
  *             其中 type 是 IntegrationTypeKey 枚举
  */
 function confirmIntegration(data: { type: IntegrationTypeKey }) {
-    // 在原始数据中找到节点
-    const nodeResult = findNodeInTreeData(treeData.value, contextMenuNodeId.value || '');
-    if (nodeResult) {
-        nodeResult.node.integrationType = data.type;
-        nodeResult.node.integrationTypeName = INTEGRATION_TYPE_NAME[data.type];
-        updateTreeData(treeData.value);
-        TreeLogger.log('标注整合方式', treeData.value, {
-            nodeId: contextMenuNodeId.value,
-            integrationType: data.type,
-            integrationTypeName: INTEGRATION_TYPE_NAME[data.type]
-        });
+    const nodeId = contextMenuNodeId.value;
+    if (!nodeId) {
+        showIntegrationModal.value = false;
+        return;
     }
+    applyTreeChange((root, ctx) => ctx.setNodeIntegration(root, nodeId, data.type));
+    TreeLogger.log('标注整合方式', treeData.value, {
+        nodeId,
+        integrationType: data.type
+    });
     showIntegrationModal.value = false;
 }
 
@@ -714,207 +746,40 @@ function handleDropToTarget(
  *   4. 拖拽合并弹框关闭
  *   5. 重新 d3.hierarchy + renderTree
  *
- * 步骤详解：
- *   1. 在 d3.HierarchyNode 树中找到源/目标节点以及它们共同的父节点
- *   2. 合并 children：
- *      - newChildren = [source.children, target.children].flat()
- *      - 合并后可能存在 ID 重复，去重（按 ID 用 Map 去重）
- *   3. 合并 modules：同理
- *   4. 取 source 与 target 中"更高级"那个 level（部门级 > 处室级 等），用 level 优先级表判断
- *      - 如果两个 level 都是"部门级综合应用"则用"部门级综合应用"
- *      - 否则取 level 优先级更高的
- *   5. 取 dept / owner：默认取 source，target 里有值则补上（任一非空即用）
- *   6. 构造新节点（id = merge_<ts>）
- *   7. 从父节点 children 中删除 source 和 target，加入新节点
- *   8. 重新 d3.hierarchy + renderTree
- *   9. 重新选中新节点（Drawer 打开）
+ * 步骤详解（实现见 SDK mergeSiblingNodes）：
+ *   1. 校验同级、合并层级规则 canSiblingMerge
+ *   2. 合并 children / modules / relations（深拷贝去重）
+ *   3. 取更高优先级 level，构造新节点 integratedFrom: [sourceId, targetId]
+ *   4. 替换父节点 children 中的 source/target
+ *   5. 全树更新 relations 中对旧 id 的引用
+ *   6. graph.commit() + syncFromGraph() + 选中新节点
  */
-
-/**
- * 在原始数据中递归查找节点
- * @param node 当前节点
- * @param nodeId 要查找的节点ID
- * @returns 找到的节点及其父节点
- */
-function findNodeInTreeData(
-    node: TreeData,
-    nodeId: string,
-    parent: TreeData | null = null,
-    depth = 0
-): { node: TreeData; parent: TreeData | null; depth: number } | null {
-    if (node.id === nodeId) {
-        return { node, parent, depth };
-    }
-    if (node.children) {
-        for (const child of node.children) {
-            const result = findNodeInTreeData(child, nodeId, node, depth + 1);
-            if (result) return result;
-        }
-    }
-    return null;
-}
-
-function canMergeNodesInTree(nodeId: string): boolean {
-    const meta = findNodeInTreeData(treeData.value, nodeId);
-    if (!meta) return false;
-    return canSiblingMerge({
-        depth: meta.depth,
-        parent: meta.parent ? { depth: meta.depth - 1, data: meta.parent } : null
-    });
-}
-
-/**
- * 在原始数据中递归查找并更新关系引用
- * @param node 当前节点
- * @param oldIds 旧的节点ID列表
- * @param newId 新的节点ID
- * @param newLabel 新的节点名称
- */
-function updateRelationsInTreeData(
-    node: TreeData,
-    oldIds: string[],
-    newId: string,
-    newLabel: string
-) {
-    if (node.relations) {
-        for (const relation of node.relations) {
-            if (oldIds.includes(relation.targetId)) {
-                relation.targetId = newId;
-                relation.targetName = newLabel;
-            }
-        }
-    }
-    if (node.children) {
-        for (const child of node.children) {
-            updateRelationsInTreeData(child, oldIds, newId, newLabel);
-        }
-    }
-}
-
-/**
- * 通用深拷贝合并函数
- * ----------------------------------------------------------------------------
- * 功能：将两个数组合并去重，使用深拷贝避免引用问题
- * @param source 源数组
- * @param target 目标数组
- * @param getKeyFn 获取元素唯一 key 的函数，默认使用 id 字段
- * @returns 合并去重后的数组（新对象）
- */
-function mergeById<T>(
-    source: T[] = [],
-    target: T[] = [],
-    getKeyFn: (item: T) => string = (item: any) => item.id
-): T[] {
-    const map = new Map<string, T>();
-    // 使用 lodash 的 cloneDeep 进行深拷贝，支持循环引用和特殊类型
-    (source ?? []).forEach((item) => map.set(getKeyFn(item), cloneDeep(item)));
-    (target ?? []).forEach((item) => map.set(getKeyFn(item), cloneDeep(item)));
-    return Array.from(map.values());
-}
-
 function confirmMergeNodes(data: {
     name: string;
     integrationType: IntegrationTypeKey;
     sourceId: string;
     targetId: string;
 }) {
-    // 1. 在原始数据中找到源/目标节点及其父节点
-    const sourceResult = findNodeInTreeData(treeData.value, data.sourceId);
-    const targetResult = findNodeInTreeData(treeData.value, data.targetId);
-
-    if (!sourceResult || !targetResult) {
-        showMergeNodesModal.value = false;
-        return alert('合并失败：源/目标节点未找到');
-    }
-
-    if (!canMergeNodesInTree(data.sourceId)) {
-        showMergeNodesModal.value = false;
-        return alert('合并失败：需先完成上一层级节点合并后，当前层级才可合并');
-    }
-
-    const sourceNode = sourceResult.node;
-    const targetNode = targetResult.node;
-    const sourceParent = sourceResult.parent;
-    const targetParent = targetResult.parent;
-
-    if (!sourceParent || !targetParent) {
-        showMergeNodesModal.value = false;
-        return alert('合并失败：源/目标节点没有父节点');
-    }
-
-    // 必须同父节点
-    if (sourceParent.id !== targetParent.id) {
-        showMergeNodesModal.value = false;
-        return alert('合并失败：源/目标不是同级节点');
-    }
-
-    // 2-4. 合并 children、modules、relations（使用通用函数进行深拷贝去重）
-    const mergedChildren = mergeById(sourceNode.children, targetNode.children);
-    const mergedModules = mergeById(sourceNode.modules, targetNode.modules);
-    const mergedRelations = mergeById(
-        sourceNode.relations,
-        targetNode.relations,
-        (r) => `${r.targetId}__${r.type}` // relations 的 key 是复合键
-    );
-
-    // 5. level 取更"高级"的那个（业务规则：领域级 > 部门级综合 > 部门级单点 > 处室级单点 > 功能模块）
-    const levelPriority: Record<string, number> = {
-        domain: 5,
-        dept_composite: 4,
-        dept_single: 3,
-        office_single: 2,
-        module: 1
-    };
-    const sourceLevelScore = levelPriority[sourceNode.level] ?? 0;
-    const targetLevelScore = levelPriority[targetNode.level] ?? 0;
-    const mergedLevel = sourceLevelScore >= targetLevelScore ? sourceNode.level : targetNode.level;
-
-    // 6. 构造新节点
-    const newNode: TreeData = {
-        id: `merge_${Date.now()}`,
-        label: data.name,
-        level: mergedLevel,
-        dept: sourceNode.dept || targetNode.dept,
-        owner: sourceNode.owner || targetNode.owner,
-        integrationType: data.integrationType,
-        integrationTypeName: INTEGRATION_TYPE_NAME[data.integrationType],
-        children: mergedChildren,
-        modules: mergedModules,
-        relations: mergedRelations,
-        // 标记此节点是由哪些节点整合而成
-        integratedFrom: [sourceNode.id, targetNode.id]
-    };
-
-    // 7. 在父节点的 children 中删除源/目标，插入新节点（保留顺序：在 source 原来的位置）
-    const newParentChildren: TreeData[] = [];
-    for (const child of sourceParent.children ?? []) {
-        if (child.id === sourceNode.id) {
-            newParentChildren.push(newNode);
-        } else if (child.id === targetNode.id) {
-            // 跳过 target（target 已被替换）
-            continue;
-        } else {
-            newParentChildren.push(child);
+    const mergedNode = applyTreeChangeWithResult((root, ctx) => {
+        const result = ctx.mergeSiblingNodes(root, {
+            name: data.name,
+            integrationType: data.integrationType,
+            sourceId: data.sourceId,
+            targetId: data.targetId
+        });
+        if (!result.ok) {
+            alert(result.message ?? '合并失败');
+            return null;
         }
+        return result.node ?? null;
+    });
+
+    if (!mergedNode) {
+        showMergeNodesModal.value = false;
+        return;
     }
-    sourceParent.children = newParentChildren;
 
-    // 8. 更新其他节点对源/目标节点的关系引用（改为引用新节点）
-    updateRelationsInTreeData(
-        treeData.value,
-        [sourceNode.id, targetNode.id],
-        newNode.id,
-        newNode.label
-    );
-
-    // 9. 重新 d3.hierarchy + 触发 renderTree 重绘
-    // 关键修复：必须更新 treeData.value 后再重新构建 hierarchy
-    updateTreeData(treeData.value);
-
-    // 10. 重新选中新节点（Drawer 自动打开显示详情）
-    selectNode(newNode);
-
-    // 11. 关闭弹框 + 清空合并信息
+    selectNode(mergedNode);
     showMergeNodesModal.value = false;
     mergeSourceId.value = null;
     mergeTargetId.value = null;
@@ -924,12 +789,10 @@ function confirmMergeNodes(data: {
     TreeLogger.log('拖拽合并节点', treeData.value, {
         sourceId: data.sourceId,
         targetId: data.targetId,
-        newNodeId: newNode.id,
-        newNodeLabel: newNode.label,
-        newNodeLevel: newNode.level,
-        mergedChildrenCount: mergedChildren.length,
-        mergedModulesCount: mergedModules.length,
-        integratedFrom: newNode.integratedFrom
+        newNodeId: mergedNode.id,
+        newNodeLabel: mergedNode.label,
+        newNodeLevel: mergedNode.level,
+        integratedFrom: mergedNode.integratedFrom
     });
 }
 
@@ -938,121 +801,51 @@ function confirmMergeNodes(data: {
  * ----------------------------------------------------------------------------
  * 步骤：
  *   1. 阻止删除根节点（id='edu'）
- *   2. 弹窗确认
- *   3. 在原始数据中找到目标节点及其父节点
- *   4. 从父节点的 children 数组中过滤掉目标节点
- *   5. renderTree 重绘
- *   6. 重新选中根节点
- *   7. 隐藏右键菜单
+ *   2. confirm 确认
+ *   3. applyTreeChange + SDK deleteNodeFromTree()（含 removeRelationsToNode）
+ *   4. 重新选中根节点
+ *   5. 隐藏右键菜单
  */
-/**
- * 删除节点时更新关系引用（移除对被删除节点的引用）
- * @param node 当前节点
- * @param deletedId 被删除节点的ID
- */
-function removeRelationsToNode(node: TreeData, deletedId: string) {
-    if (node.relations) {
-        node.relations = node.relations.filter((relation) => relation.targetId !== deletedId);
-    }
-    if (node.children) {
-        for (const child of node.children) {
-            removeRelationsToNode(child, deletedId);
-        }
-    }
-}
-
 function deleteNode() {
-    if (contextMenuNodeId.value === 'edu') return alert('不能删除根节点');
-    if (confirm('确定删除该节点及其所有子节点和模块吗？')) {
-        const nodeResult = findNodeInTreeData(treeData.value, contextMenuNodeId.value || '');
-        if (nodeResult && nodeResult.parent) {
-            nodeResult.parent.children = nodeResult.parent.children!.filter(
-                (c) => c.id !== contextMenuNodeId.value
-            );
-            // 删除节点时更新其他节点对该节点的关系引用
-            removeRelationsToNode(treeData.value, contextMenuNodeId.value || '');
-            updateTreeData(treeData.value);
-            selectNode(treeData.value);
-            TreeLogger.log('删除节点', treeData.value, {
-                deletedNodeId: contextMenuNodeId.value,
-                deletedNodeLabel: nodeResult.node.label,
-                parentId: nodeResult.parent.id
-            });
-        }
+    const nodeId = contextMenuNodeId.value;
+    if (!nodeId) return;
+    const protectedRootId = getGraph()?.getProtectedRootId() ?? DATA_D3_ROOT_ID;
+    if (nodeId === protectedRootId) return alert('不能删除根节点');
+    if (!confirm('确定删除该节点及其所有子节点和模块吗？')) return;
+
+    const deleted = getCtx().findNodeInTree(treeData.value, nodeId);
+    applyTreeChange((root, ctx) => {
+        ctx.deleteNodeFromTree(root, nodeId);
+        return true;
+    });
+    if (deleted) {
+        TreeLogger.log('删除节点', treeData.value, {
+            deletedNodeId: nodeId,
+            deletedNodeLabel: getCtx().accessors.getLabel(deleted.node),
+            parentId: deleted.parent ? getCtx().accessors.getId(deleted.parent) : undefined
+        });
     }
+    selectNode(treeData.value);
+
     const contextMenu = document.getElementById('context-menu');
-    if (contextMenu) {
-        contextMenu.style.display = 'none';
-    }
-}
-
-/**
- * 撤销操作处理
- * ----------------------------------------------------------------------------
- * 步骤：
- *   1. 接收子组件传递的历史数据
- *   2. 更新 treeData
- *   3. 重新构建 hierarchy 并渲染
- */
-function handleUndo(data: TreeData) {
-    console.log('[handleUndo] restoring previous state');
-    updateTreeDataWithoutHistory(data);
-    selectNode(treeData.value);
-    TreeLogger.log('撤销操作', treeData.value, {
-        action: 'undo'
-    });
-}
-
-/**
- * 重做操作处理
- * ----------------------------------------------------------------------------
- * 步骤：
- *   1. 接收子组件传递的历史数据
- *   2. 更新 treeData
- *   3. 重新构建 hierarchy 并渲染
- */
-function handleRedo(data: TreeData) {
-    console.log('[handleRedo] restoring next state');
-    updateTreeDataWithoutHistory(data);
-    selectNode(treeData.value);
-    TreeLogger.log('重做操作', treeData.value, {
-        action: 'redo'
-    });
-}
-
-/**
- * 刷新操作处理（恢复初始状态）
- * ----------------------------------------------------------------------------
- * 步骤：
- *   1. 接收子组件传递的初始数据
- *   2. 更新 treeData
- *   3. 重新构建 hierarchy 并渲染
- *   4. 清空选中状态
- */
-function handleRefresh(data: TreeData) {
-    console.log('[handleRefresh] restoring initial state');
-    updateTreeDataWithoutHistory(data);
-    selectNode(treeData.value);
-    clearSelection();
-    TreeLogger.log('刷新操作', treeData.value, {
-        action: 'refresh'
-    });
+    if (contextMenu) contextMenu.style.display = 'none';
 }
 
 /**
  * Drawer 内"修改负责人"输入框更新
  * ----------------------------------------------------------------------------
  * 步骤：
- *   1. 直接修改 selectedNodeData 的 owner 字段
- *   2. 由于 selectedNodeData 是引用，treeData 也跟着变
- *   3. 下次 renderTree 会把最新值绘出来
+ *   1. 修改 selectedNodeData.owner
+ *   2. graph.commit({ recordHistory: true }) 写入历史并重绘
+ *   3. syncFromGraph() 保持 treeData 一致
  *
  * @param value 新的负责人
  */
 function updateOwner(value: string) {
-    if (selectedNodeData.value) {
-        selectedNodeData.value.owner = value;
-    }
+    if (!selectedNodeData.value) return;
+    selectedNodeData.value.owner = value;
+    getGraph()?.commit({ recordHistory: true });
+    syncFromGraph();
 }
 
 /**
@@ -1072,17 +865,18 @@ function editRelation(relation: { targetId: string; targetName: string; type: st
  * Drawer 内"删除关系"操作
  * ----------------------------------------------------------------------------
  * 步骤：
- *   1. 过滤掉 targetId 匹配的关系
- *   2. selectedNodeData.relations 减少一项
+ *   1. 过滤 selectedNodeData.relations
+ *   2. graph.commit() + syncFromGraph()
  *
  * @param relation 要删除的关系
  */
 function deleteRelation(relation: { targetId: string; targetName: string; type: string }) {
-    if (selectedNodeData.value && selectedNodeData.value.relations) {
-        selectedNodeData.value.relations = selectedNodeData.value.relations.filter(
-            (r) => r.targetId !== relation.targetId
-        );
-    }
+    if (!selectedNodeData.value?.relations) return;
+    selectedNodeData.value.relations = selectedNodeData.value.relations.filter(
+        (r) => r.targetId !== relation.targetId
+    );
+    getGraph()?.commit({ recordHistory: true });
+    syncFromGraph();
 }
 </script>
 

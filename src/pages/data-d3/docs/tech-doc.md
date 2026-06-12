@@ -1,6 +1,6 @@
 # D3 树形图技术文档
 
-> 最后更新：2026-06-12  
+> 最后更新：2026-06-12（拖拽 + zoom 坐标修复）
 > 文档索引见 [README.md](./README.md)
 
 ---
@@ -21,16 +21,17 @@
 
 | 序号 | 问题描述 | 根因分析 | 解决方案 | 代码位置 |
 | ---- | -------- | -------- | -------- | -------- |
-| 1 | 拖拽节点不在鼠标位置 | `event.dx/dy` 为增量；zoom 缩放未折算 | `dataset.deltaX/deltaY` 累加位移，除以 `zoomTransform.k` | `d3Tree.ts` `dragged()` |
-| 2 | 非同级节点响应拖拽 | 缺少同级判定 | `parent.data.id === sourceParentId` + 卡片 `getBoundingClientRect` 精确命中 | `findSameLevelNodeAtDOM()` |
+| 1 | 缩放后拖拽漂移、落点不准 | `event.dx/k` 与 viewBox + zoom 矩阵不一致 | `clientToGraphLocal` 将指针映射到 zoom 容器局部坐标 | `d3Tree.ts` `dragged()` |
+| 2 | 非同级节点响应拖拽 | 缺少同级判定 | schema 化 `parentId` + 卡片 `getBoundingClientRect` 精确命中 | `findSameLevelNodeAtDOM()` |
 | 3 | 拖拽到自己触发整合 | 未排除自身 | `id !== sourceNodeId` + `dragEnded` 二次校验 | `dragEnded()` |
 | 4 | 合并后拖拽错乱、节点消失 | **join 无 key**，DOM 复用但 `data-id` 未更新；拖拽重复绑定 | **keyed join** + update 同步 `data-id` + `bindNodeDrag` 先清后绑 | `renderTree()`、`bindNodeDrag()` |
 | 5 | 操作上一层级却拖到下一层级首节点 | 拖拽依赖过期 datum，与 DOM `data-id` 不一致 | 以 **DOM `data-id` + `getCurrentNode(instance.root)`** 为唯一数据源 | `bindNodeDrag()`、`getCurrentNode()` |
 | 6 | 第三层多次合并后节点消失 | exit 误删 + transform transition 与拖拽冲突 | keyed join 正确 exit；拖拽中跳过 transform 更新 | `renderTree()` update 分支 |
 | 7 | 画布边缘不自动平移 | 缺少边缘检测 | `zoom.translateBy` + `edgeMargin` / `panSpeed` | `dragged()` |
-| 8 | 子层级未合并父层级即可合并 | 硬编码 `depth >= 2` | 通用 `canSiblingMerge()` + 根节点默认整合标记 | `types/index.ts`、`dragEnded()`、`confirmMergeNodes()` |
+| 8 | 子层级未合并父层级即可合并 | 硬编码 `depth >= 2` | 通用 `canSiblingMerge()` + 根节点默认整合标记 | `TreeContext`、`dragEnded()` |
+| 18 | 缩放后落点检测失败 / 拖拽报错 | DOM 被自身遮挡；坐标回退传错 `hNodeId(ctx, source.data)` | 拖拽中 `pointer-events: none`；坐标回退用 `clientToGraphLocal` + 卡片矩形 | `findSameLevelNodeByCoord()` |
 
-> **已废弃方案**：坐标回退 `findSameLevelNodeByCoord()` 曾用于可视区外命中，因误触发范围过大已在 2026-06-11 移除，**当前仅使用 DOM 精确命中**。
+> **落点检测（当前）**：优先 DOM 命中（`elementsFromPoint` + `getBoundingClientRect`）；未命中时回退到 **zoom 容器局部坐标** 下的同级卡片矩形检测（`findSameLevelNodeByCoord`），不再使用旧的 `dx/k` 累加方案。
 
 ### 1.2 视觉样式问题
 
@@ -47,35 +48,36 @@
 | ---- | -------- | -------- | -------- |
 | 13 | 整合方式存中文 | `IntegrationTypeKey` 枚举 + `integrationTypeName` | `types/index.ts` |
 | 14 | 合并后多余连线 | `join()` 处理 enter/update/exit | `renderTree()` |
-| 15 | 撤销/重做不同步 | `renderTree(newTreeData)` 直传数据 + `updateTreeDataWithoutHistory` | `index.vue`、`GraphCanvas.vue` |
-| 16 | 合并层级规则分散 | `isMergedNode` / `canSiblingMerge` 统一判定 | `types/index.ts` |
+| 15 | 撤销/重做不同步 | GraphCanvas 内 `graph.undo/redo` + index `syncFromGraph` | `GraphCanvas.vue`、`index.vue` |
+| 16 | 合并层级规则分散 | `TreeContext.canSiblingMerge` + schema | `TreeContext.ts`、`types/index.ts` |
+| 17 | 字段名写死在 SDK | `defineTreeConfig` + `TreeAccessors` 参数化 | `schema/*`、`config/treeConfig.ts` |
 
 ---
 
 ## 二、D3 树形图设计思路
 
-### 2.1 整体架构
+### 2.1 整体架构（当前实现）
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      index.vue (主页面)                      │
-│  • treeData 响应式数据                                       │
-│  • confirmMergeNodes 合并业务 + canMergeNodesInTree 校验     │
-│  • updateTreeData / updateTreeDataWithoutHistory             │
-├─────────────────────────────────────────────────────────────┤
-│                    GraphCanvas.vue (画布)                    │
-│  • initD3 / renderTree 封装                                  │
-│  • 历史栈 recordOperation                                    │
-├─────────────────────────────────────────────────────────────┤
-│                    d3Tree.ts (D3 核心)                       │
-│  • initD3 / renderTree                                       │
-│  • bindNodeDrag / dragStarted / dragged / dragEnded          │
-│  • getCurrentNode — 单一数据源                               │
-├─────────────────────────────────────────────────────────────┤
-│                    types/index.ts                            │
-│  • TreeData、canSiblingMerge、ROOT_DEFAULT_MERGE_MARKER      │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  index.vue（Vue 业务层）                                          │
+│  • treeData 响应式（Modals / Drawer）                             │
+│  • applyTreeChange* → graph.getContext() → TreeContext 操作      │
+│  • config/treeConfig.ts → DATA_D3_TREE_SCHEMA 传入 SDK           │
+├─────────────────────────────────────────────────────────────────┤
+│  GraphCanvas.vue（薄包装）                                        │
+│  • new D3TreeGraph({ schema, data })                             │
+│  • 工具栏 / 右键菜单 / 事件转发                                   │
+├─────────────────────────────────────────────────────────────────┤
+│  @/lib/d3-tree-sdk                                               │
+│  ├── D3TreeGraph      mount / commit / undo / zoom / 布局        │
+│  ├── TreeContext      addChildNode / mergeSiblingNodes / …       │
+│  ├── schema/*         fields 映射（id/children/modules…）         │
+│  └── core/d3Tree.ts   initD3 / renderTree / bindNodeDrag         │
+└─────────────────────────────────────────────────────────────────┘
 ```
+
+**数据流**：`mutateData()` → TreeContext 改树 → `commit()` 重绘+入栈 → `syncFromGraph()` 回写 Vue `treeData`。
 
 ### 2.2 核心技术选型
 
@@ -92,18 +94,25 @@
 
 **原则**：拖拽只改 DOM `transform`，不写回 `d.x` / `d.y`。
 
+**位移计算**：用 zoom 容器 `g` 的 `getScreenCTM().inverse()` 将指针转为图局部坐标，避免 `event.dx / k` 与 viewBox 叠加时不准。
+
 ```typescript
-// dragstart：记录布局坐标 + 清零累计位移
-gEl.dataset.deltaX = '0';
-gEl.dataset.deltaY = '0';
+// dragstart：记录节点布局坐标 + 指针在图局部坐标中的起点
+const { tx, ty } = nodeScreenPosition(d, orientation);
+gEl.dataset.nodeStartX = String(tx);
+gEl.dataset.nodeStartY = String(ty);
+const local = clientToGraphLocal(graphG, clientX, clientY);
+gEl.dataset.pointerStartX = String(local.x);
+gEl.dataset.pointerStartY = String(local.y);
+setNodePointerEvents(gEl, false); // 避免 elementsFromPoint 被自身遮挡
 
-// drag：累加屏幕增量（需除以 zoom 比例）
-const scaledDx = event.dx / currentScale;
-const newDeltaX = prevDeltaX + scaledDx;
-gEl.dataset.deltaX = String(newDeltaX);
-d3.select(gEl).attr('transform', `translate(${d.y + newDeltaX},${d.x + newDeltaY})`);
+// drag：当前布局位置 + 指针位移（图局部坐标）
+const local = clientToGraphLocal(graphG, clientX, clientY);
+const curTX = nodeStartX + (local.x - pointerStartX);
+const curTY = nodeStartY + (local.y - pointerStartY);
+d3.select(gEl).attr('transform', `translate(${curTX},${curTY})`);
 
-// dragend：从 instance.root 取最新布局坐标复位
+// dragend：从 instance.root 取最新布局坐标复位，恢复 pointer-events
 ```
 
 #### 2.3.2 单一数据源（instance.root）
@@ -120,17 +129,19 @@ function getCurrentNode(instance, nodeId) {
 }
 ```
 
-#### 2.3.3 落点检测（仅 DOM 精确命中）
+#### 2.3.3 落点检测（DOM + 坐标回退）
 
 ```typescript
-function findSameLevelNodeAtDOM(root, source, clientX, clientY) {
-    // 1. 从 root 刷新 source 的 parent
-    // 2. elementsFromPoint → closest('g.node')
-    // 3. getBoundingClientRect 判断鼠标在卡片内
-    // 4. target.parent.data.id === sourceParentId
-    // 不使用坐标回退，避免误触发
+function findSameLevelNodeAtDOM(root, source, clientX, clientY, ctx, orientation, graphG) {
+    // 1. 从 root 刷新 source 的 parent（schema 化 parentId）
+    // 2. elementsFromPoint → closest('g.node') → getBoundingClientRect 卡片内
+    // 3. 验证 target.parentId === sourceParentId
+    // 4. DOM 未命中 → findSameLevelNodeByCoord：
+    //    clientToGraphLocal(graphG) + 同级节点卡片矩形（layout 坐标）
 }
 ```
+
+> 坐标回退仅在 DOM 未命中时触发，检测范围限定在节点卡片矩形内，不会像旧版距离阈值那样误触发。
 
 #### 2.3.4 合并层级规则（通用）
 
@@ -249,9 +260,9 @@ export enum IntegrationTypeKey {
 
 | 阶段 | 函数 | 职责 |
 | ---- | ---- | ---- |
-| start | `dragStarted` | `raise()`、记录 dataset、占位虚线框、`currentDraggingNodeId` |
-| drag | `dragged` | 累加位移、边缘平移、`findSameLevelNodeAtDOM` 高亮 |
-| end | `dragEnded` | 复位 transform、移除占位、`canSiblingMerge` 校验、`onDropToTarget` |
+| start | `dragStarted` | `raise()`、记录指针/节点起点、`pointer-events: none`、占位虚线框 |
+| drag | `dragged` | `clientToGraphLocal` 跟手、边缘平移、`findSameLevelNodeAtDOM` 高亮 |
+| end | `dragEnded` | 复位 transform、恢复 pointer-events、移除占位、`canSiblingMerge`、`onDropToTarget` |
 
 ### 3.3 合并流程（index.vue）
 
@@ -286,11 +297,11 @@ export enum IntegrationTypeKey {
 
 | 坐标 | 含义 | 用途 |
 | ---- | ---- | ---- |
-| `d.x` | 垂直（树布局） | 传给 `translate` 的 Y |
-| `d.y` | 水平（树布局） | 传给 `translate` 的 X |
+| `d.x` / `d.y` | 树布局坐标（g 局部） | `nodeScreenPosition` → `translate` |
 | `clientX/Y` | 屏幕坐标 | `elementsFromPoint`、边缘平移 |
+| 图局部坐标 | zoom 容器 `g` 内坐标 | `clientToGraphLocal` 拖拽位移、坐标回退落点 |
 
-树为**水平生长**：`transform="translate(d.y, d.x)"`。
+树为**水平生长**（默认）：`transform="translate(d.y, d.x)"`。纵向布局时 x/y 对调，由 `orientation` 统一处理。
 
 ### 4.3 性能
 
@@ -311,31 +322,29 @@ export enum IntegrationTypeKey {
 
 ```
 src/pages/data-d3/
+├── README.md              # 页面入口（快速开始）
+├── config/
+│   └── treeConfig.ts      # schema：字段映射 / rootId / selection
+├── index.vue              # 主页面
 ├── components/
-│   ├── GraphCanvas.vue    # 画布、工具栏、历史栈
-│   ├── Modals.vue         # 合并/新增/编辑等弹框
+│   ├── GraphCanvas.vue    # D3TreeGraph 包装
+│   ├── Modals.vue
 │   ├── SidebarLeft.vue
 │   └── SidebarRight.vue
-├── data/
-│   ├── mockData.ts        # 页面使用的初始数据
-│   └── mock.ts            # 备用 mock
-├── docs/
-│   ├── README.md          # 文档索引（本目录入口）
-│   ├── tech-doc.md        # 本文档
-│   ├── 2026-06-11-d3-tree-bugfix.md
-│   └── fix-code-snippets.md
-├── types/
-│   └── index.ts
-├── utils/
-│   ├── d3Tree.ts
-│   └── treeLogger.ts
-├── index.vue
-└── index.scss
+├── sdk-demo/              # /data-d3/sdk-demo
+├── data/mockData.ts       # 历史 mock（页面用 SDK initialTreeData）
+├── docs/                  # 本目录
+├── types/index.ts         # → SDK re-export
+└── utils/                 # → SDK re-export
+
+src/lib/d3-tree-sdk/       # SDK 源码（见 SDK-CORE.md）
 ```
 
 ---
 
 ## 相关文档
 
-- 时间线修复详情：[2026-06-11-d3-tree-bugfix.md](./2026-06-11-d3-tree-bugfix.md)（含 2026-06-12 问题七～九）
-- 代码片段：[fix-code-snippets.md](./fix-code-snippets.md)（1.9～1.11 节）
+- 页面入口：[../README.md](../README.md)
+- SDK 设计：[../../../lib/d3-tree-sdk/docs/SDK-CORE.md](../../../lib/d3-tree-sdk/docs/SDK-CORE.md)
+- 时间线修复：[2026-06-11-d3-tree-bugfix.md](./2026-06-11-d3-tree-bugfix.md)
+- 代码片段：[fix-code-snippets.md](./fix-code-snippets.md)

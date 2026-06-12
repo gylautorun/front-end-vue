@@ -1,12 +1,22 @@
 /**
  * Mock 数据（教育局应用体系）
  * ----------------------------------------------------------------------------
- * @deprecated 页面已改用 SDK 的 initialTreeData（@/lib/d3-tree-sdk）
- * 本文件保留完整 mock 供参考；新代码请：
- *   import { initialTreeData } from '@/lib/d3-tree-sdk';
+ * 提供一个完整的初始树形结构用于演示 D3 树形图：
+ *   - 根节点：教育局
+ *   - 子节点：教育管理一体化平台 / 学生学籍管理系统 / 教师资格认定系统 / 教研成果登记
+ *   - 兄弟节点：招生录取管理 / 课表申报系统（用于展示"整合/迁移/对接"关系）
+ *
+ * 步骤：
+ *   1. 根组件 index.vue 启动时调用 deepClone(initialTreeData) 得到当前树
+ *   2. 通过 props 传给 GraphCanvas → d3Tree.initD3()
+ *   3. d3.tree() 用此数据构建 Hierarchy 模型并渲染
+ *   4. 默认无 integrationType，连线显示灰色
+ *   5. 当通过拖拽整合或绑定关系后，会添加 integrationType 和 integrationTypeName
+ *       - 节点上的 integrationType (key) 决定连线颜色（参考 EDGE_STYLES）
+ *       - 中文名通过 INTEGRATION_TYPE_NAME[key] 获取，写入 integrationTypeName
  */
+import type { TreeData } from '../types';
 import {
-    TreeData,
     INTEGRATION_TYPE_NAME,
     IntegrationTypeKey,
     ROOT_DEFAULT_MERGE_MARKER

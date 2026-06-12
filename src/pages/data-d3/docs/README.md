@@ -1,36 +1,48 @@
 # data-d3 文档索引
 
-本目录存放 D3 树形图（应用整合图）的设计说明与问题修复记录。
+> 页面快速上手见上级 [../README.md](../README.md)
 
 ## 文档分工
 
-| 文档 | 用途 | 适合阅读场景 |
-| ---- | ---- | ------------ |
-| [tech-doc.md](./tech-doc.md) | **核心设计与架构**：模块划分、拖拽/合并规则、数据流、注意事项 | 新人上手、做功能扩展前 |
-| [2026-06-11-d3-tree-bugfix.md](./2026-06-11-d3-tree-bugfix.md) | **按时间线的修复记录**：问题描述 → 根因 → 方案 → 验证 | 排查历史 bug、对照改动 |
-| [fix-code-snippets.md](./fix-code-snippets.md) | **可复制的代码片段**：按问题分类的修复示例 | 快速查具体写法 |
+| 文档 | 用途 |
+| ---- | ---- |
+| [../README.md](../README.md) | **页面入口**：路由、目录、schema 配置、日常用法 |
+| [tech-doc.md](./tech-doc.md) | D3 拖拽/合并规则、zoom 坐标、关键设计决策 |
+| [2026-06-11-d3-tree-bugfix.md](./2026-06-11-d3-tree-bugfix.md) | 按时间线的 bug 修复记录（问题十：缩放拖拽） |
+| [fix-code-snippets.md](./fix-code-snippets.md) | 可复制的修复代码片段 |
+| [../../../lib/d3-tree-sdk/docs/SDK-CORE.md](../../../lib/d3-tree-sdk/docs/SDK-CORE.md) | **SDK 核心设计**（字段 schema、API、集成） |
 
 ## 推荐阅读顺序
 
-1. `tech-doc.md` 第二节（设计思路）+ 第三节（实现说明）
-2. `tech-doc.md` 第二节 2.3.4～2.3.6（合并规则、key 绑定、拖拽绑定）— **当前最关键**
-3. `2026-06-11-d3-tree-bugfix.md` 问题七～九（2026-06-12 拖拽错乱修复）
-4. `fix-code-snippets.md` 第 1.9～1.11 节（对应上述核心修复）
+1. [../README.md](../README.md) — 确认能跑、知道改哪个文件
+2. [../../../lib/d3-tree-sdk/README.md](../../../lib/d3-tree-sdk/README.md) — SDK 用法与 `defineTreeConfig`
+3. [tech-doc.md](./tech-doc.md) 第二节 — 拖拽与合并规则
+4. 排查历史问题时再看 bugfix / snippets
 
-## 源码入口
+## 当前源码结构（2026-06）
 
 ```
-src/pages/data-d3/
-├── index.vue              # 树数据、合并业务、历史栈
-├── components/GraphCanvas.vue
-├── utils/d3Tree.ts        # D3 渲染与拖拽
-├── utils/treeLogger.ts    # 调试日志
-├── types/index.ts         # TreeData、canSiblingMerge 等
-└── data/mockData.ts       # 初始数据（根节点默认整合标记）
+业务层（Vue）
+  index.vue              业务 UI + applyTreeChange*
+  config/treeConfig.ts   schema 配置（字段映射）
+  components/GraphCanvas.vue
+
+SDK 层
+  src/lib/d3-tree-sdk/
+    D3TreeGraph.ts       主类
+    TreeContext.ts       树操作
+    schema/              TreeConfig / Accessors
+    core/d3Tree.ts       D3 渲染
+
+兼容 re-export（可忽略，直接用 SDK）
+  utils/d3Tree.ts
+  utils/treeLogger.ts
+  types/index.ts
 ```
 
 ## 维护约定
 
-- **设计变更** → 先更新 `tech-doc.md`
-- **修 bug** → 在 `2026-06-11-d3-tree-bugfix.md` 末尾追加条目（注明日期），并同步 `fix-code-snippets.md` 对应片段
-- **避免三份文档描述矛盾**：以 `tech-doc.md` 的「当前实现」为准；历史方案在 bugfix 文档中标注「已废弃」
+- **对接后端字段** → 只改 `config/treeConfig.ts`
+- **SDK API / schema 设计** → 改 `src/lib/d3-tree-sdk/` + 更新 SDK-CORE.md
+- **D3 拖拽/渲染行为** → 改 SDK `core/d3Tree.ts` + 更新 tech-doc.md
+- **修 bug** → bugfix 文档追加条目 + 必要时更新 tech-doc

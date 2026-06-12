@@ -119,21 +119,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue';
-import * as d3 from 'd3';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { cloneDeep } from 'lodash-es';
 import type { TreeData, SelectedNode } from '../types';
-import {
-    initD3,
-    renderTree,
-    zoomIn,
-    zoomOut,
-    fitView,
-    resetZoom,
-    downloadTree,
-    setTreeOrientation
-} from '../utils/d3Tree';
-import type { D3TreeInstance, TreeLayoutOrientation } from '../utils/d3Tree';
+import { D3TreeGraph } from '@/lib/d3-tree-sdk';
+import type { TreeLayoutOrientation } from '@/lib/d3-tree-sdk';
 
 /**
  * 父组件传入的属性（只读）
@@ -144,6 +134,8 @@ import type { D3TreeInstance, TreeLayoutOrientation } from '../utils/d3Tree';
  */
 const props = defineProps<{
     treeData: TreeData;
+    /** 数据结构 schema，通过参数传入 SDK（fields / selection / styles / rootId） */
+    schema: import('@/lib/d3-tree-sdk').TreeConfigInput;
     selectedNodes: SelectedNode[];
     selectedCount: number;
 }>();
@@ -210,21 +202,13 @@ const emit = defineEmits<{
     (e: 'refresh', data: TreeData): void;
 }>();
 
-/** D3 树实例引用，用于调用 renderTree / zoomIn / zoomOut / fitView */
-let d3Instance: D3TreeInstance | null = null;
+/** D3TreeGraph SDK 实例 */
+let graph: D3TreeGraph | null = null;
 
 /** 树布局方向：horizontal 左右 / vertical 上下 */
 const layoutOrientation = ref<TreeLayoutOrientation>('horizontal');
 
-// ---------- 撤销/重做状态管理 ----------
-
-/** 历史记录栈，保存每次操作后的完整树数据 */
-const historyStack = ref<TreeData[]>([]);
-
-/** 当前历史记录索引 */
-const historyIndex = ref<number>(-1);
-
-/** 初始数据备份（用于刷新恢复）- 使用 const 确保不会被意外修改 */
+/** 初始数据备份（用于刷新恢复） */
 const initialTreeData = ref<TreeData | null>(null);
 
 /** 是否可以撤销 */
@@ -310,20 +294,6 @@ function closeContextMenu() {
 }
 
 /**
- * 判断节点是否被选中（用于节点高亮）
- * ----------------------------------------------------------------------------
- * 步骤：
- *   1. 在 selectedNodes 数组中查找匹配 nodeId 的项
- *   2. 返回是否存在
- *
- * @param   {string} nodeId 节点 ID
- * @returns {boolean}       是否被选中
- */
-function isSelected(nodeId: string): boolean {
-    return props.selectedNodes.some((n) => n.id === nodeId);
-}
-
-/**
  * 节点单击事件处理
  * ----------------------------------------------------------------------------
  * 步骤：
@@ -387,28 +357,46 @@ function handleSvgClick() {
  *   3. 调用 initD3 初始化 D3 树（创建 SVG + 布局 + 节点）
  *   4. 启动窗口 resize 监听 → handleResize
  */
+watch(
+    () => props.selectedNodes,
+    (val) => {
+        graph?.setSelectedNodes(val);
+    },
+    { deep: true }
+);
+
 onMounted(() => {
     document.addEventListener('d3-svg-click', handleSvgClick);
     document.addEventListener('click', handleGlobalClick);
 
-    // 备份初始数据（用于刷新恢复）
     initialTreeData.value = cloneDeep(props.treeData);
 
-    // 初始化历史记录（保存初始状态）
-    pushHistory(props.treeData);
+    graph = new D3TreeGraph({
+        container: 'graph-container',
+        data: props.treeData,
+        schema: props.schema
+    });
 
-    d3Instance = initD3(
-        'graph-container',
-        props.treeData,
-        handleNodeClick,
-        handleNodeDoubleClick,
-        handleMoreClick,
-        isSelected,
-        // 拖拽到同级节点时 → emit 给父组件 → 父组件弹"合并节点"模态框
-        (sourceId, targetId, sourceData, targetData) => {
-            emit('drop-to-target', sourceId, targetId, sourceData, targetData);
-        }
-    );
+    graph.on('node:click', handleNodeClick);
+    graph.on('node:dblclick', handleNodeDoubleClick);
+    graph.on('node:more', ({ event, nodeId }) => handleMoreClick(event, nodeId));
+    graph.on('node:drop-target', (payload) => {
+        emit(
+            'drop-to-target',
+            payload.sourceId,
+            payload.targetId,
+            payload.sourceData,
+            payload.targetData
+        );
+    });
+    graph.on('history:change', (state) => {
+        canUndo.value = state.canUndo;
+        canRedo.value = state.canRedo;
+    });
+
+    graph.mount();
+    graph.recordHistory();
+    layoutOrientation.value = graph.getOrientation();
 });
 
 /**
@@ -422,7 +410,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
     document.removeEventListener('d3-svg-click', handleSvgClick);
     document.removeEventListener('click', handleGlobalClick);
-    window.removeEventListener('resize', handleResize);
+    graph?.destroy();
+    graph = null;
 });
 
 /**
@@ -449,132 +438,25 @@ function handleGlobalClick() {
  *
  * 注：当前 initD3 中已使用 100% 自适应，此函数作为额外保险
  */
-function handleResize() {
-    const container = document.getElementById('graph-container');
-    if (!container || !d3Instance) return;
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-    d3Instance.svg.attr('width', width).attr('height', height);
-}
-
-/**
- * 保存操作历史记录
- * ----------------------------------------------------------------------------
- * @param {TreeData} data 当前树数据
- */
-function pushHistory(data: TreeData) {
-    // 如果当前不在历史记录末尾，清除后面的记录（截断重做栈）
-    if (historyIndex.value < historyStack.value.length - 1) {
-        historyStack.value = historyStack.value.slice(0, historyIndex.value + 1);
-    }
-
-    // 深拷贝数据并添加到历史记录（使用 lodash 的 cloneDeep）
-    historyStack.value.push(cloneDeep(data));
-    historyIndex.value = historyStack.value.length - 1;
-
-    // 更新按钮状态
-    updateUndoRedoState();
-}
-
-/**
- * 更新撤销/重做按钮状态
- */
-function updateUndoRedoState() {
-    canUndo.value = historyIndex.value > 0;
-    canRedo.value = historyIndex.value < historyStack.value.length - 1;
-}
-
-/**
- * 撤销操作：恢复到上一个状态
- * ----------------------------------------------------------------------------
- * 步骤：
- *   1. 检查是否可以撤销
- *   2. 减少历史索引
- *   3. 获取上一个状态的数据
- *   4. emit 事件通知父组件恢复数据
- */
 function handleUndo() {
-    try {
-        console.log('[handleUndo] historyIndex:', historyIndex.value);
-        if (!canUndo.value) {
-            console.warn('[handleUndo] cannot undo');
-            return;
-        }
-
-        historyIndex.value--;
-        const previousData = historyStack.value[historyIndex.value];
-        updateUndoRedoState();
-
-        // 通知父组件恢复到上一个状态
-        emit('undo', previousData);
-    } catch (e) {
-        console.error('[handleUndo] error:', e);
-    }
+    if (!graph?.undo()) return;
+    emit('undo', graph.getData());
 }
 
-/**
- * 重做操作：前进到下一个状态
- * ----------------------------------------------------------------------------
- * 步骤：
- *   1. 检查是否可以重做
- *   2. 增加历史索引
- *   3. 获取下一个状态的数据
- *   4. emit 事件通知父组件恢复数据
- */
 function handleRedo() {
-    try {
-        console.log('[handleRedo] historyIndex:', historyIndex.value);
-        if (!canRedo.value) {
-            console.warn('[handleRedo] cannot redo');
-            return;
-        }
-
-        historyIndex.value++;
-        const nextData = historyStack.value[historyIndex.value];
-        updateUndoRedoState();
-
-        // 通知父组件恢复到下一个状态
-        emit('redo', nextData);
-    } catch (e) {
-        console.error('[handleRedo] error:', e);
-    }
+    if (!graph?.redo()) return;
+    emit('redo', graph.getData());
 }
 
-/**
- * 刷新按钮处理：恢复到初始状态
- * ----------------------------------------------------------------------------
- * 步骤：
- *   1. 检查是否有初始数据备份
- *   2. 重置历史记录
- *   3. emit 事件通知父组件恢复初始状态
- */
 function handleRefresh() {
-    try {
-        console.log('[handleRefresh] restoring to initial state');
-        if (!initialTreeData.value) {
-            console.warn('[handleRefresh] no initial data');
-            return;
-        }
-
-        // 重置历史记录
-        historyStack.value = [cloneDeep(initialTreeData.value)];
-        historyIndex.value = 0;
-        updateUndoRedoState();
-
-        // 通知父组件恢复初始状态
-        emit('refresh', initialTreeData.value);
-    } catch (e) {
-        console.error('[handleRefresh] error:', e);
-    }
+    if (!initialTreeData.value || !graph) return;
+    graph.resetToInitialData(initialTreeData.value);
+    emit('refresh', graph.getData());
 }
 
-/**
- * 外部调用：记录操作（供父组件在数据变化时调用）
- * ----------------------------------------------------------------------------
- * @param {TreeData} data 操作后的树数据
- */
 function recordOperation(data: TreeData) {
-    pushHistory(data);
+    graph?.setData(data, { recordHistory: false });
+    graph?.recordHistory();
 }
 
 /**
@@ -590,20 +472,7 @@ function recordOperation(data: TreeData) {
  *   4. 触发 zoom 监听器，自动更新 g 元素的 transform
  */
 function handleZoomIn() {
-    try {
-        console.log('[handleZoomIn] d3Instance =', !!d3Instance);
-        if (!d3Instance) {
-            console.warn('[handleZoomIn] d3Instance is null!');
-            return;
-        }
-        zoomIn(d3Instance.svg, d3Instance.zoom);
-        console.log(
-            '[handleZoomIn] done, current transform:',
-            d3Instance.svg.node()?.getAttribute('viewBox')
-        );
-    } catch (e) {
-        console.error('[handleZoomIn] error:', e);
-    }
+    graph?.zoomIn();
 }
 
 /**
@@ -616,20 +485,7 @@ function handleZoomIn() {
  *   2. 调用 zoomOut 工具函数（传入 zoom 行为）
  */
 function handleZoomOut() {
-    try {
-        console.log('[handleZoomOut] d3Instance =', !!d3Instance);
-        if (!d3Instance) {
-            console.warn('[handleZoomOut] d3Instance is null!');
-            return;
-        }
-        zoomOut(d3Instance.svg, d3Instance.zoom);
-        console.log(
-            '[handleZoomOut] done, current transform:',
-            d3Instance.svg.node()?.getAttribute('viewBox')
-        );
-    } catch (e) {
-        console.error('[handleZoomOut] error:', e);
-    }
+    graph?.zoomOut();
 }
 
 /**
@@ -645,36 +501,12 @@ function handleZoomOut() {
  * 切换树布局方向（左右 ↔ 上下）
  */
 function handleToggleLayout() {
-    if (!d3Instance) return;
-    layoutOrientation.value =
-        layoutOrientation.value === 'horizontal' ? 'vertical' : 'horizontal';
-    setTreeOrientation(d3Instance, layoutOrientation.value);
-    handleRenderTree();
-    handleResetZoom();
+    if (!graph) return;
+    layoutOrientation.value = graph.toggleOrientation();
 }
 
 function handleFitView() {
-    try {
-        console.log('[handleFitView] d3Instance =', !!d3Instance);
-        if (!d3Instance) {
-            console.warn('[handleFitView] d3Instance is null!');
-            return;
-        }
-        const container = document.getElementById('graph-container');
-        if (!container) {
-            console.warn('[handleFitView] container is null!');
-            return;
-        }
-        fitView(
-            d3Instance.svg,
-            d3Instance.g,
-            container.clientWidth,
-            container.clientHeight,
-            d3Instance.zoom // 传入已绑定的 zoom 行为
-        );
-    } catch (e) {
-        console.error('[handleFitView] error:', e);
-    }
+    graph?.fitView();
 }
 
 /**
@@ -685,27 +517,7 @@ function handleFitView() {
  *   2. 调用 resetZoom 工具函数，将 scale 设置为 1 并居中
  */
 function handleResetZoom() {
-    try {
-        console.log('[handleResetZoom] d3Instance =', !!d3Instance);
-        if (!d3Instance) {
-            console.warn('[handleResetZoom] d3Instance is null!');
-            return;
-        }
-        const container = document.getElementById('graph-container');
-        if (!container) {
-            console.warn('[handleResetZoom] container is null!');
-            return;
-        }
-        resetZoom(
-            d3Instance.svg,
-            d3Instance.g,
-            container.clientWidth,
-            container.clientHeight,
-            d3Instance.zoom // 传入已绑定的 zoom 行为
-        );
-    } catch (e) {
-        console.error('[handleResetZoom] error:', e);
-    }
+    graph?.resetZoom();
 }
 
 /**
@@ -715,24 +527,8 @@ function handleResetZoom() {
  * 支持选择下载 PNG 或 SVG 格式
  */
 async function handleDownload() {
-    try {
-        console.log('[handleDownload] starting...');
-        if (!d3Instance) {
-            console.warn('[handleDownload] d3Instance is null!');
-            return;
-        }
-
-        const container = document.getElementById('graph-container');
-        if (!container) {
-            console.warn('[handleDownload] container not found!');
-            return;
-        }
-
-        // 显示下载格式选择模态框
-        showDownloadModal.value = true;
-    } catch (e) {
-        console.error('[handleDownload] error:', e);
-    }
+    if (!graph) return;
+    showDownloadModal.value = true;
 }
 
 /**
@@ -741,39 +537,17 @@ async function handleDownload() {
  * @param format - 下载格式：'png' 或 'svg'
  */
 async function selectDownloadFormat(format: 'png' | 'svg') {
+    if (!graph) return;
+    const inputFileName = downloadFileName.value.trim();
+    const fileName =
+        inputFileName === 'tree-diagram'
+            ? `tree-diagram-${Date.now()}`
+            : inputFileName || 'tree-diagram';
+    showDownloadModal.value = false;
     try {
-        console.log('[selectDownloadFormat] selected:', format);
-
-        if (!d3Instance) {
-            console.warn('[selectDownloadFormat] d3Instance is null!');
-            return;
-        }
-
-        const container = document.getElementById('graph-container');
-        if (!container) {
-            console.warn('[selectDownloadFormat] container not found!');
-            return;
-        }
-
-        const { svg, root } = d3Instance;
-
-        // 获取用户输入的文件名
-        const inputFileName = downloadFileName.value.trim();
-
-        // 如果用户没有修改（使用默认值），添加时间戳；否则使用用户输入的名称
-        const fileName =
-            inputFileName === 'tree-diagram'
-                ? `tree-diagram-${Date.now()}` // 默认名称添加时间戳
-                : inputFileName || 'tree-diagram'; // 用户自定义名称不添加时间戳
-
-        // 关闭模态框
+        await graph.download(fileName, format);
+    } catch {
         showDownloadModal.value = false;
-
-        // 使用 downloadTree 函数下载
-        await downloadTree(svg, root, container.clientWidth, fileName, format);
-    } catch (e) {
-        console.error('[selectDownloadFormat] error:', e);
-        showDownloadModal.value = false; // 出错也要关闭模态框
     }
 }
 
@@ -801,21 +575,11 @@ function handleClearSelection() {
  *   3. 保持原有的事件回调（handleNodeClick 等）
  */
 function handleRenderTree(newTreeData?: TreeData) {
-    if (!d3Instance) return null;
-    // 使用传入的数据（如果有），否则使用 props.treeData
+    if (!graph) return null;
     const dataToRender = newTreeData || props.treeData;
-    return renderTree(
-        d3Instance,
-        dataToRender,
-        handleNodeClick,
-        handleNodeDoubleClick,
-        handleMoreClick,
-        isSelected,
-        // 拖拽到同级节点时 → emit 给父组件 → 父组件弹"合并节点"模态框
-        (sourceId, targetId, sourceData, targetData) => {
-            emit('drop-to-target', sourceId, targetId, sourceData, targetData);
-        }
-    );
+    graph.setData(dataToRender, { recordHistory: false });
+    graph.setSelectedNodes(props.selectedNodes);
+    return graph.getInstance()?.root ?? null;
 }
 
 /**
@@ -829,6 +593,7 @@ function handleRenderTree(newTreeData?: TreeData) {
  * @property {Function} recordOperation - 记录操作到历史
  */
 defineExpose({
+    getGraph: () => graph,
     renderTree: handleRenderTree,
     zoomIn: handleZoomIn,
     zoomOut: handleZoomOut,

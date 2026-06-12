@@ -7,13 +7,13 @@
 ## 目录
 
 1. [交互功能问题](#1-交互功能问题)
-    - [1.1 拖拽节点不在鼠标位置](#11-拖拽节点不在鼠标位置)
-    - [1.2 ~~拖拽到其他节点无反应~~（已废弃：坐标回退）](#12-拖拽到其他节点无反应已废弃坐标回退)
+    - [1.1 拖拽节点不在鼠标位置（含 zoom 缩放）](#11-拖拽节点不在鼠标位置含-zoom-缩放)
+    - [1.2 落点检测（DOM + 坐标回退）](#12-落点检测dom--坐标回退)
     - [1.3 非同级节点响应拖拽](#13-非同级节点响应拖拽)
     - [1.4 拖拽到自己触发整合](#14-拖拽到自己触发整合)
     - [1.5 画布边缘不自动平移](#15-画布边缘不自动平移)
     - [1.6 平移方向相反](#16-平移方向相反)
-    - [1.7 ~~可视区外节点无法命中~~（已废弃，函数保留未调用）](#17-可视区外节点无法命中已废弃函数保留未调用)
+    - [1.7 坐标回退落点（zoom 适配，当前启用）](#17-坐标回退落点zoom-适配当前启用)
     - [1.8 连线连接点位置不对](#18-连线连接点位置不对)
     - [1.9 合并后拖拽错乱 / 节点消失（keyed join）](#19-合并后拖拽错乱--节点消失keyed-join)
     - [1.10 拖拽事件重复绑定（bindNodeDrag）](#110-拖拽事件重复绑定bindnodedrag)
@@ -34,76 +34,55 @@
 
 ## 1. 交互功能问题
 
-### 1.1 拖拽节点不在鼠标位置
+### 1.1 拖拽节点不在鼠标位置（含 zoom 缩放）
 
-**问题根因**：`event.dx/dy` 是屏幕增量未累加；zoom 缩放未折算
+**问题根因**：`event.dx / zoomTransform.k` 未覆盖 viewBox + zoom 完整矩阵；旧版 `dataset.deltaX/deltaY` 累加有漂移
 
-**解决方案**：`dataset.deltaX/deltaY` 存相对布局的累计位移，除以 `zoomTransform.k`
+**当前方案**：`clientToGraphLocal` 将指针映射到 zoom 容器 `g` 的局部坐标
 
 ```typescript
-// d3Tree.ts - dragged()
-const d = getCurrentNode(instance, resolveNodeIdFromElement(gEl)!);
-const currentTX = Number(d?.y ?? 0);
-const currentTY = Number(d?.x ?? 0);
-const prevDeltaX = Number(gEl.dataset.deltaX ?? 0);
-const prevDeltaY = Number(gEl.dataset.deltaY ?? 0);
+// d3Tree.ts — clientToGraphLocal
+function clientToGraphLocal(graphG: SVGGElement, clientX: number, clientY: number) {
+    const pt = graphG.ownerSVGElement!.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const local = pt.matrixTransform(graphG.getScreenCTM()!.inverse());
+    return { x: local.x, y: local.y };
+}
 
-const currentScale = d3.zoomTransform(svg.node()!).k ?? 1;
-const newDeltaX = prevDeltaX + event.dx / currentScale;
-const newDeltaY = prevDeltaY + event.dy / currentScale;
+// dragstart
+const { tx, ty } = nodeScreenPosition(d, orientation);
+gEl.dataset.nodeStartX = String(tx);
+gEl.dataset.nodeStartY = String(ty);
+const local = clientToGraphLocal(graphG, clientX, clientY);
+gEl.dataset.pointerStartX = String(local.x);
+gEl.dataset.pointerStartY = String(local.y);
+setNodePointerEvents(gEl, false);
 
-gEl.dataset.deltaX = String(newDeltaX);
-gEl.dataset.deltaY = String(newDeltaY);
-d3.select(gEl).attr(
-    'transform',
-    `translate(${currentTX + newDeltaX},${currentTY + newDeltaY})`
-);
+// drag
+const local = clientToGraphLocal(graphG, clientX, clientY);
+const curTX = nodeStartX + (local.x - pointerStartX);
+const curTY = nodeStartY + (local.y - pointerStartY);
+d3.select(gEl).attr('transform', `translate(${curTX},${curTY})`);
 ```
 
 ---
 
-### 1.2 拖拽到其他节点无反应（已废弃：坐标回退）
+### 1.2 落点检测（DOM + 坐标回退）
 
-> **当前实现**：仅使用 DOM + `getBoundingClientRect` 精确命中，**不再回退**到 `findSameLevelNodeByCoord`，避免误触发。详见 [1.9](#19-合并后拖拽错乱--节点消失keyed-join) 与 `tech-doc.md` 2.3.3。
-
-**历史方案**（已废弃）：坐标计算回退机制
+> **当前实现**：优先 DOM（`elementsFromPoint` + `getBoundingClientRect`）；未命中时用 `clientToGraphLocal` + 同级卡片矩形回退。拖拽中被拖节点设 `pointer-events: none`，避免遮挡命中。
 
 ```typescript
-// d3Tree.ts - findSameLevelNodeAtDOM() 函数
-function findSameLevelNodeAtDOM(root, source, clientX, clientY) {
-    const sourceParentId = source?.parent?.data?.id;
-    if (sourceParentId === undefined) return null;
-
-    // 优先使用 DOM 命中
-    const elements = document.elementsFromPoint(clientX, clientY);
-    let targetId = null;
-    for (const el of elements) {
-        const nodeG = el.closest('g.node[data-id]');
-        if (nodeG) {
-            const id = nodeG.getAttribute('data-id');
-            if (id && id !== source.data.id) {
-                targetId = id;
-                break;
-            }
-        }
-    }
-
-    // DOM 命中成功，验证同级后返回
-    if (targetId) {
-        const targetNode = root.descendants().find((n) => n.data.id === targetId);
-        if (
-            targetNode &&
-            targetNode.parent &&
-            targetNode.parent.data.id === sourceParentId &&
-            targetNode.data.id !== source.data.id
-        ) {
-            return targetNode;
-        }
-    }
-
-    // DOM 命中失败，回退到坐标计算方式
-    return findSameLevelNodeByCoord(root, source, clientX, clientY);
+// findSameLevelNodeAtDOM — DOM 未命中时
+if (graphG) {
+    return findSameLevelNodeByCoord(root, source, clientX, clientY, ctx, orientation, graphG);
 }
+
+// findSameLevelNodeByCoord — 必须用 HierarchyNode
+const sourceNodeId = source?.data ? hNodeId(ctx, source) : ''; // ✓ 不是 source.data
+const local = clientToGraphLocal(graphG, clientX, clientY);
+const { width, height } = getNodeDimensions(orientation);
+// 检测 local 是否在 sibling 的 nodeScreenPosition 矩形内
 ```
 
 ---
@@ -223,34 +202,25 @@ else if (relativeY > canvasHeight - edgeMargin) {
 
 ---
 
-### 1.7 可视区外节点无法命中（已废弃，函数保留未调用）
+### 1.7 坐标回退落点（zoom 适配，当前启用）
 
-> `findSameLevelNodeByCoord()` 仍存在于 `d3Tree.ts`，但 `findSameLevelNodeAtDOM` **不再调用**它。保留代码仅供参考，新功能请勿依赖。
-
-**历史方案**：使用 SVG 矩阵变换 API
+> `findSameLevelNodeByCoord` 在 DOM 未命中时作为回退，使用 **zoom 容器 g** 的 CTM（不是 svg 根上的第一个 g），并与 `nodeScreenPosition` 卡片矩形对齐。
 
 ```typescript
-// d3Tree.ts - findSameLevelNodeByCoord() 函数
-const svgEl = document.querySelector('svg');
-if (!svgEl) return null;
+function clientToGraphLocal(graphG: SVGGElement, clientX: number, clientY: number) {
+    const svg = graphG.ownerSVGElement!;
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    return pt.matrixTransform(graphG.getScreenCTM()!.inverse());
+}
 
-// 使用 SVG 的 createSVGPoint 方法进行坐标转换（最可靠的方式）
-const svgPoint = svgEl.createSVGPoint();
-svgPoint.x = clientX;
-svgPoint.y = clientY;
-
-// 获取 g 元素的变换矩阵
-const gEl = svgEl.querySelector('g');
-if (!gEl) return null;
-
-const screenCTM = gEl.getScreenCTM();
-if (!screenCTM) return null;
-
-// 应用逆变换：将屏幕坐标转换为 SVG 内部坐标
-const inverseCTM = screenCTM.inverse();
-const transformedPoint = svgPoint.matrixTransform(inverseCTM);
-const svgX = transformedPoint.x;
-const svgY = transformedPoint.y;
+function findSameLevelNodeByCoord(root, source, clientX, clientY, ctx, orientation, graphG) {
+    const sourceNodeId = hNodeId(ctx, source); // HierarchyNode，勿传 source.data
+    const local = clientToGraphLocal(graphG, clientX, clientY);
+    const { width, height } = getNodeDimensions(orientation);
+    // 遍历同级，检测 local 是否在 [tx±width/2, ty±height/2] 内
+}
 ```
 
 ---

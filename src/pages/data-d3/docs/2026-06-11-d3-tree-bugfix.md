@@ -6,6 +6,7 @@
 | ---- | ---- | ---- |
 | 问题一～六 + 优化 | 2026-06-11 | 刷新/撤销、join、拖拽占位与高亮 |
 | 问题七～九 | 2026-06-12 | 合并后拖拽错乱、层级规则通用化 |
+| 问题十 | 2026-06-12 | 缩放后拖拽/落点坐标修复（clientToGraphLocal） |
 
 ---
 
@@ -337,7 +338,7 @@ function dragEnded(instance, event, d, root, onDropToTarget) {
 
 ### 6.1 精确的范围检测
 
-修改 `findSameLevelNodeAtDOM` 函数，只使用 DOM 命中检测，移除坐标计算的回退方案：
+修改 `findSameLevelNodeAtDOM` 函数，使用 DOM 命中 + 卡片 `getBoundingClientRect` 精确范围（2026-06-12 问题十：DOM 未命中时增加 **zoom 适配** 的坐标回退，仍限定在卡片矩形内，见 [问题十](#问题十缩放后拖拽落点不准--clienttographlocal2026-06-12)）：
 
 ```typescript
 function findSameLevelNodeAtDOM(root, source, clientX, clientY) {
@@ -646,23 +647,71 @@ export function canSiblingMerge(node): boolean {
 
 ---
 
-## 问题九：拖拽位移与 zoom 未折算（2026-06-12，补充）
+## 问题九：拖拽位移与 zoom 未折算（2026-06-12，已迭代）
 
 ### 问题描述
 
-缩放后拖拽漂移。
+缩放后拖拽漂移、落点不准。
 
-### 解决方案
+### 初版方案（已废弃）
 
 ```typescript
 const currentScale = d3.zoomTransform(svg.node()).k ?? 1;
 const scaledDx = event.dx / currentScale;
-const scaledDy = event.dy / currentScale;
 gEl.dataset.deltaX = String(prevDeltaX + scaledDx);
-gEl.dataset.deltaY = String(prevDeltaY + scaledDy);
 ```
 
-使用 `deltaX/deltaY` 存累计位移（相对布局坐标），而非已废弃的 `curTX/curTY` 存绝对坐标。
+`event.dx / k` 在 viewBox + zoom 叠加时仍可能偏差。
+
+### 当前方案（问题十 合并说明）
+
+见 [问题十](#问题十缩放后拖拽落点不准--clienttographlocal2026-06-12)。
+
+---
+
+## 问题十：缩放后拖拽/落点不准 + clientToGraphLocal（2026-06-12）
+
+### 问题描述
+
+1. 缩小画布后，拖拽节点不跟手，拖到目标节点时高亮/合并位置偏移
+2. 坐标回退 `findSameLevelNodeByCoord` 曾误传 `hNodeId(ctx, source.data)` 导致运行时 `getId` 报错
+
+### 根因
+
+- 用 `event.dx / zoomTransform.k` 估算位移，未统一经过 zoom 容器 `g` 的完整变换矩阵（含 viewBox）
+- DOM 命中时，被拖拽节点未设 `pointer-events: none`，可能遮挡下方目标
+- `hNodeId` 需要 `HierarchyNode`，不能传入 `source.data`
+
+### 解决方案
+
+**拖拽跟手**：`clientToGraphLocal(graphG, clientX, clientY)` + 起点差值
+
+```typescript
+// dragstart
+gEl.dataset.nodeStartX = String(tx);
+gEl.dataset.pointerStartX = String(local.x);
+setNodePointerEvents(gEl, false);
+
+// drag
+const local = clientToGraphLocal(graphG, clientX, clientY);
+const curTX = nodeStartX + (local.x - pointerStartX);
+d3.select(gEl).attr('transform', `translate(${curTX},${curTY})`);
+```
+
+**落点检测**：DOM 优先 → 坐标回退（同级卡片矩形，同一套 `clientToGraphLocal`）
+
+```typescript
+// findSameLevelNodeByCoord — 注意传 HierarchyNode
+const sourceNodeId = source?.data ? hNodeId(ctx, source) : '';
+const local = clientToGraphLocal(graphG, clientX, clientY);
+// 检测 local 是否落在 sibling 的 nodeScreenPosition 矩形内
+```
+
+### 验证
+
+1. zoom 缩小至 50% 以下，拖拽节点仍贴鼠标
+2. 拖到同级节点卡片上，绿色高亮准确，松手触发合并
+3. 控制台无 `Cannot read properties of undefined (reading 'id')`
 
 ---
 
@@ -696,5 +745,6 @@ gEl.dataset.deltaY = String(prevDeltaY + scaledDy);
 1. **第一层**：两个子节点拖拽合并 → 成功，新节点带 `integratedFrom`
 2. **第二层**：仅在父节点已合并后，同级子节点可合并；未合并父节点时拖拽不弹框
 3. **第三层多次合并**：连续合并后拖拽，节点不错位、不消失
-4. **缩放后拖拽**：zoom 放大/缩小后，节点仍跟手
+4. **缩放后拖拽**：zoom 放大/缩小后，节点仍跟手，落点高亮准确
 5. **跨层误触**：拖到非同级节点卡片上，不触发合并
+6. **缩放 + 合并**：缩小后拖拽到同级节点，可正常高亮并弹合并框
