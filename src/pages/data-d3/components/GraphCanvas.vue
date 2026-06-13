@@ -268,18 +268,80 @@ function handleMenuClick(event: string) {
  * 打开右键菜单
  * ----------------------------------------------------------------------------
  * 步骤：
- *   1. 记录鼠标位置 (event.clientX / clientY)
- *   2. 记录当前节点 ID
- *   3. 设置 contextMenuOpen = true，触发 Teleport 菜单显示
+ *   1. 获取节点 DOM 元素位置
+ *   2. 计算边界位置（确保菜单在视口内）
+ *   3. 记录当前节点 ID
+ *   4. 设置 contextMenuOpen = true，触发 Teleport 菜单显示
  *
  * @param {MouseEvent} event 鼠标点击事件
  * @param {string}     nodeId 触发菜单的节点 ID
  */
 function openContextMenu(event: MouseEvent, nodeId: string) {
-    contextMenuX.value = event.clientX;
-    contextMenuY.value = event.clientY;
+    // 获取节点 DOM 元素（通过 data-id 属性查找）
+    const nodeEl = document.querySelector(`[data-id="${nodeId}"]`);
+    const menuWidth = 180; // 菜单宽度
+    const menuHeight = 200; // 菜单高度估计值
+
+    if (nodeEl) {
+        // 获取节点元素在视口中的位置
+        const rect = nodeEl.getBoundingClientRect();
+        // 计算菜单位置（显示在节点下方居中）
+        let x = rect.left + rect.width / 2 - menuWidth / 2;
+        let y = rect.bottom + 8;
+
+        // 边界检测：确保菜单不会超出浏览器窗口
+        x = Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8));
+        // 如果下方空间不够，显示在节点上方
+        if (y + menuHeight > window.innerHeight - 8) {
+            y = rect.top - menuHeight - 8;
+        }
+        y = Math.max(8, y);
+
+        contextMenuX.value = x;
+        contextMenuY.value = y;
+    } else {
+        // fallback：使用事件坐标
+        let x = event.clientX;
+        let y = event.clientY;
+
+        // 边界检测
+        x = Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8));
+        y = Math.max(8, Math.min(y, window.innerHeight - menuHeight - 8));
+
+        contextMenuX.value = x;
+        contextMenuY.value = y;
+    }
     contextMenuNodeId.value = nodeId;
     contextMenuOpen.value = true;
+}
+
+/**
+ * 更新右键菜单位置到指定节点的位置
+ * ----------------------------------------------------------------------------
+ * 当画布缩放/平移后，调用此函数将菜单移动到节点的新位置
+ *
+ * @param {string} nodeId 节点 ID
+ */
+function updateContextMenuPosition(nodeId: string) {
+    const nodeEl = document.querySelector(`[data-id="${nodeId}"]`);
+    const menuWidth = 180;
+    const menuHeight = 200;
+
+    if (nodeEl) {
+        const rect = nodeEl.getBoundingClientRect();
+        let x = rect.left + rect.width / 2 - menuWidth / 2;
+        let y = rect.bottom + 8;
+
+        // 边界检测
+        x = Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8));
+        if (y + menuHeight > window.innerHeight - 8) {
+            y = rect.top - menuHeight - 8;
+        }
+        y = Math.max(8, y);
+
+        contextMenuX.value = x;
+        contextMenuY.value = y;
+    }
 }
 
 /**
@@ -365,6 +427,9 @@ watch(
     { deep: true }
 );
 
+// 保存 unsubscribe 函数以便清理
+let unsubscribeZoom: (() => void) | null = null;
+
 onMounted(() => {
     document.addEventListener('d3-svg-click', handleSvgClick);
     document.addEventListener('click', handleGlobalClick);
@@ -394,6 +459,13 @@ onMounted(() => {
         canRedo.value = state.canRedo;
     });
 
+    // 监听画布缩放/平移事件，当菜单打开时更新菜单位置
+    unsubscribeZoom = graph.onZoom(() => {
+        if (contextMenuOpen.value && contextMenuNodeId.value) {
+            updateContextMenuPosition(contextMenuNodeId.value);
+        }
+    });
+
     graph.mount();
     graph.recordHistory();
     layoutOrientation.value = graph.getOrientation();
@@ -405,11 +477,13 @@ onMounted(() => {
  * 步骤：
  *   1. 移除 'd3-svg-click' 监听
  *   2. 移除全局 click 监听
- *   3. 移除 window resize 监听
+ *   3. 移除 zoom 监听
+ *   4. 销毁 graph 实例
  */
 onBeforeUnmount(() => {
     document.removeEventListener('d3-svg-click', handleSvgClick);
     document.removeEventListener('click', handleGlobalClick);
+    unsubscribeZoom?.();
     graph?.destroy();
     graph = null;
 });

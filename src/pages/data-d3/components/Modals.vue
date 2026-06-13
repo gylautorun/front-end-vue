@@ -400,7 +400,7 @@ watch(
         if (val) {
             newNodeName.value = '';
             newNodeLevel.value = 'office_single';
-            newNodeIntegrationType.value = IntegrationTypeKey.integration;
+            newNodeIntegrationType.value = IntegrationTypeKey.base;
         }
     }
 );

@@ -349,6 +349,26 @@ export class D3TreeGraph {
         return this.protectedRootId;
     }
 
+    /** 获取 SVG 元素（用于监听 zoom 事件） */
+    getSvgElement(): SVGSVGElement | null {
+        if (!this.instance) return null;
+        return this.instance.svg.node() as SVGSVGElement | null;
+    }
+
+    /** 监听 zoom 变化（画布缩放/平移时触发） */
+    onZoom(handler: (transform: { x: number; y: number; k: number }) => void): () => void {
+        if (!this.instance) return () => {};
+        const svg = this.instance.svg;
+        const zoom = this.instance.zoom;
+        
+        const wrappedHandler = (event: d3.D3ZoomEvent<SVGSVGElement, null>) => {
+            handler({ x: event.transform.x, y: event.transform.y, k: event.transform.k });
+        };
+        
+        svg.on('zoom.graph', wrappedHandler);
+        return () => svg.on('zoom.graph', null);
+    }
+
     private emitHistoryChange(): void {
         this.events.emit('history:change', this.history.getState());
     }

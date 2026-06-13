@@ -108,12 +108,12 @@ export const initialTreeData: TreeData = {
                             owner: '陈XX'
                         }
                     ],
-                    // 第4层：团队级应用
+                    // 第4层：团队级应用（混合层级类型）
                     children: [
                         {
                             id: 'app1-c1-d4-1',
                             label: '数据采集团队',
-                            level: 'office_single',
+                            level: 'dept_single', // 部门级单点应用
                             dept: '数据中心',
                             owner: '张三',
                             integrationType: IntegrationTypeKey.base,
@@ -134,12 +134,12 @@ export const initialTreeData: TreeData = {
                                     owner: '李四'
                                 }
                             ],
-                            // 第5层：项目级应用
+                            // 第5层：项目级应用（混合层级类型）
                             children: [
                                 {
                                     id: 'app1-c1-d5-1',
                                     label: '实时采集项目',
-                                    level: 'office_single',
+                                    level: 'dept_composite', // 部门级综合应用（有子节点）
                                     dept: '数据中心',
                                     owner: '王五',
                                     integrationType: IntegrationTypeKey.base,
@@ -165,7 +165,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app1-c1-d6-1',
                                             label: '数据清洗任务',
-                                            level: 'office_single',
+                                            level: 'dept_single', // 部门级单点应用
                                             dept: '数据中心',
                                             owner: '钱七',
                                             integrationType: IntegrationTypeKey.base,
@@ -190,7 +190,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app1-c1-d6-2',
                                             label: '数据验证任务',
-                                            level: 'office_single',
+                                            level: 'office_single', // 处室级单点应用
                                             dept: '数据中心',
                                             owner: '周九',
                                             integrationType: IntegrationTypeKey.base,
@@ -242,7 +242,7 @@ export const initialTreeData: TreeData = {
                                 {
                                     id: 'app1-c1-d5-2',
                                     label: '批量采集项目',
-                                    level: 'office_single',
+                                    level: 'dept_single', // 部门级单点应用（有子节点）
                                     dept: '数据中心',
                                     owner: '陈三',
                                     integrationType: IntegrationTypeKey.base,
@@ -267,7 +267,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app1-c1-d6-4',
                                             label: 'Excel导入任务',
-                                            level: 'office_single',
+                                            level: 'dept_single', // 部门级单点应用
                                             dept: '数据中心',
                                             owner: '卫五',
                                             integrationType: IntegrationTypeKey.base,
@@ -292,7 +292,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app1-c1-d6-5',
                                             label: 'CSV导入任务',
-                                            level: 'office_single',
+                                            level: 'office_single', // 处室级单点应用
                                             dept: '数据中心',
                                             owner: '沈七',
                                             integrationType: IntegrationTypeKey.base,
@@ -321,7 +321,7 @@ export const initialTreeData: TreeData = {
                         {
                             id: 'app1-c1-d4-2',
                             label: '数据存储团队',
-                            level: 'office_single',
+                            level: 'dept_composite', // 部门级综合应用（有子节点）
                             dept: '数据中心',
                             owner: '杨九',
                             integrationType: IntegrationTypeKey.base,
@@ -346,7 +346,7 @@ export const initialTreeData: TreeData = {
                                 {
                                     id: 'app1-c1-d5-3',
                                     label: '主存储项目',
-                                    level: 'office_single',
+                                    level: 'dept_composite', // 部门级综合应用（有子节点）
                                     dept: '数据中心',
                                     owner: '秦一',
                                     integrationType: IntegrationTypeKey.base,
@@ -371,7 +371,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app1-c1-d6-6',
                                             label: 'MySQL存储任务',
-                                            level: 'office_single',
+                                            level: 'dept_single', // 部门级单点应用
                                             dept: '数据中心',
                                             owner: '许三',
                                             integrationType: IntegrationTypeKey.base,
@@ -477,7 +477,7 @@ export const initialTreeData: TreeData = {
                         {
                             id: 'app1-c1-d4-3',
                             label: '数据治理团队',
-                            level: 'office_single',
+                            level: 'dept_single', // 部门级单点应用（有子节点）
                             dept: '数据中心',
                             owner: '华一',
                             integrationType: IntegrationTypeKey.base,
@@ -502,7 +502,7 @@ export const initialTreeData: TreeData = {
                                 {
                                     id: 'app1-c1-d5-5',
                                     label: '数据质量项目',
-                                    level: 'office_single',
+                                    level: 'dept_single', // 部门级单点应用（有子节点）
                                     dept: '数据中心',
                                     owner: '魏三',
                                     integrationType: IntegrationTypeKey.base,
@@ -527,7 +527,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app1-c1-d6-9',
                                             label: '质量监控任务',
-                                            level: 'office_single',
+                                            level: 'office_single', // 处室级单点应用
                                             dept: '数据中心',
                                             owner: '姜五',
                                             integrationType: IntegrationTypeKey.base,
@@ -608,7 +608,7 @@ export const initialTreeData: TreeData = {
                                 {
                                     id: 'app1-c2-d5-1',
                                     label: 'Linux服务器监控',
-                                    level: 'office_single',
+                                    level: 'dept_composite', // 部门级综合应用（有子节点）
                                     dept: '信息中心',
                                     owner: '监控三',
                                     integrationType: IntegrationTypeKey.base,
@@ -626,7 +626,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app1-c2-d6-1',
                                             label: 'CentOS监控任务',
-                                            level: 'office_single',
+                                            level: 'dept_single', // 部门级单点应用
                                             dept: '信息中心',
                                             owner: '监控五',
                                             integrationType: IntegrationTypeKey.base,
@@ -644,7 +644,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app1-c2-d6-2',
                                             label: 'Ubuntu监控任务',
-                                            level: 'office_single',
+                                            level: 'office_single', // 处室级单点应用
                                             dept: '信息中心',
                                             owner: '监控七',
                                             integrationType: IntegrationTypeKey.base,
@@ -666,7 +666,7 @@ export const initialTreeData: TreeData = {
                         {
                             id: 'app1-c2-d4-2',
                             label: '应用监控团队',
-                            level: 'office_single',
+                            level: 'dept_single', // 部门级单点应用（有子节点）
                             dept: '信息中心',
                             owner: '应用一',
                             integrationType: IntegrationTypeKey.base,
@@ -684,7 +684,7 @@ export const initialTreeData: TreeData = {
                                 {
                                     id: 'app1-c2-d5-2',
                                     label: 'Java应用监控',
-                                    level: 'office_single',
+                                    level: 'dept_composite', // 部门级综合应用（有子节点）
                                     dept: '信息中心',
                                     owner: '应用三',
                                     integrationType: IntegrationTypeKey.base,
@@ -702,7 +702,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app1-c2-d6-3',
                                             label: 'Tomcat监控任务',
-                                            level: 'office_single',
+                                            level: 'dept_single', // 部门级单点应用
                                             dept: '信息中心',
                                             owner: '应用五',
                                             integrationType: IntegrationTypeKey.base,
@@ -849,7 +849,7 @@ export const initialTreeData: TreeData = {
                                 {
                                     id: 'app2-c1-d5-1',
                                     label: '跨省转学项目',
-                                    level: 'office_single',
+                                    level: 'dept_composite', // 部门级综合应用（有子节点）
                                     dept: '教育局',
                                     owner: '转学三',
                                     integrationType: IntegrationTypeKey.base,
@@ -867,7 +867,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app2-c1-d6-1',
                                             label: '跨省转学任务A',
-                                            level: 'office_single',
+                                            level: 'dept_single', // 部门级单点应用
                                             dept: '教育局',
                                             owner: '转学五',
                                             integrationType: IntegrationTypeKey.base,
@@ -885,7 +885,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app2-c1-d6-2',
                                             label: '跨省转学任务B',
-                                            level: 'office_single',
+                                            level: 'office_single', // 处室级单点应用
                                             dept: '教育局',
                                             owner: '转学七',
                                             integrationType: IntegrationTypeKey.base,
@@ -905,7 +905,7 @@ export const initialTreeData: TreeData = {
                                 {
                                     id: 'app2-c1-d5-2',
                                     label: '省内转学项目',
-                                    level: 'office_single',
+                                    level: 'dept_single', // 部门级单点应用（有子节点）
                                     dept: '教育局',
                                     owner: '省内一',
                                     integrationType: IntegrationTypeKey.base,
@@ -923,7 +923,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app2-c1-d6-3',
                                             label: '省内转学任务',
-                                            level: 'office_single',
+                                            level: 'dept_single', // 部门级单点应用
                                             dept: '教育局',
                                             owner: '省内三',
                                             integrationType: IntegrationTypeKey.base,
@@ -945,7 +945,7 @@ export const initialTreeData: TreeData = {
                         {
                             id: 'app2-c1-d4-2',
                             label: '休学办理团队',
-                            level: 'office_single',
+                            level: 'dept_composite', // 部门级综合应用（有子节点）
                             dept: '教育局',
                             owner: '休学一',
                             integrationType: IntegrationTypeKey.base,
@@ -963,7 +963,7 @@ export const initialTreeData: TreeData = {
                                 {
                                     id: 'app2-c1-d5-3',
                                     label: '病假休学项目',
-                                    level: 'office_single',
+                                    level: 'dept_single', // 部门级单点应用（有子节点）
                                     dept: '教育局',
                                     owner: '病假一',
                                     integrationType: IntegrationTypeKey.base,
@@ -981,7 +981,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app2-c1-d6-4',
                                             label: '病假休学任务',
-                                            level: 'office_single',
+                                            level: 'office_single', // 处室级单点应用
                                             dept: '教育局',
                                             owner: '病假三',
                                             integrationType: IntegrationTypeKey.base,
@@ -1310,7 +1310,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app7-c1-d6-2',
                                             label: '烟雾报警任务B',
-                                            level: 'office_single',
+                                            level: 'dept_single', // 部门级单点应用
                                             dept: '安保处',
                                             owner: '烟雾五',
                                             integrationType: IntegrationTypeKey.base,
@@ -1332,7 +1332,7 @@ export const initialTreeData: TreeData = {
                         {
                             id: 'app7-c1-d4-2',
                             label: '消防设施团队',
-                            level: 'office_single',
+                            level: 'dept_composite', // 部门级综合应用（有子节点）
                             dept: '安保处',
                             owner: '设施一',
                             integrationType: IntegrationTypeKey.base,
@@ -1350,7 +1350,7 @@ export const initialTreeData: TreeData = {
                                 {
                                     id: 'app7-c1-d5-2',
                                     label: '灭火器项目',
-                                    level: 'office_single',
+                                    level: 'dept_single', // 部门级单点应用（有子节点）
                                     dept: '安保处',
                                     owner: '灭火一',
                                     integrationType: IntegrationTypeKey.base,
@@ -1368,7 +1368,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app7-c1-d6-3',
                                             label: '灭火器巡检任务',
-                                            level: 'office_single',
+                                            level: 'office_single', // 处室级单点应用
                                             dept: '安保处',
                                             owner: '灭火三',
                                             integrationType: IntegrationTypeKey.base,
@@ -1714,7 +1714,7 @@ export const initialTreeData: TreeData = {
                         {
                             id: 'app9-c1-d4-2',
                             label: '社保管理团队',
-                            level: 'office_single',
+                            level: 'dept_composite', // 部门级综合应用（有子节点）
                             dept: '财务处',
                             owner: '社保一',
                             integrationType: IntegrationTypeKey.base,
@@ -1732,7 +1732,7 @@ export const initialTreeData: TreeData = {
                                 {
                                     id: 'app9-c1-d5-2',
                                     label: '社保缴纳项目',
-                                    level: 'office_single',
+                                    level: 'dept_single', // 部门级单点应用（有子节点）
                                     dept: '财务处',
                                     owner: '缴纳一',
                                     integrationType: IntegrationTypeKey.base,
@@ -1750,7 +1750,7 @@ export const initialTreeData: TreeData = {
                                         {
                                             id: 'app9-c1-d6-3',
                                             label: '社保缴纳任务',
-                                            level: 'office_single',
+                                            level: 'office_single', // 处室级单点应用
                                             dept: '财务处',
                                             owner: '缴纳三',
                                             integrationType: IntegrationTypeKey.base,
