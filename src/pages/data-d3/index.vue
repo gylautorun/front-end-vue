@@ -296,14 +296,29 @@ function applyTreeChangeWithResult<T>(
 /**
  * 可用于"绑定关系"的目标节点列表
  * ----------------------------------------------------------------------------
+ * 旧的逻辑已废弃
+ * 1. 深度优先遍历整棵树
+ * 2. 收集除根节点 (id='edu') 外的所有节点
+ * 3. 用作 Modals 中"绑定关系"下拉框的选项
  * 步骤：
- *   1. 深度优先遍历整棵树
- *   2. 收集除根节点 (id='edu') 外的所有节点
- *   3. 用作 Modals 中"绑定关系"下拉框的选项
+ *   1. 获取当前右键点击节点的上下文信息（通过 contextMenuNodeId）
+ *   2. 找到当前节点的父节点，获取所有子节点（即兄弟节点）
+ *   3. 排除当前节点本身
+ *   4. 返回结果作为"绑定关系"下拉框的选项（仅显示同级节点）
  */
-const availableApps = computed(() =>
-    getCtx().collectDescendantApps(treeData.value, getCtx().getRootId(treeData.value))
-);
+const availableApps = computed(() => {
+    // 旧的逻辑已废弃
+    // return getCtx().collectDescendantApps(treeData.value, getCtx().getRootId(treeData.value));
+    if (!contextMenuNodeId.value) return [];
+
+    const meta = getCtx().findNodeInTree(treeData.value, contextMenuNodeId.value);
+    if (!meta || !meta.parent) return [];
+
+    const parentChildren = getCtx().accessors.getChildren(meta.parent);
+    return parentChildren.filter(
+        (child) => getCtx().accessors.getId(child) !== contextMenuNodeId.value
+    );
+});
 
 /**
  * 监听绑定关系弹框打开，设置源节点名称
