@@ -339,9 +339,9 @@ function createRelationLinkPath(d: RelationLinkDatum, orientation: TreeLayoutOri
             const midVert = (topEdge + bottomEdge) / 2;
             const halfSpan = Math.min(width / 2 + offset, 56);
             return [
-                `M${centerY},${topEdge} L${centerY},${midVert}`,
-                `M${centerY - halfSpan},${midVert} L${centerY + halfSpan},${midVert}`,
-                `M${centerY},${midVert} L${centerY},${bottomEdge}`
+                `M${centerY},${topEdge} L${centerY},${midVert}`, // 从开始点连接到关联类型点
+                `M${centerY - halfSpan},${midVert} L${centerY + halfSpan},${midVert}`, // 关联类型 垂直线（上下方向 对应水平横线）（十字线的原因）
+                `M${centerY},${midVert} L${centerY},${bottomEdge}` // // 从关联类型点连接到结束点
             ].join(' ');
         }
 
@@ -525,10 +525,7 @@ function updateRelationLinks(instance: D3TreeInstance, root: d3.HierarchyNode<Tr
                     .attr('x', (d) => getLabelMid(d).x)
                     .attr('y', (d) => getLabelMid(d).y)
                     .attr('opacity', (d) => (d.typeName ? 1 : 0))
-                    .text((d) => {
-                        console.log(d, d.typeName);
-                        return d.typeName ?? '';
-                    });
+                    .text((d) => d.typeName ?? '');
 
                 return group;
             },

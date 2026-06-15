@@ -863,12 +863,18 @@ export class TreeContext {
         const target = this.findNodeInTree(root, input.targetId);
         if (!source || !target) return false;
 
+        // 移除源节点之前的所有关联关系（确保一个节点只能关联一个目标）
+        const relations = acc.getRelations(source.node);
+        if (relations.length > 0) {
+            source.node[f.relations] = [];
+        }
+
         // 创建关联对象
         const relation: Record<string, unknown> = {
             [f.relationTargetId]: acc.getId(target.node),
             [f.relationTargetName]: acc.getLabel(target.node),
             [f.relationType]: input.type,
-            [f.relationTypeName]: input.typeName,
+            [f.relationTypeName]: input.typeName ?? this.integrationTypeName(input.type),
             [f.relationName]: input.name
         };
 
