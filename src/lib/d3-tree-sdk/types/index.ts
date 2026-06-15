@@ -133,26 +133,32 @@ export const EDGE_STYLES: Record<IntegrationTypeKey, string> = {
 };
 
 /**
- * 节点层级 key 类型
+ * 节点层级枚举
+ * ----------------------------------------------------------------------------
+ * 使用枚举替代联合类型的优势：
+ *   1. 类型安全：IDE 自动补全，避免拼写错误
+ *   2. 统一管理：所有层级值集中定义
+ *   3. 支持反向映射：LevelKey.domain === 'domain'
  */
-export type LevelKey =
-    | 'domain'
-    | 'dept_composite'
-    | 'dept_single'
-    | 'office_single'
-    | 'module'
-    | 'base';
+export enum LevelKey {
+    Domain = 'domain',
+    DeptComposite = 'dept_composite',
+    DeptSingle = 'dept_single',
+    OfficeSingle = 'office_single',
+    Module = 'module',
+    Base = 'base'
+}
 
 /**
  * 层级配置映射（key → { name: 中文名称, color: 颜色 }）
  */
 export const LEVEL_CONFIG: Record<LevelKey, { name: string; color: string }> = {
-    domain: { name: '领域级应用', color: EDGE_STYLES.merge }, // 红色
-    dept_composite: { name: '部门级综合应用', color: EDGE_STYLES.integration }, // 绿色
-    dept_single: { name: '部门级单点应用', color: EDGE_STYLES.migrate }, // 蓝色
-    office_single: { name: '处室级单点应用', color: EDGE_STYLES.base }, // 灰色
-    module: { name: '功能模块', color: EDGE_STYLES.module_merge }, // 紫色
-    base: { name: '基础', color: EDGE_STYLES.base }
+    [LevelKey.Domain]: { name: '领域级应用', color: EDGE_STYLES.merge }, // 红色
+    [LevelKey.DeptComposite]: { name: '部门级综合应用', color: EDGE_STYLES.integration }, // 绿色
+    [LevelKey.DeptSingle]: { name: '部门级单点应用', color: EDGE_STYLES.migrate }, // 蓝色
+    [LevelKey.OfficeSingle]: { name: '处室级单点应用', color: EDGE_STYLES.base }, // 灰色
+    [LevelKey.Module]: { name: '功能模块', color: EDGE_STYLES.module_merge }, // 紫色
+    [LevelKey.Base]: { name: '基础', color: EDGE_STYLES.base }
 };
 
 /**
@@ -207,9 +213,10 @@ export const INTEGRATION_TYPE_OPTIONS: IntegrationTypeOption[] = [
  * 通过 v-for 遍历生成 <option>
  */
 export const NODE_LEVELS: LevelKey[] = [
-    'domain',
-    'dept_composite',
-    'dept_single',
-    'office_single',
-    'module'
+    LevelKey.Domain,
+    LevelKey.DeptComposite,
+    LevelKey.DeptSingle,
+    LevelKey.OfficeSingle,
+    LevelKey.Module,
+    LevelKey.Base
 ];
