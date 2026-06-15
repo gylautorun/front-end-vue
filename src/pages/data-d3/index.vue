@@ -149,7 +149,7 @@
             @close-module-detail-modal="showModuleDetailModal = false"
             @confirm-add-node="confirmAddNode"
             @confirm-add-module="confirmAddModule"
-            @confirm-integrate-module="confirmIntegrateModule"
+            @confirm-integrate-module="confirmIntegrateNode"
             @confirm-edit-node="confirmEditNode"
             @confirm-bind-relation="confirmBindRelation"
             @confirm-integration="confirmIntegration"
@@ -613,7 +613,7 @@ function confirmAddModule(data: { name: string; dept: string }) {
  * @param data 包含 name / dept / type 的表单数据
  *             其中 type 是 IntegrationTypeKey 枚举
  */
-function confirmIntegrateModule(data: { name: string; dept: string; type: IntegrationTypeKey }) {
+function confirmIntegrateNode(data: { name: string; dept: string; type: IntegrationTypeKey }) {
     const selectedNodeIds = selectedNodes.value.map((n) => n.id);
     const mergedNode = applyTreeChangeWithResult((root, ctx) => {
         const result = ctx.mergeMultipleNodes(root, {
@@ -685,6 +685,56 @@ function confirmEditNode(data: {
     showEditModal.value = false;
 }
 
+/**
+ * 确认绑定关联关系并合并节点
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. applyTreeChangeWithResult + SDK mergeMultipleNodes()
+ *   2. 合并源节点和目标节点为新节点
+ *   3. 创建新节点（继承优先级最高的层级）
+ *   4. 选中新节点 + 清空多选 + 关闭模态框
+ *
+ * @param data 包含 targetId / type / name 的表单数据
+ *             其中 type 是 IntegrationTypeKey 枚举，name 是整合名称
+ */
+function confirmBindRelationAndMerge(data: {
+    targetId: string;
+    type: IntegrationTypeKey;
+    name: string;
+}) {
+    const sourceId = contextMenuNodeId.value;
+    if (!sourceId) {
+        showBindRelationModal.value = false;
+        return;
+    }
+
+    const mergedNode = applyTreeChangeWithResult((root, ctx) => {
+        const result = ctx.mergeMultipleNodes(root, {
+            name: data.name,
+            integrationType: data.type,
+            nodeIds: [sourceId, data.targetId]
+        });
+        if (!result.ok) {
+            message.error(result.message ?? '绑定关联关系失败');
+            return null;
+        }
+        return result.node ?? null;
+    });
+
+    if (mergedNode) {
+        selectNode(mergedNode);
+        clearSelection();
+        TreeLogger.log('绑定关联关系并合并节点', treeData.value, {
+            sourceId,
+            targetId: data.targetId,
+            relationType: data.type,
+            relationName: data.name,
+            newNodeId: mergedNode.id,
+            newNodeLabel: mergedNode.label
+        });
+    }
+    showBindRelationModal.value = false;
+}
 /**
  * 确认绑定关联关系
  * ----------------------------------------------------------------------------
