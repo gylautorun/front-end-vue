@@ -2,7 +2,7 @@
     Modals - 业务模态框集合
     ========================================================================
 
-    包含 7 个模态框（均通过 v-if/v-show 控制显隐）：
+    包含 7 个模态框（均通过 Ant Design Vue Modal 组件实现）：
       1. add-node-modal       新增子节点
       2. add-module-modal     新增功能模块（挂到当前选中节点下）
       3. integrate-modal      整合选中节点（把多选节点整合为新节点）
@@ -10,186 +10,216 @@
       5. bind-relation-modal  绑定节点间关系
       6. integration-modal    标注整合方式（合并/迁移/接口对接/停用下线）
       7. merge-nodes-modal    拖拽合并节点（拖到同级节点时弹出）
+      8. module-detail-modal  模块详情
 
-    Props 形式受控（每个 :show-* 双向控制 + 关闭事件 + 确认事件）：
-      :show-add-modal="showAddModal"     @close-add-modal="..."
-      @confirm-add-node="confirmAddNode" 提交后由父组件修改 treeData
+    Props 形式受控（每个 :visible 控制显隐 + @cancel 关闭事件 + 确认事件）：
+      :visible="showAddModal"     @cancel="emit('close-add-modal')"
+      @confirm="confirmAddNode"   提交后由父组件修改 treeData
 
     ========================================================================
 -->
 <template>
     <!-- 新增子节点 -->
-    <div class="modal-overlay" id="add-node-modal" :class="{ show: showAddModal }">
-        <div class="modal">
-            <h3>➕ 新增子节点</h3>
-            <div class="form-group">
-                <label>节点名称</label><input type="text" v-model="newNodeName" />
-            </div>
-            <div class="form-group">
-                <label>应用层级</label>
-                <select v-model="newNodeLevel">
-                    <option value="domain">领域级应用</option>
-                    <option value="dept_composite">部门级综合应用</option>
-                    <option value="dept_single">部门级单点应用</option>
-                    <option value="office_single">处室级单点应用</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>整合方式</label>
-                <select v-model="newNodeIntegrationType">
-                    <option v-for="opt in INTEGRATION_TYPE_OPTIONS" :key="opt.key" :value="opt.key">
+    <a-modal
+        :visible="showAddModal"
+        :title="'➕ 新增子节点'"
+        :footer="false"
+        @cancel="$emit('close-add-modal')"
+    >
+        <a-form layout="vertical">
+            <a-form-item label="节点名称">
+                <a-input v-model:value="newNodeName" />
+            </a-form-item>
+            <a-form-item label="应用层级">
+                <a-select v-model:value="newNodeLevel" style="width: 100%">
+                    <a-select-option value="domain">领域级应用</a-select-option>
+                    <a-select-option value="dept_composite">部门级综合应用</a-select-option>
+                    <a-select-option value="dept_single">部门级单点应用</a-select-option>
+                    <a-select-option value="office_single">处室级单点应用</a-select-option>
+                </a-select>
+            </a-form-item>
+            <a-form-item label="整合方式">
+                <a-select v-model:value="newNodeIntegrationType" style="width: 100%">
+                    <a-select-option
+                        v-for="opt in INTEGRATION_TYPE_OPTIONS"
+                        :key="opt.key"
+                        :value="opt.key"
+                    >
                         {{ opt.name }}
-                    </option>
-                </select>
-            </div>
-            <div class="modal-actions">
-                <button @click="$emit('close-add-modal')">取消</button>
-                <button class="primary" @click="handleConfirmAddNode">确定</button>
-            </div>
+                    </a-select-option>
+                </a-select>
+            </a-form-item>
+        </a-form>
+        <div class="modal-actions">
+            <a-button @click="$emit('close-add-modal')">取消</a-button>
+            <a-button type="primary" @click="handleConfirmAddNode">确定</a-button>
         </div>
-    </div>
+    </a-modal>
 
     <!-- 新增模块 -->
-    <div class="modal-overlay" id="add-module-modal" :class="{ show: showAddModuleModal }">
-        <div class="modal">
-            <h3>📦 新增功能模块</h3>
-            <div class="form-group">
-                <label>模块名称</label><input type="text" v-model="newModuleName" />
-            </div>
-            <div class="form-group">
-                <label>所属部门</label><input type="text" v-model="newModuleDept" />
-            </div>
-            <div class="modal-actions">
-                <button @click="$emit('close-add-module-modal')">取消</button>
-                <button class="primary" @click="handleConfirmAddModule">确定</button>
-            </div>
+    <a-modal
+        :visible="showAddModuleModal"
+        :title="'📦 新增功能模块'"
+        :footer="false"
+        @cancel="$emit('close-add-module-modal')"
+    >
+        <a-form layout="vertical">
+            <a-form-item label="模块名称">
+                <a-input v-model:value="newModuleName" />
+            </a-form-item>
+            <a-form-item label="所属部门">
+                <a-input v-model:value="newModuleDept" />
+            </a-form-item>
+        </a-form>
+        <div class="modal-actions">
+            <a-button @click="$emit('close-add-module-modal')">取消</a-button>
+            <a-button type="primary" @click="handleConfirmAddModule">确定</a-button>
         </div>
-    </div>
+    </a-modal>
 
     <!-- 整合节点 -->
-    <div class="modal-overlay" id="integrate-module-modal" :class="{ show: showIntegrateModal }">
-        <div class="modal" style="min-width: 450px">
-            <h3>🔗 整合选中节点</h3>
-            <div class="form-group">
-                <label>已选择的节点</label>
+    <a-modal
+        :visible="showIntegrateModal"
+        :title="'🔗 整合选中节点'"
+        :footer="false"
+        :width="450"
+        @cancel="$emit('close-integrate-modal')"
+    >
+        <a-form layout="vertical">
+            <a-form-item label="已选择的节点">
                 <div class="selected-modules">
                     <div v-for="node in selectedNodes" :key="node.id" class="selected-tag">
                         {{ node.label }}
                     </div>
                 </div>
-            </div>
-            <div class="form-group">
-                <label>新节点名称</label>
-                <input type="text" v-model="newIntegratedNodeName" placeholder="输入新节点名称" />
-            </div>
-            <div class="form-group">
-                <label>所属部门</label>
-                <input type="text" v-model="newIntegratedNodeDept" placeholder="输入所属部门" />
-            </div>
-            <div class="form-group">
-                <label>整合方式</label>
-                <select v-model="integrateType">
-                    <option v-for="opt in INTEGRATION_TYPE_OPTIONS" :key="opt.key" :value="opt.key">
+            </a-form-item>
+            <a-form-item label="新节点名称">
+                <a-input v-model:value="newIntegratedNodeName" placeholder="输入新节点名称" />
+            </a-form-item>
+            <a-form-item label="所属部门">
+                <a-input v-model:value="newIntegratedNodeDept" placeholder="输入所属部门" />
+            </a-form-item>
+            <a-form-item label="整合方式">
+                <a-select v-model:value="integrateType" style="width: 100%">
+                    <a-select-option
+                        v-for="opt in INTEGRATION_TYPE_OPTIONS"
+                        :key="opt.key"
+                        :value="opt.key"
+                    >
                         {{ opt.name }}
-                    </option>
-                </select>
-            </div>
-            <div class="modal-actions">
-                <button @click="$emit('close-integrate-modal')">取消</button>
-                <button class="primary" @click="handleConfirmIntegrateModule">确定整合</button>
-            </div>
+                    </a-select-option>
+                </a-select>
+            </a-form-item>
+        </a-form>
+        <div class="modal-actions">
+            <a-button @click="$emit('close-integrate-modal')">取消</a-button>
+            <a-button type="primary" @click="handleConfirmIntegrateModule">确定整合</a-button>
         </div>
-    </div>
+    </a-modal>
 
     <!-- 编辑节点属性 -->
-    <div class="modal-overlay" id="edit-node-modal" :class="{ show: showEditModal }">
-        <div class="modal">
-            <h3>✏️ 编辑属性</h3>
-            <div class="form-group">
-                <label>名称</label><input type="text" v-model="editNodeName" />
-            </div>
-            <div class="form-group">
-                <label>所属部门</label><input type="text" v-model="editNodeDept" />
-            </div>
-            <div class="form-group">
-                <label>层级/类型</label>
-                <select v-model="editNodeLevel">
-                    <option value="domain">领域级应用</option>
-                    <option value="dept_composite">部门级综合应用</option>
-                    <option value="dept_single">部门级单点应用</option>
-                    <option value="office_single">处室级单点应用</option>
-                    <option value="module">功能模块</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>负责人</label><input type="text" v-model="editNodeOwner" />
-            </div>
-            <div class="modal-actions">
-                <button @click="$emit('close-edit-modal')">取消</button>
-                <button class="primary" @click="handleConfirmEditNode">保存</button>
-            </div>
+    <a-modal
+        :visible="showEditModal"
+        :title="'✏️ 编辑属性'"
+        :footer="false"
+        @cancel="$emit('close-edit-modal')"
+    >
+        <a-form layout="vertical">
+            <a-form-item label="名称">
+                <a-input v-model:value="editNodeName" />
+            </a-form-item>
+            <a-form-item label="所属部门">
+                <a-input v-model:value="editNodeDept" />
+            </a-form-item>
+            <a-form-item label="层级/类型">
+                <a-select v-model:value="editNodeLevel" style="width: 100%">
+                    <a-select-option value="domain">领域级应用</a-select-option>
+                    <a-select-option value="dept_composite">部门级综合应用</a-select-option>
+                    <a-select-option value="dept_single">部门级单点应用</a-select-option>
+                    <a-select-option value="office_single">处室级单点应用</a-select-option>
+                    <a-select-option value="module">功能模块</a-select-option>
+                </a-select>
+            </a-form-item>
+            <a-form-item label="负责人">
+                <a-input v-model:value="editNodeOwner" />
+            </a-form-item>
+        </a-form>
+        <div class="modal-actions">
+            <a-button @click="$emit('close-edit-modal')">取消</a-button>
+            <a-button type="primary" @click="handleConfirmEditNode">保存</a-button>
         </div>
-    </div>
+    </a-modal>
 
     <!-- 绑定关联关系 -->
-    <div class="modal-overlay" id="bind-relation-modal" :class="{ show: showBindRelationModal }">
-        <div class="modal">
-            <h3>🔗 绑定关联关系</h3>
-            <p style="color: #666; font-size: 12px; margin-bottom: 12px">
-                为节点
-                <b>{{ bindRelationSourceLabel }}</b>
-                绑定新的关联关系
-            </p>
-            <div class="form-group">
-                <label>关联对象</label>
-                <select v-model="relationTarget">
-                    <option v-for="app in availableApps" :key="app.id" :value="app.id">
+    <a-modal
+        :visible="showBindRelationModal"
+        :title="'🔗 绑定关联关系'"
+        :footer="false"
+        @cancel="$emit('close-bind-relation-modal')"
+    >
+        <p style="color: #666; font-size: 12px; margin-bottom: 12px">
+            为节点
+            <b>{{ bindRelationSourceLabel }}</b>
+            绑定新的关联关系
+        </p>
+        <a-form layout="vertical">
+            <a-form-item label="关联对象">
+                <a-select v-model:value="relationTarget" style="width: 100%">
+                    <a-select-option v-for="app in availableApps" :key="app.id" :value="app.id">
                         {{ app.label }}
-                    </option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>整合方式</label>
-                <select v-model="relationType">
-                    <option v-for="opt in INTEGRATION_TYPE_OPTIONS" :key="opt.key" :value="opt.key">
+                    </a-select-option>
+                </a-select>
+            </a-form-item>
+            <a-form-item label="整合方式">
+                <a-select v-model:value="relationType" style="width: 100%">
+                    <a-select-option
+                        v-for="opt in INTEGRATION_TYPE_OPTIONS"
+                        :key="opt.key"
+                        :value="opt.key"
+                    >
                         {{ opt.name }}
-                    </option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>整合名称 <span style="color: red">*</span></label>
-                <input
-                    v-model="relationName"
-                    type="text"
+                    </a-select-option>
+                </a-select>
+            </a-form-item>
+            <a-form-item label="整合名称" required>
+                <a-input
+                    v-model:value="relationName"
                     placeholder="请输入整合名称"
                     @keyup.enter="handleConfirmBindRelation"
                 />
-            </div>
-            <div class="modal-actions">
-                <button @click="$emit('close-bind-relation-modal')">取消</button>
-                <button class="primary" @click="handleConfirmBindRelation">确定</button>
-            </div>
+            </a-form-item>
+        </a-form>
+        <div class="modal-actions">
+            <a-button @click="$emit('close-bind-relation-modal')">取消</a-button>
+            <a-button type="primary" @click="handleConfirmBindRelation">确定</a-button>
         </div>
-    </div>
+    </a-modal>
 
     <!-- 标注整合方式 -->
-    <div class="modal-overlay" id="integration-modal" :class="{ show: showIntegrationModal }">
-        <div class="modal">
-            <h3>🏷️ 标注整合方式</h3>
-            <div class="form-group">
-                <label>整合方式</label>
-                <select v-model="integrationType">
-                    <option v-for="opt in INTEGRATION_TYPE_OPTIONS" :key="opt.key" :value="opt.key">
+    <a-modal
+        :visible="showIntegrationModal"
+        :title="'🏷️ 标注整合方式'"
+        :footer="false"
+        @cancel="$emit('close-integration-modal')"
+    >
+        <a-form layout="vertical">
+            <a-form-item label="整合方式">
+                <a-select v-model:value="integrationType" style="width: 100%">
+                    <a-select-option
+                        v-for="opt in INTEGRATION_TYPE_OPTIONS"
+                        :key="opt.key"
+                        :value="opt.key"
+                    >
                         {{ opt.name }}
-                    </option>
-                </select>
-            </div>
-            <div class="modal-actions">
-                <button @click="$emit('close-integration-modal')">取消</button>
-                <button class="primary" @click="handleConfirmIntegration">确定</button>
-            </div>
+                    </a-select-option>
+                </a-select>
+            </a-form-item>
+        </a-form>
+        <div class="modal-actions">
+            <a-button @click="$emit('close-integration-modal')">取消</a-button>
+            <a-button type="primary" @click="handleConfirmIntegration">确定</a-button>
         </div>
-    </div>
+    </a-modal>
 
     <!--
         拖拽合并节点弹框（v6 7）弹框时由拖拽的 dragend 触发
@@ -197,72 +227,78 @@
         - 表单：mergeNodeName（必填）+ mergeNodeIntegrationType（默认 "merge"）
         - 确定 → emit('confirm-merge-nodes', { name, integrationType, sourceId, targetId })
     -->
-    <div class="modal-overlay" id="merge-nodes-modal" :class="{ show: showMergeNodesModal }">
-        <div class="modal">
-            <h3>🔗 拖拽合并节点</h3>
-            <p style="color: #666; font-size: 12px; margin-bottom: 12px">
-                将节点
-                <b>{{ mergeSourceLabel }}</b>
-                与
-                <b>{{ mergeTargetLabel }}</b>
-                合并为新节点，新节点将自动包含两个节点的全部子节点
-            </p>
-            <div class="form-group">
-                <label>新节点名称 <span style="color: red">*</span></label>
-                <input
-                    v-model="mergeNodeName"
-                    type="text"
+    <a-modal
+        :visible="showMergeNodesModal"
+        :title="'🔗 拖拽合并节点'"
+        :footer="false"
+        @cancel="$emit('close-merge-nodes-modal')"
+    >
+        <p style="color: #666; font-size: 12px; margin-bottom: 12px">
+            将节点
+            <b>{{ mergeSourceLabel }}</b>
+            与
+            <b>{{ mergeTargetLabel }}</b>
+            合并为新节点，新节点将自动包含两个节点的全部子节点
+        </p>
+        <a-form layout="vertical">
+            <a-form-item label="新节点名称" required>
+                <a-input
+                    v-model:value="mergeNodeName"
                     placeholder="请输入新节点名称"
                     @keyup.enter="handleConfirmMergeNodes"
                 />
-            </div>
-            <div class="form-group">
-                <label>整合方式</label>
-                <select v-model="mergeNodeIntegrationType">
-                    <option v-for="opt in INTEGRATION_TYPE_OPTIONS" :key="opt.key" :value="opt.key">
+            </a-form-item>
+            <a-form-item label="整合方式">
+                <a-select v-model:value="mergeNodeIntegrationType" style="width: 100%">
+                    <a-select-option
+                        v-for="opt in INTEGRATION_TYPE_OPTIONS"
+                        :key="opt.key"
+                        :value="opt.key"
+                    >
                         {{ opt.name }}
-                    </option>
-                </select>
-            </div>
-            <div class="modal-actions">
-                <button @click="$emit('close-merge-nodes-modal')">取消</button>
-                <button class="primary" @click="handleConfirmMergeNodes">确定合并</button>
-            </div>
+                    </a-select-option>
+                </a-select>
+            </a-form-item>
+        </a-form>
+        <div class="modal-actions">
+            <a-button @click="$emit('close-merge-nodes-modal')">取消</a-button>
+            <a-button type="primary" @click="handleConfirmMergeNodes">确定合并</a-button>
         </div>
-    </div>
+    </a-modal>
 
     <!-- 模块详情弹框 -->
-    <div class="modal-overlay" id="module-detail-modal" :class="{ show: showModuleDetailModal }">
-        <div class="modal">
-            <h3>📦 模块详情</h3>
-            <div class="detail-info" v-if="selectedModuleDetail">
-                <div class="form-group">
-                    <label>模块名称</label>
-                    <div class="detail-value">{{ selectedModuleDetail.label }}</div>
-                </div>
-                <div class="form-group">
-                    <label>所属部门</label>
-                    <div class="detail-value">{{ selectedModuleDetail.dept || '-' }}</div>
-                </div>
-                <div class="form-group">
-                    <label>负责人</label>
-                    <div class="detail-value">{{ selectedModuleDetail.owner || '-' }}</div>
-                </div>
-                <div class="form-group">
-                    <label>层级</label>
-                    <div class="detail-value">
-                        {{
-                            LEVEL_CONFIG[selectedModuleDetail.level]?.name ||
-                            selectedModuleDetail.level
-                        }}
-                    </div>
-                </div>
+    <a-modal
+        :visible="showModuleDetailModal"
+        :title="'📦 模块详情'"
+        :footer="false"
+        @cancel="$emit('close-module-detail-modal')"
+    >
+        <div class="detail-info" v-if="selectedModuleDetail">
+            <div class="form-group">
+                <label>模块名称</label>
+                <div class="detail-value">{{ selectedModuleDetail.label }}</div>
             </div>
-            <div class="modal-actions">
-                <button @click="$emit('close-module-detail-modal')">关闭</button>
+            <div class="form-group">
+                <label>所属部门</label>
+                <div class="detail-value">{{ selectedModuleDetail.dept || '-' }}</div>
+            </div>
+            <div class="form-group">
+                <label>负责人</label>
+                <div class="detail-value">{{ selectedModuleDetail.owner || '-' }}</div>
+            </div>
+            <div class="form-group">
+                <label>层级</label>
+                <div class="detail-value">
+                    {{
+                        LEVEL_CONFIG[selectedModuleDetail.level]?.name || selectedModuleDetail.level
+                    }}
+                </div>
             </div>
         </div>
-    </div>
+        <div class="modal-actions">
+            <a-button type="primary" @click="$emit('close-module-detail-modal')">关闭</a-button>
+        </div>
+    </a-modal>
 </template>
 
 <script setup lang="ts">
@@ -651,5 +687,11 @@ function handleConfirmMergeNodes() {
 .detail-value {
     color: #333;
     padding: 6px 0;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
 }
 </style>
