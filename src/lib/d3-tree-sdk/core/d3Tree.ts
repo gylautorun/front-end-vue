@@ -244,6 +244,325 @@ function linkLabelMidpoint(
     };
 }
 
+/** 关联关系连线与节点卡片的垂直间距 */
+const RELATION_LINE_OFFSET = 18;
+
+interface RelationLinkDatum {
+    sourceId: string;
+    targetId: string;
+    type: IntegrationTypeKey;
+    typeName?: string;
+    name: string;
+    source: d3.HierarchyNode<TreeData>;
+    target: d3.HierarchyNode<TreeData>;
+}
+
+function relationLinkStroke(ctx: TreeContext, type: IntegrationTypeKey): string {
+    return ctx.config.edgeColors[type] ?? defaultConfig.linkColor;
+}
+
+function relationLinkDash(type: IntegrationTypeKey): string {
+    return type === IntegrationTypeKey.deprecate ? '6,4' : '5,4';
+}
+
+function collectRelationLinkData(
+    root: d3.HierarchyNode<TreeData>,
+    ctx: TreeContext
+): RelationLinkDatum[] {
+    const acc = ctx.accessors;
+    const nodeById = new Map(root.descendants().map((n) => [hNodeId(ctx, n), n]));
+    const links: RelationLinkDatum[] = [];
+    const seen = new Set<string>();
+
+    for (const node of root.descendants()) {
+        const sourceId = hNodeId(ctx, node);
+        for (const relation of acc.getRelations(node.data)) {
+            const targetId = acc.getRelationTargetId(relation);
+            if (!targetId || targetId === sourceId) continue;
+
+            const key = `${sourceId}__${targetId}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+
+            const target = nodeById.get(targetId);
+            if (!target) continue;
+
+            links.push({
+                sourceId,
+                targetId,
+                type: acc.getRelationType(relation),
+                typeName: acc.getRelationTypeName(relation),
+                name: acc.getRelationName(relation),
+                source: node,
+                target
+            });
+        }
+    }
+
+    return links;
+}
+
+function createRelationLinkPath(d: RelationLinkDatum, orientation: TreeLayoutOrientation): string {
+    const { width, height } = getNodeDimensions(orientation);
+    const offset = RELATION_LINE_OFFSET;
+
+    if (orientation === 'horizontal') {
+        const sourceX = d.source.x ?? 0;
+        const sourceY = d.source.y ?? 0;
+        const targetX = d.target.x ?? 0;
+        const targetY = d.target.y ?? 0;
+
+        const sameRow = Math.abs(sourceX - targetX) < height * 0.5;
+        const sameCol = Math.abs(sourceY - targetY) < width * 0.5;
+
+        // 同级左右排列：从两节点底部向下，中间横向连接
+        if (sameRow) {
+            const leftIsSource = sourceY <= targetY;
+            const leftY = leftIsSource ? sourceY : targetY;
+            const rightY = leftIsSource ? targetY : sourceY;
+            const leftX = leftIsSource ? sourceX : targetX;
+            const rightX = leftIsSource ? targetX : sourceX;
+            const rowCenterX = (leftX + rightX) / 2;
+            const midY = rowCenterX + height / 2 + offset;
+            const leftBottom = `${leftY},${leftX + height / 2}`;
+            const rightBottom = `${rightY},${rightX + height / 2}`;
+            return `M${leftBottom} L${leftY},${midY} L${rightY},${midY} L${rightBottom}`;
+        }
+
+        // 同级上下排列：在两节点垂直间隙中间画横向连接线
+        if (sameCol) {
+            const topX = Math.min(sourceX, targetX);
+            const bottomX = Math.max(sourceX, targetX);
+            const centerY = (sourceY + targetY) / 2;
+            const topEdge = topX + height / 2;
+            const bottomEdge = bottomX - height / 2;
+            const midVert = (topEdge + bottomEdge) / 2;
+            const halfSpan = Math.min(width / 2 + offset, 56);
+            return [
+                `M${centerY},${topEdge} L${centerY},${midVert}`,
+                `M${centerY - halfSpan},${midVert} L${centerY + halfSpan},${midVert}`,
+                `M${centerY},${midVert} L${centerY},${bottomEdge}`
+            ].join(' ');
+        }
+
+        // 斜向分布：在垂直中点处横向连接左右边缘
+        const leftIsSource = sourceY <= targetY;
+        const leftY = leftIsSource ? sourceY : targetY;
+        const rightY = leftIsSource ? targetY : sourceY;
+        const leftX = leftIsSource ? sourceX : targetX;
+        const rightX = leftIsSource ? targetX : sourceX;
+        const midY = (leftX + rightX) / 2;
+        const startX = leftY + width / 2;
+        const endX = rightY - width / 2;
+        if (startX >= endX) {
+            const centerY = (leftY + rightY) / 2;
+            const topEdge = Math.min(leftX, rightX) + height / 2;
+            const bottomEdge = Math.max(leftX, rightX) - height / 2;
+            const midVert = (topEdge + bottomEdge) / 2;
+            const halfSpan = Math.min(width / 2 + offset, 56);
+            return [
+                `M${centerY},${topEdge} L${centerY},${midVert}`,
+                `M${centerY - halfSpan},${midVert} L${centerY + halfSpan},${midVert}`,
+                `M${centerY},${midVert} L${centerY},${bottomEdge}`
+            ].join(' ');
+        }
+        return `M${startX},${midY} L${endX},${midY}`;
+    }
+
+    const sourceX = d.source.x ?? 0;
+    const sourceY = d.source.y ?? 0;
+    const targetX = d.target.x ?? 0;
+    const targetY = d.target.y ?? 0;
+
+    const sameCol = Math.abs(sourceX - targetX) < width * 0.5;
+    const sameRow = Math.abs(sourceY - targetY) < height * 0.5;
+
+    if (sameRow) {
+        const leftIsSource = sourceX <= targetX;
+        const leftX = leftIsSource ? sourceX : targetX;
+        const rightX = leftIsSource ? targetX : sourceX;
+        const leftY = leftIsSource ? sourceY : targetY;
+        const rightY = leftIsSource ? targetY : sourceY;
+        const rowCenterX = (leftX + rightX) / 2;
+        const midX = rowCenterX + width / 2 + offset;
+        const leftBottom = `${leftX + width / 2},${leftY}`;
+        const rightBottom = `${rightX + width / 2},${rightY}`;
+        return `M${leftBottom} L${midX},${leftY} L${midX},${rightY} L${rightBottom}`;
+    }
+
+    if (sameCol) {
+        const topY = Math.min(sourceY, targetY);
+        const bottomY = Math.max(sourceY, targetY);
+        const centerX = (sourceX + targetX) / 2;
+        const topEdge = topY + height / 2;
+        const bottomEdge = bottomY - height / 2;
+        const midHoriz = (topEdge + bottomEdge) / 2;
+        const halfSpan = Math.min(height / 2 + offset, 56);
+        return [
+            `M${topEdge},${centerX} L${midHoriz},${centerX}`,
+            `M${midHoriz},${centerX - halfSpan} L${midHoriz},${centerX + halfSpan}`,
+            `M${midHoriz},${centerX} L${bottomEdge},${centerX}`
+        ].join(' ');
+    }
+
+    const topIsSource = sourceX <= targetX;
+    const topY = topIsSource ? sourceY : targetY;
+    const bottomY = topIsSource ? targetY : sourceY;
+    const topX = topIsSource ? sourceX : targetX;
+    const bottomX = topIsSource ? targetX : sourceX;
+    const midX = (topX + bottomX) / 2;
+    const startY = topY + height / 2;
+    const endY = bottomY - height / 2;
+    if (startY >= endY) {
+        const centerX = (topX + bottomX) / 2;
+        const topEdge = Math.min(topY, bottomY) + height / 2;
+        const bottomEdge = Math.max(topY, bottomY) - height / 2;
+        const midHoriz = (topEdge + bottomEdge) / 2;
+        const halfSpan = Math.min(height / 2 + offset, 56);
+        return [
+            `M${topEdge},${centerX} L${midHoriz},${centerX}`,
+            `M${midHoriz},${centerX - halfSpan} L${midHoriz},${centerX + halfSpan}`,
+            `M${midHoriz},${centerX} L${bottomEdge},${centerX}`
+        ].join(' ');
+    }
+    return `M${midX},${startY} L${midX},${endY}`;
+}
+
+function relationLabelMidpoint(
+    d: RelationLinkDatum,
+    orientation: TreeLayoutOrientation
+): { x: number; y: number } {
+    const { width, height } = getNodeDimensions(orientation);
+    const offset = RELATION_LINE_OFFSET;
+
+    if (orientation === 'horizontal') {
+        const sourceX = d.source.x ?? 0;
+        const sourceY = d.source.y ?? 0;
+        const targetX = d.target.x ?? 0;
+        const targetY = d.target.y ?? 0;
+        const sameRow = Math.abs(sourceX - targetX) < height * 0.5;
+        const sameCol = Math.abs(sourceY - targetY) < width * 0.5;
+
+        if (sameRow) {
+            const midY = (sourceX + targetX) / 2 + height / 2 + offset;
+            return { x: (sourceY + targetY) / 2, y: midY };
+        }
+
+        if (sameCol) {
+            const topX = Math.min(sourceX, targetX);
+            const bottomX = Math.max(sourceX, targetX);
+            const centerY = (sourceY + targetY) / 2;
+            const midVert = (topX + height / 2 + bottomX - height / 2) / 2;
+            return { x: centerY, y: midVert };
+        }
+
+        return {
+            x: (sourceY + targetY) / 2,
+            y: (sourceX + targetX) / 2
+        };
+    }
+
+    const sourceX = d.source.x ?? 0;
+    const sourceY = d.source.y ?? 0;
+    const targetX = d.target.x ?? 0;
+    const targetY = d.target.y ?? 0;
+    const sameRow = Math.abs(sourceY - targetY) < height * 0.5;
+    const sameCol = Math.abs(sourceX - targetX) < width * 0.5;
+
+    if (sameRow) {
+        const midX = (sourceX + targetX) / 2 + width / 2 + offset;
+        return { x: midX, y: (sourceY + targetY) / 2 };
+    }
+
+    if (sameCol) {
+        const topY = Math.min(sourceY, targetY);
+        const bottomY = Math.max(sourceY, targetY);
+        const centerX = (sourceX + targetX) / 2;
+        const midHoriz = (topY + height / 2 + bottomY - height / 2) / 2;
+        return { x: centerX, y: midHoriz };
+    }
+
+    return {
+        x: (sourceX + targetX) / 2,
+        y: (sourceY + targetY) / 2
+    };
+}
+
+function updateRelationLinks(instance: D3TreeInstance, root: d3.HierarchyNode<TreeData>): void {
+    const ctx = instance.treeContext;
+    const orientation = instance.orientation ?? 'horizontal';
+    const linkData = collectRelationLinkData(root, ctx);
+    const getLabelMid = (d: RelationLinkDatum) => relationLabelMidpoint(d, orientation);
+
+    instance.relationLink
+        .selectAll<SVGGElement, RelationLinkDatum>('.relation-link-group')
+        .data(linkData, (d) => `${d.sourceId}__${d.targetId}`)
+        .join(
+            (enter) => {
+                const group = enter.append('g').attr('class', 'relation-link-group');
+
+                group
+                    .append('path')
+                    .attr('class', 'relation-link')
+                    .attr('fill', 'none')
+                    .attr('stroke-width', 2)
+                    .attr('stroke', (d) => relationLinkStroke(ctx, d.type))
+                    .attr('stroke-dasharray', (d) => relationLinkDash(d.type))
+                    .attr('d', (d) => createRelationLinkPath(d, orientation));
+
+                group
+                    .append('rect')
+                    .attr('class', 'relation-link-label-bg')
+                    .attr('x', (d) => getLabelMid(d).x - 40)
+                    .attr('y', (d) => getLabelMid(d).y - 10)
+                    .attr('width', 80)
+                    .attr('height', 20)
+                    .attr('opacity', (d) => (d.name ? 1 : 0));
+
+                group
+                    .append('text')
+                    .attr('class', 'relation-link-label')
+                    .attr('x', (d) => getLabelMid(d).x)
+                    .attr('y', (d) => getLabelMid(d).y)
+                    .attr('opacity', (d) => (d.typeName ? 1 : 0))
+                    .text((d) => {
+                        console.log(d, d.typeName);
+                        return d.typeName ?? '';
+                    });
+
+                return group;
+            },
+            (update) => {
+                update
+                    .select('.relation-link')
+                    .attr('stroke', (d) => relationLinkStroke(ctx, d.type))
+                    .attr('stroke-dasharray', (d) => relationLinkDash(d.type))
+                    .attr('d', (d) => createRelationLinkPath(d, orientation));
+
+                update
+                    .select('.relation-link-label-bg')
+                    .attr('x', (d) => getLabelMid(d).x - 40)
+                    .attr('y', (d) => getLabelMid(d).y - 10)
+                    .attr('width', 80)
+                    .attr('height', 20)
+                    .attr('opacity', (d) => (d.name ? 1 : 0));
+
+                update
+                    .select('.relation-link-label')
+                    .attr('x', (d) => getLabelMid(d).x)
+                    .attr('y', (d) => getLabelMid(d).y)
+                    .attr('opacity', (d) => (d.typeName ? 1 : 0))
+                    .text((d) => {
+                        console.log(d, d.typeName);
+                        return d.typeName ?? '';
+                    });
+
+                return update;
+            },
+            (exit) => exit.remove()
+        );
+}
+
 /** 切换布局方向（需随后调用 renderTree 重绘） */
 export function setTreeOrientation(
     instance: D3TreeInstance,
@@ -294,6 +613,8 @@ export interface D3TreeInstance {
     labelBg: RectSelection;
     labelText: TextSelection;
     node: NodeSelection;
+    /** 关联关系连线组（独立于树形父子连线） */
+    relationLink: d3.Selection<SVGGElement, unknown, SVGGElement, unknown>;
     /** 已绑定到 svg 的 zoom 行为，用于精确控制 transform */
     zoom: d3.ZoomBehavior<SVGSVGElement, null>;
     /** 当前正在拖拽的节点 id（实例级状态，支持多实例） */
@@ -407,9 +728,7 @@ export function initD3(
      *   2. 每个节点添加 .x（垂直坐标）、.y（水平坐标）、.depth（深度）
      *   3. treeLayout(root) 触发布局计算
      */
-    const root = d3.hierarchy(treeData, (d) =>
-        acc.hierarchyChildren(d) as TreeData[] | undefined
-    );
+    const root = d3.hierarchy(treeData, (d) => acc.hierarchyChildren(d) as TreeData[] | undefined);
     treeLayout(root);
 
     // 绘制连线组
@@ -443,6 +762,14 @@ export function initD3(
         .attr('class', 'link-label')
         .attr('opacity', (d) => linkLabelOpacity(treeContext, d.target.data))
         .text((d) => linkLabelText(treeContext, d.target.data));
+
+    // 关联关系连线组（置于树形连线与节点之间，不改动原有父子连线）
+    const relationLink = g.append<SVGGElement>('g').attr('class', 'relation-links') as d3.Selection<
+        SVGGElement,
+        unknown,
+        SVGGElement,
+        unknown
+    >;
 
     // 绘制节点组
     const node = g
@@ -498,6 +825,7 @@ export function initD3(
         labelBg,
         labelText,
         node,
+        relationLink,
         zoom,
         currentDraggingNodeId: null,
         orientation,
@@ -522,6 +850,9 @@ export function initD3(
     //     但是 d3-drag v3 的类型签名是 `this: D3DragEvent`，TypeScript 会推错。
     //     这里用 `function (this: SVGGElement, ...)` + 显式类型断言规避。
     bindNodeDrag(node, instance, onDropToTarget);
+
+    // 初始化关联关系连线
+    updateRelationLinks(instance, root);
 
     // 初始化标签位置
     updateLinkLabels(labelBg, labelText, orientation);
@@ -1227,15 +1558,7 @@ function findSameLevelNodeAtDOM(
 
     // DOM 未命中时，用图局部坐标检测同级节点卡片范围（zoom 缩放后仍准确）
     if (graphG) {
-        return findSameLevelNodeByCoord(
-            root,
-            source,
-            clientX,
-            clientY,
-            ctx,
-            orientation,
-            graphG
-        );
+        return findSameLevelNodeByCoord(root, source, clientX, clientY, ctx, orientation, graphG);
     }
     return null;
 }
@@ -1454,9 +1777,7 @@ export function renderTree(
     const acc = ctx.accessors;
 
     // 重新计算布局
-    const root = d3.hierarchy(treeData, (d) =>
-        acc.hierarchyChildren(d) as TreeData[] | undefined
-    );
+    const root = d3.hierarchy(treeData, (d) => acc.hierarchyChildren(d) as TreeData[] | undefined);
     treeLayout(root);
 
     // 更新连线数据
@@ -1624,6 +1945,9 @@ export function renderTree(
     if (onDropToTarget) {
         bindNodeDrag(nodeUpdate, instance, onDropToTarget);
     }
+
+    // 更新关联关系连线（独立图层，不影响树形父子连线）
+    updateRelationLinks(instance, root);
 
     return root;
 }

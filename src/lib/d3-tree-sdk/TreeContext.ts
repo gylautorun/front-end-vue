@@ -43,6 +43,7 @@
 // 依赖导入
 // ============================================================================
 import { cloneDeep } from 'lodash-es';
+// import { INTEGRATION_TYPE_NAME } from './types';
 import type { IntegrationTypeKey, LevelKey, TreeData } from './types';
 import {
     resolveTreeConfig,
@@ -660,8 +661,8 @@ export class TreeContext {
         }
 
         // 查找所有要合并的节点
-        const nodeResults = input.nodeIds.map(id => this.findNodeInTree(root, id));
-        
+        const nodeResults = input.nodeIds.map((id) => this.findNodeInTree(root, id));
+
         // 检查是否所有节点都存在
         const missingIds = input.nodeIds.filter((id, index) => !nodeResults[index]);
         if (missingIds.length > 0) {
@@ -671,22 +672,25 @@ export class TreeContext {
         // 检查是否所有节点都满足合并条件
         for (const id of input.nodeIds) {
             if (!this.canMergeNodesInTree(root, id)) {
-                return { ok: false, message: '合并失败：需先完成上一层级节点合并后，当前层级才可合并' };
+                return {
+                    ok: false,
+                    message: '合并失败：需先完成上一层级节点合并后，当前层级才可合并'
+                };
             }
         }
 
         // 获取节点对象和父节点
-        const nodes = nodeResults.map(r => r!.node);
-        const parents = nodeResults.map(r => r!.parent);
+        const nodes = nodeResults.map((r) => r!.node);
+        const parents = nodeResults.map((r) => r!.parent);
 
         // 检查所有节点是否有父节点
-        if (parents.some(p => !p)) {
+        if (parents.some((p) => !p)) {
             return { ok: false, message: '合并失败：部分节点没有父节点' };
         }
 
         // 检查是否所有节点都是同级（有相同的父节点）
         const parentId = acc.getId(parents[0]!);
-        if (!parents.every(p => acc.getId(p!) === parentId)) {
+        if (!parents.every((p) => acc.getId(p!) === parentId)) {
             return { ok: false, message: '合并失败：选中的节点不是同级节点' };
         }
 
@@ -701,7 +705,7 @@ export class TreeContext {
             mergedChildren = this.mergeById(mergedChildren, acc.getChildren(node));
             mergedModules = this.mergeById(mergedModules, acc.getModules(node));
             mergedRelations = this.mergeById(
-                mergedRelations, 
+                mergedRelations,
                 acc.getRelations(node),
                 (r) => `${acc.getRelationTargetId(r)}__${acc.getRelationType(r)}`
             );
@@ -709,7 +713,7 @@ export class TreeContext {
 
         // 取优先级最高的层级类型
         const lp = this.config.levelPriority;
-        const levels = nodes.map(n => acc.getLevel(n));
+        const levels = nodes.map((n) => acc.getLevel(n));
         let mergedLevel = levels[0];
         for (const level of levels.slice(1)) {
             if ((lp[level] ?? 0) > (lp[mergedLevel] ?? 0)) {
@@ -718,8 +722,8 @@ export class TreeContext {
         }
 
         // 获取部门和负责人（取第一个非空值）
-        const dept = nodes.find(n => acc.getDept(n))?.[f.dept] || '';
-        const owner = nodes.find(n => acc.getOwner(n))?.[f.owner] || '';
+        const dept = nodes.find((n) => acc.getDept(n))?.[f.dept] || '';
+        const owner = nodes.find((n) => acc.getOwner(n))?.[f.owner] || '';
 
         // 创建新节点
         const newId = acc.generateId('merge');
@@ -741,7 +745,7 @@ export class TreeContext {
         const nodeIdSet = new Set(input.nodeIds);
         let inserted = false;
         const newParentChildren: TreeData[] = [];
-        
+
         for (const child of acc.getChildren(parentNode)) {
             const cid = acc.getId(child);
             if (nodeIdSet.has(cid)) {
@@ -826,6 +830,7 @@ export class TreeContext {
      * @param input.sourceId - 源节点 ID
      * @param input.targetId - 目标节点 ID
      * @param input.type - 关联类型
+     * @param input.typeName - 关联类型名称
      * @param input.name - 关联名称
      * @returns 绑定成功返回 true
      *
@@ -846,6 +851,7 @@ export class TreeContext {
             sourceId: string;
             targetId: string;
             type: IntegrationTypeKey;
+            typeName?: string;
             name: string;
         }
     ): boolean {
@@ -862,6 +868,7 @@ export class TreeContext {
             [f.relationTargetId]: acc.getId(target.node),
             [f.relationTargetName]: acc.getLabel(target.node),
             [f.relationType]: input.type,
+            [f.relationTypeName]: input.typeName,
             [f.relationName]: input.name
         };
 

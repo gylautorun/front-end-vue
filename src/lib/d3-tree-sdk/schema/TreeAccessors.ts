@@ -204,6 +204,12 @@ export interface TreeAccessors {
     /** 设置关联类型 */
     setRelationType(relation: Record<string, unknown>, type: IntegrationTypeKey): void;
 
+    /** 获取关联类型名称 */
+    getRelationTypeName(relation: Record<string, unknown>): string;
+
+    /** 设置关联类型名称 */
+    setRelationTypeName(relation: Record<string, unknown>, typeName: string): void;
+
     /** 获取关联名称 */
     getRelationName(relation: Record<string, unknown>): string;
 
@@ -476,6 +482,18 @@ export function createTreeAccessors(config: ResolvedTreeConfig): TreeAccessors {
          */
         setRelationType: (r, type) => {
             r[f.relationType] = type;
+        },
+
+        /**
+         * 获取关联类型名称
+         */
+        getRelationTypeName: (r) => String(r[f.relationTypeName] ?? ''),
+
+        /**
+         * 设置关联类型名称
+         */
+        setRelationTypeName: (r, typeName) => {
+            r[f.relationTypeName] = typeName;
         },
 
         /**

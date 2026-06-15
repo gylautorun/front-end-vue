@@ -50,7 +50,7 @@ import type { LevelKey, TreeData } from '../types';
  *
  * // 后端使用不同字段名
  * fields: { id: 'nodeId', label: 'title', children: 'subNodes' }
- * 
+ *
  * 示例：后端子节点叫 nodes、id 叫 key
  * ```ts
  * defineTreeConfig({
@@ -100,6 +100,9 @@ export interface TreeFieldSchema {
 
     /** 关联类型字段，默认 `type` */
     relationType?: string;
+
+    /** 关联类型名称字段，默认 `typeName` */
+    relationTypeName?: string;
 
     /** 关联名称字段，默认 `name` */
     relationName?: string;
@@ -274,6 +277,7 @@ export interface ResolvedTreeFieldSchema {
     relationTargetId: string;
     relationTargetName: string;
     relationType: string;
+    relationTypeName: string;
     relationName: string;
 }
 
@@ -375,6 +379,7 @@ export const DEFAULT_FIELD_SCHEMA: ResolvedTreeFieldSchema = {
     relationTargetId: 'targetId',
     relationTargetName: 'targetName',
     relationType: 'type',
+    relationTypeName: 'typeName',
     relationName: 'name'
 };
 

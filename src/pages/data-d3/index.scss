@@ -618,6 +618,29 @@ g.node.dragging .node-card {
     dominant-baseline: middle;
 }
 
+/* 关联关系连线：虚线样式，与树形父子连线区分 */
+.relation-link {
+    fill: none;
+    stroke-width: 2px;
+    pointer-events: stroke;
+    transition: stroke-width 0.2s;
+}
+.relation-link:hover {
+    stroke-width: 3px;
+}
+.relation-link-label-bg {
+    fill: white;
+    stroke: #eee;
+    stroke-width: 1px;
+    rx: 3;
+}
+.relation-link-label {
+    font-size: 12px;
+    fill: #666;
+    text-anchor: middle;
+    dominant-baseline: middle;
+}
+
 /* 已选择信息区域 */
 .selected-info {
     margin-top: 16px;

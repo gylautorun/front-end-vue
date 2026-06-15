@@ -202,7 +202,8 @@ import {
     type TreeData,
     type SelectedNode,
     type IntegrationTypeKey,
-    type LevelKey
+    type LevelKey,
+    INTEGRATION_TYPE_NAME
 } from '@/lib/d3-tree-sdk';
 import { initialTreeData } from './data/mockData';
 import { DATA_D3_TREE_SCHEMA, DATA_D3_ROOT_ID } from './config/treeConfig';
@@ -757,7 +758,8 @@ function confirmBindRelation(data: { targetId: string; type: IntegrationTypeKey;
             sourceId,
             targetId: data.targetId,
             type: data.type,
-            name: data.name
+            name: data.name,
+            typeName: INTEGRATION_TYPE_NAME[data.type]
         })
     );
     const source = getCtx().findNodeInTree(treeData.value, sourceId);
