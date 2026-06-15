@@ -202,8 +202,7 @@ export const INTEGRATION_TYPE_OPTIONS: IntegrationTypeOption[] = [
     { key: IntegrationTypeKey.merge, name: '合并', color: EDGE_STYLES.merge },
     { key: IntegrationTypeKey.migrate, name: '迁移', color: EDGE_STYLES.migrate },
     { key: IntegrationTypeKey.deprecate, name: '停用下线', color: EDGE_STYLES.deprecate },
-    { key: IntegrationTypeKey.module_merge, name: '模块整合', color: EDGE_STYLES.module_merge },
-    { key: IntegrationTypeKey.base, name: '基础', color: EDGE_STYLES.base }
+    { key: IntegrationTypeKey.module_merge, name: '模块整合', color: EDGE_STYLES.module_merge }
 ];
 
 /**
