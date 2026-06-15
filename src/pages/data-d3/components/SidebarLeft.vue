@@ -93,12 +93,12 @@
             <button class="primary" @click="$emit('reset-tree')">🔄 重置布局</button>
             <button @click="$emit('fit-view')">🎯 适应屏幕</button>
             <button @click="$emit('show-integrate-modal')" :disabled="selectedCount < 2">
-                🔗 整合选中模块
+                🔗 整合选中节点
             </button>
         </div>
 
         <div class="selected-info" v-if="selectedCount > 0">
-            <label>📋 已选择 {{ selectedCount }} 个模块</label>
+            <label>📋 已选择 {{ selectedCount }} 个节点</label>
             <div class="selected-list">
                 <div v-for="node in selectedNodes" :key="node.id" class="selected-item">
                     {{ node.label }}

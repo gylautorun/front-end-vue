@@ -5,7 +5,7 @@
     包含 7 个模态框（均通过 v-if/v-show 控制显隐）：
       1. add-node-modal       新增子节点
       2. add-module-modal     新增功能模块（挂到当前选中节点下）
-      3. integrate-modal      整合选中模块（把多选节点整合为新模块）
+      3. integrate-modal      整合选中节点（把多选节点整合为新节点）
       4. edit-node-modal      编辑属性（名称/层级/部门/负责人）
       5. bind-relation-modal  绑定节点间关系
       6. integration-modal    标注整合方式（合并/迁移/接口对接/停用下线）
@@ -66,12 +66,12 @@
         </div>
     </div>
 
-    <!-- 整合模块 -->
+    <!-- 整合节点 -->
     <div class="modal-overlay" id="integrate-module-modal" :class="{ show: showIntegrateModal }">
         <div class="modal" style="min-width: 450px">
-            <h3>🔗 整合选中模块</h3>
+            <h3>🔗 整合选中节点</h3>
             <div class="form-group">
-                <label>已选择的模块</label>
+                <label>已选择的节点</label>
                 <div class="selected-modules">
                     <div v-for="node in selectedNodes" :key="node.id" class="selected-tag">
                         {{ node.label }}
@@ -79,12 +79,12 @@
                 </div>
             </div>
             <div class="form-group">
-                <label>新模块名称</label>
-                <input type="text" v-model="newIntegratedModuleName" placeholder="输入新模块名称" />
+                <label>新节点名称</label>
+                <input type="text" v-model="newIntegratedNodeName" placeholder="输入新节点名称" />
             </div>
             <div class="form-group">
                 <label>所属部门</label>
-                <input type="text" v-model="newIntegratedModuleDept" placeholder="输入所属部门" />
+                <input type="text" v-model="newIntegratedNodeDept" placeholder="输入所属部门" />
             </div>
             <div class="form-group">
                 <label>整合方式</label>
@@ -298,8 +298,9 @@
  * ========================================================================
  */
 import { ref, watch } from 'vue';
-import type { TreeData, SelectedNode, LevelKey } from '../types';
-import { INTEGRATION_TYPE_OPTIONS, IntegrationTypeKey, LEVEL_CONFIG } from '../types';
+import { message } from 'ant-design-vue';
+import type { TreeData, SelectedNode } from '../types';
+import { INTEGRATION_TYPE_OPTIONS, IntegrationTypeKey, LEVEL_CONFIG, LevelKey } from '../types';
 
 /** 父组件传入的 props：模态框显隐 + 选中状态 + 树数据 */
 const props = defineProps<{
@@ -369,12 +370,12 @@ const emit = defineEmits<{
 
 /** 各模态框表单的双向绑定状态（整合方式使用 IntegrationTypeKey 枚举 key） */
 const newNodeName = ref('');
-const newNodeLevel = ref<LevelKey>('office_single');
+const newNodeLevel = ref<LevelKey>(LevelKey.OfficeSingle);
 const newNodeIntegrationType = ref<IntegrationTypeKey>(IntegrationTypeKey.base);
 const newModuleName = ref('');
 const newModuleDept = ref('');
-const newIntegratedModuleName = ref('');
-const newIntegratedModuleDept = ref('');
+const newIntegratedNodeName = ref('');
+const newIntegratedNodeDept = ref('');
 const integrateType = ref<IntegrationTypeKey>(IntegrationTypeKey.merge);
 const editNodeName = ref('');
 const editNodeDept = ref('');
@@ -399,7 +400,7 @@ watch(
     (val) => {
         if (val) {
             newNodeName.value = '';
-            newNodeLevel.value = 'office_single';
+            newNodeLevel.value = LevelKey.OfficeSingle;
             newNodeIntegrationType.value = IntegrationTypeKey.base;
         }
     }
@@ -420,15 +421,15 @@ watch(
 );
 
 /**
- * 监听"整合模块"模态框打开
+ * 监听"整合节点"模态框打开
  * 步骤：清空新名称/部门 + 整合方式默认"合并"
  */
 watch(
     () => props.showIntegrateModal,
     (val) => {
         if (val) {
-            newIntegratedModuleName.value = '';
-            newIntegratedModuleDept.value = '';
+            newIntegratedNodeName.value = '';
+            newIntegratedNodeDept.value = '';
             integrateType.value = IntegrationTypeKey.merge;
         }
     }
@@ -469,6 +470,21 @@ watch(
         }
     }
 );
+
+/**
+ * 监听关联对象选择变化，自动填充整合名称
+ * 步骤：
+ *   1. 获取目标节点的 label
+ *   2. 自动生成 "源节点 与 目标节点" 格式的整合名称
+ */
+watch(relationTarget, (targetId) => {
+    if (!targetId) return;
+
+    const targetNode = props.availableApps.find((app) => app.id === targetId);
+    if (targetNode) {
+        relationName.value = `${props.bindRelationSourceLabel} 与 ${targetNode.label}`;
+    }
+});
 
 /**
  * 监听"标注整合方式"模态框打开
@@ -530,7 +546,7 @@ function findNodeById(node: TreeData, id: string): TreeData | null {
 
 /** 提交"新增子节点"表单 → emit 给父组件（integrationType 是枚举 key） */
 function handleConfirmAddNode() {
-    if (!newNodeName.value) return alert('请输入名称');
+    if (!newNodeName.value) return message.warning('请输入名称');
     emit('confirm-add-node', {
         name: newNodeName.value,
         level: newNodeLevel.value,
@@ -540,20 +556,20 @@ function handleConfirmAddNode() {
 
 /** 提交"新增模块"表单 → emit 给父组件 */
 function handleConfirmAddModule() {
-    if (!newModuleName.value) return alert('请输入模块名称');
+    if (!newModuleName.value) return message.warning('请输入模块名称');
     emit('confirm-add-module', {
         name: newModuleName.value,
         dept: newModuleDept.value
     });
 }
 
-/** 提交"整合模块"表单 → emit 给父组件（type 是枚举 key） */
+/** 提交"整合节点"表单 → emit 给父组件（type 是枚举 key） */
 function handleConfirmIntegrateModule() {
-    if (!newIntegratedModuleName.value) return alert('请输入新模块名称');
-    if (props.selectedNodes.length < 2) return alert('请至少选择2个模块进行整合');
+    if (!newIntegratedNodeName.value) return message.warning('请输入新节点名称');
+    if (props.selectedNodes.length < 2) return message.warning('请至少选择2个节点进行整合');
     emit('confirm-integrate-module', {
-        name: newIntegratedModuleName.value,
-        dept: newIntegratedModuleDept.value,
+        name: newIntegratedNodeName.value,
+        dept: newIntegratedNodeDept.value,
         type: integrateType.value
     });
 }
@@ -570,8 +586,8 @@ function handleConfirmEditNode() {
 
 /** 提交"绑定关系"表单 → emit 给父组件（type 是枚举 key） */
 function handleConfirmBindRelation() {
-    if (!relationTarget.value) return alert('请选择关联对象');
-    if (!relationName.value.trim()) return alert('请输入整合名称');
+    if (!relationTarget.value) return message.warning('请选择关联对象');
+    if (!relationName.value.trim()) return message.warning('请输入整合名称');
     emit('confirm-bind-relation', {
         targetId: relationTarget.value,
         type: relationType.value,
@@ -594,9 +610,9 @@ function handleConfirmIntegration() {
  *      让父组件执行真正的"替换原节点 + 合并子节点"逻辑 + 重新 d3.hierarchy
  */
 function handleConfirmMergeNodes() {
-    if (!mergeNodeName.value.trim()) return alert('请输入新节点名称');
+    if (!mergeNodeName.value.trim()) return message.warning('请输入新节点名称');
     if (!props.mergeSourceId || !props.mergeTargetId) {
-        return alert('合并信息丢失，请重新拖拽');
+        return message.error('合并信息丢失，请重新拖拽');
     }
     emit('confirm-merge-nodes', {
         name: mergeNodeName.value.trim(),

@@ -622,6 +622,147 @@ export class TreeContext {
         return { ok: true, node: newNode };
     }
 
+    /**
+     * 合并多个同级节点
+     * ----------------------------------------------------------------------------
+     * @param root - 树根节点
+     * @param input - 合并参数
+     * @param input.name - 新节点名称
+     * @param input.integrationType - 整合类型
+     * @param input.nodeIds - 要合并的节点 ID 列表（至少2个）
+     * @returns 合并结果
+     *
+     * @description
+     * 将多个同级节点合并为一个新节点，保留所有子节点、模块和关系。
+     * 适用于多选后点击"整合选中节点"的场景。
+     *
+     * @example
+     * const result = ctx.mergeMultipleNodes(root, {
+     *   name: '综合管理平台',
+     *   integrationType: 'merge',
+     *   nodeIds: ['node1', 'node2', 'node3']
+     * });
+     */
+    mergeMultipleNodes(
+        root: TreeData,
+        input: {
+            name: string;
+            integrationType: IntegrationTypeKey;
+            nodeIds: string[];
+        }
+    ): { ok: boolean; message?: string; node?: TreeData } {
+        const acc = this.accessors;
+        const f = this.config.fields;
+
+        // 至少需要2个节点
+        if (input.nodeIds.length < 2) {
+            return { ok: false, message: '合并失败：至少选择2个节点' };
+        }
+
+        // 查找所有要合并的节点
+        const nodeResults = input.nodeIds.map(id => this.findNodeInTree(root, id));
+        
+        // 检查是否所有节点都存在
+        const missingIds = input.nodeIds.filter((id, index) => !nodeResults[index]);
+        if (missingIds.length > 0) {
+            return { ok: false, message: `合并失败：节点 ${missingIds.join(', ')} 未找到` };
+        }
+
+        // 检查是否所有节点都满足合并条件
+        for (const id of input.nodeIds) {
+            if (!this.canMergeNodesInTree(root, id)) {
+                return { ok: false, message: '合并失败：需先完成上一层级节点合并后，当前层级才可合并' };
+            }
+        }
+
+        // 获取节点对象和父节点
+        const nodes = nodeResults.map(r => r!.node);
+        const parents = nodeResults.map(r => r!.parent);
+
+        // 检查所有节点是否有父节点
+        if (parents.some(p => !p)) {
+            return { ok: false, message: '合并失败：部分节点没有父节点' };
+        }
+
+        // 检查是否所有节点都是同级（有相同的父节点）
+        const parentId = acc.getId(parents[0]!);
+        if (!parents.every(p => acc.getId(p!) === parentId)) {
+            return { ok: false, message: '合并失败：选中的节点不是同级节点' };
+        }
+
+        const parentNode = parents[0]!;
+
+        // 合并所有节点的 children、modules、relations（按 ID 去重）
+        let mergedChildren: TreeData[] = [];
+        let mergedModules: Record<string, unknown>[] = [];
+        let mergedRelations: Record<string, unknown>[] = [];
+
+        for (const node of nodes) {
+            mergedChildren = this.mergeById(mergedChildren, acc.getChildren(node));
+            mergedModules = this.mergeById(mergedModules, acc.getModules(node));
+            mergedRelations = this.mergeById(
+                mergedRelations, 
+                acc.getRelations(node),
+                (r) => `${acc.getRelationTargetId(r)}__${acc.getRelationType(r)}`
+            );
+        }
+
+        // 取优先级最高的层级类型
+        const lp = this.config.levelPriority;
+        const levels = nodes.map(n => acc.getLevel(n));
+        let mergedLevel = levels[0];
+        for (const level of levels.slice(1)) {
+            if ((lp[level] ?? 0) > (lp[mergedLevel] ?? 0)) {
+                mergedLevel = level;
+            }
+        }
+
+        // 获取部门和负责人（取第一个非空值）
+        const dept = nodes.find(n => acc.getDept(n))?.[f.dept] || '';
+        const owner = nodes.find(n => acc.getOwner(n))?.[f.owner] || '';
+
+        // 创建新节点
+        const newId = acc.generateId('merge');
+        const newNode = {
+            [f.id]: newId,
+            [f.label]: input.name,
+            [f.level]: mergedLevel,
+            [f.dept]: dept,
+            [f.owner]: owner,
+            [f.integrationType]: input.integrationType,
+            [f.integrationTypeName]: this.integrationTypeName(input.integrationType),
+            [f.children]: mergedChildren,
+            [f.modules]: mergedModules,
+            [f.relations]: mergedRelations,
+            [f.integratedFrom]: input.nodeIds
+        } as TreeData;
+
+        // 从父节点中移除被合并的节点，插入新节点
+        const nodeIdSet = new Set(input.nodeIds);
+        let inserted = false;
+        const newParentChildren: TreeData[] = [];
+        
+        for (const child of acc.getChildren(parentNode)) {
+            const cid = acc.getId(child);
+            if (nodeIdSet.has(cid)) {
+                if (!inserted) {
+                    // 在第一个被合并节点的位置插入新节点
+                    newParentChildren.push(newNode);
+                    inserted = true;
+                }
+                // 后续被合并节点跳过
+            } else {
+                newParentChildren.push(child);
+            }
+        }
+        acc.setChildren(parentNode, newParentChildren);
+
+        // 更新所有关系引用
+        this.updateRelationsInTree(root, input.nodeIds, newId, acc.getLabel(newNode));
+
+        return { ok: true, node: newNode };
+    }
+
     // =========================================================================
     // 编辑操作
     // =========================================================================

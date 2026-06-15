@@ -189,6 +189,7 @@
  */
 import { ref, computed, onMounted, watch } from 'vue';
 import { cloneDeep } from 'lodash-es';
+import { message } from 'ant-design-vue';
 import SidebarLeft from './components/SidebarLeft.vue';
 import SidebarRight from './components/SidebarRight.vue';
 import GraphCanvas from './components/GraphCanvas.vue';
@@ -354,20 +355,37 @@ function closeDrawer() {
 }
 
 /**
- * 双击节点：切换多选状态
+ * 单击节点：切换多选状态
  * ----------------------------------------------------------------------------
  * 步骤：
- *   1. 在 selectedNodes 中查找该节点
- *   2. 如果已选中，从数组中移除
- *   3. 如果未选中，加入数组
+ *   1. 检查节点是否可以被整合（根节点和不符合合并条件的节点不能选中）
+ *   2. 在 selectedNodes 中查找该节点
+ *   3. 如果已选中，从数组中移除
+ *   4. 如果未选中且可以整合，加入数组
  *
  * @param data 节点数据
  */
 function toggleSelect(data: TreeData) {
+    const ctx = getCtx();
+
+    // 检查节点是否可以被整合
+    const canIntegrate = ctx.canMergeNodesInTree(treeData.value, data.id);
+    const isRoot = data.id === ctx.getRootId(treeData.value);
+
     const index = selectedNodes.value.findIndex((n) => n.id === data.id);
     if (index > -1) {
+        // 已选中，移除
         selectedNodes.value.splice(index, 1);
     } else {
+        // 未选中，检查是否可以整合
+        if (isRoot) {
+            message.warning('根节点不能被整合');
+            return;
+        }
+        if (!canIntegrate) {
+            message.warning('该节点不符合整合条件，请先完成上一层级节点的整合');
+            return;
+        }
         selectedNodes.value.push({ id: data.id, label: data.label, parentId: data.id });
     }
 }
@@ -566,39 +584,43 @@ function confirmAddModule(data: { name: string; dept: string }) {
 }
 
 /**
- * 整合多选模块 → 合并为新模块
+ * 整合选中节点 → 合并为新节点
  * ----------------------------------------------------------------------------
+ * 支持多个同级节点合并为一个新节点
+ *
  * 步骤：
- *   1. applyTreeChangeWithResult + SDK integrateSelectedModules()
- *   2. 确定 parentId（多选 parentId 相同则用该 id，否则 'edu'）
- *   3. 新建 integrated 模块并从各父节点 modules 移除选中项
- *   4. 重新选中父节点 + 清空多选
+ *   1. applyTreeChangeWithResult + SDK mergeMultipleNodes()
+ *   2. 合并所有选中节点的 children / modules / relations
+ *   3. 创建新节点（继承优先级最高的层级）
+ *   4. 选中新节点 + 清空多选
  *   5. 关闭模态框
  *
  * @param data 包含 name / dept / type 的表单数据
  *             其中 type 是 IntegrationTypeKey 枚举
  */
 function confirmIntegrateModule(data: { name: string; dept: string; type: IntegrationTypeKey }) {
-    const selected = selectedNodes.value.map((n) => ({ id: n.id, parentId: n.parentId }));
-    const newModule = applyTreeChangeWithResult((root, ctx) =>
-        ctx.integrateSelectedModules(root, {
-            selected: selected.map((n) => ({ ...n })),
+    const selectedNodeIds = selectedNodes.value.map((n) => n.id);
+    const mergedNode = applyTreeChangeWithResult((root, ctx) => {
+        const result = ctx.mergeMultipleNodes(root, {
             name: data.name,
-            dept: data.dept,
-            type: data.type
-        })
-    );
-    if (newModule) {
-        const parentIds = [...new Set(selected.map((n) => n.parentId))];
-        const parentId = parentIds.length === 1 ? parentIds[0] : getCtx().getRootId(treeData.value);
-        const parent = getCtx().findNodeInTree(treeData.value, parentId);
-        if (parent) selectNode(parent.node);
+            integrationType: data.type,
+            nodeIds: selectedNodeIds
+        });
+        if (!result.ok) {
+            message.error(result.message ?? '整合失败');
+            return null;
+        }
+        return result.node ?? null;
+    });
+
+    if (mergedNode) {
+        selectNode(mergedNode);
         clearSelection();
-        TreeLogger.log('整合多选模块', treeData.value, {
-            parentId,
-            newModuleId: newModule.id,
-            newModuleLabel: newModule.label,
-            selectedCount: selected.length
+        TreeLogger.log('整合选中节点', treeData.value, {
+            newNodeId: mergedNode.id,
+            newNodeLabel: mergedNode.label,
+            selectedCount: selectedNodeIds.length,
+            integratedFrom: mergedNode.integratedFrom
         });
     }
     showIntegrateModal.value = false;
@@ -768,7 +790,7 @@ function confirmMergeNodes(data: {
             targetId: data.targetId
         });
         if (!result.ok) {
-            alert(result.message ?? '合并失败');
+            message.error(result.message ?? '合并失败');
             return null;
         }
         return result.node ?? null;
@@ -810,7 +832,7 @@ function deleteNode() {
     const nodeId = contextMenuNodeId.value;
     if (!nodeId) return;
     const protectedRootId = getGraph()?.getProtectedRootId() ?? DATA_D3_ROOT_ID;
-    if (nodeId === protectedRootId) return alert('不能删除根节点');
+    if (nodeId === protectedRootId) return message.warning('不能删除根节点');
     if (!confirm('确定删除该节点及其所有子节点和模块吗？')) return;
 
     const deleted = getCtx().findNodeInTree(treeData.value, nodeId);
@@ -858,7 +880,7 @@ function updateOwner(value: string) {
  */
 function editRelation(relation: { targetId: string; targetName: string; type: string }) {
     // 这里可以添加编辑关系的逻辑
-    alert(`编辑关系: ${relation.targetName}`);
+    message.info(`编辑关系: ${relation.targetName}`);
 }
 
 /**
