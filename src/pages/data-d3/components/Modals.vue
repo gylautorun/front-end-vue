@@ -499,7 +499,7 @@ watch(
     () => props.showMergeNodesModal,
     (val) => {
         if (val) {
-            mergeNodeName.value = '';
+            mergeNodeName.value = `${props.mergeSourceLabel} 与 ${props.mergeTargetLabel}`;
             mergeNodeIntegrationType.value = IntegrationTypeKey.merge;
         }
     }

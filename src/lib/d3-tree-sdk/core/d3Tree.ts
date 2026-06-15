@@ -49,10 +49,7 @@ function nodeLevelColor(ctx: TreeContext, data: TreeData): string {
     return ctx.config.levelColors[level] ?? ctx.config.levelColors.base ?? '#CCC';
 }
 
-function linkIntegrationType(
-    ctx: TreeContext,
-    data: TreeData
-): IntegrationTypeKey | undefined {
+function linkIntegrationType(ctx: TreeContext, data: TreeData): IntegrationTypeKey | undefined {
     return ctx.accessors.getIntegrationType(data);
 }
 
@@ -568,8 +565,8 @@ export function initD3(
  * ----------------------------------------------------------------------------
  * 从 instance.root 中获取最新的节点信息，这是所有事件处理的唯一数据源
  *
- * @param instance 包含 root 属性的对象
- * @param nodeId 节点ID
+ * @param instance - 包含 root 属性的对象
+ * @param nodeId - 节点 ID
  * @returns 最新的 HierarchyNode 或 null
  */
 function getCurrentNode(
@@ -582,10 +579,40 @@ function getCurrentNode(
     return root.descendants().find((n) => hNodeId(ctx, n) === nodeId) || null;
 }
 
+/**
+ * 根据节点 ID 查找对应的 SVG g 元素
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 使用 CSS 选择器 `g.node[data-id="xxx"]` 查找节点
+ *   2. 使用 CSS.escape() 转义特殊字符，防止选择器注入
+ *   3. 返回 DOM 元素或 null
+ *
+ * @param svg - D3 SVG selection
+ * @param nodeId - 节点 ID
+ * @returns SVG g 元素或 null
+ */
 function findNodeGElementInSvg(svg: SvgSelection, nodeId: string): SVGGElement | null {
     return svg.select(`g.node[data-id="${CSS.escape(nodeId)}"]`).node() as SVGGElement | null;
 }
 
+/**
+ * 从 DOM 元素解析节点 ID（优先级：DOM 属性 > 数据快照）
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 优先从 g 元素的 data-id 属性获取节点 ID
+ *   2. 如果 data-id 不存在，从 d 参数（事件绑定时的快照）获取
+ *   3. 返回节点 ID 或 null
+ *
+ * 设计目的：
+ *   - 优先使用 DOM 属性（实时更新）
+ *   - 回退使用绑定时的快照数据（d）
+ *   - 防止 D3 v7 快照导致的节点 ID 过时问题
+ *
+ * @param gEl - SVG g 元素
+ * @param ctx - TreeContext（用于从数据快照获取 ID）
+ * @param d - 可选的 HierarchyNode 快照数据
+ * @returns 节点 ID 或 null
+ */
 function resolveNodeIdFromElement(
     gEl: SVGGElement,
     ctx: TreeContext,
@@ -594,14 +621,44 @@ function resolveNodeIdFromElement(
     return gEl.getAttribute('data-id') || (d ? hNodeId(ctx, d) : null);
 }
 
-function shouldShowIntegratedBadge(
-    d: d3.HierarchyNode<TreeData>,
-    ctx: TreeContext
-): boolean {
+/**
+ * 判断是否显示"整合"徽章
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 从节点数据获取 integratedFrom 属性（记录整合来源节点 ID 列表）
+ *   2. 判断条件：深度 > 0（非根节点）且 integratedFrom 非空且有内容
+ *   3. 返回布尔值
+ *
+ * @param d - HierarchyNode
+ * @param ctx - TreeContext
+ * @returns 是否显示整合徽章
+ */
+function shouldShowIntegratedBadge(d: d3.HierarchyNode<TreeData>, ctx: TreeContext): boolean {
     const from = ctx.accessors.getIntegratedFrom(d.data as TreeNodeData);
     return (d.depth ?? 0) > 0 && !!(from && from.length > 0);
 }
 
+/**
+ * 构建节点卡片的 HTML 内容
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 获取数据访问器 acc
+ *   2. 获取节点数据 data
+ *   3. 构建模块数量徽章（如果有模块）
+ *   4. 构建整合徽章（如果节点是由其他节点整合而来）
+ *   5. 获取节点标签和 ID
+ *   6. 拼接 HTML 模板字符串
+ *
+ * HTML 结构：
+ *   - integrated-badge：整合徽章（左上角）
+ *   - node-label：节点名称（居中）
+ *   - node-badge：模块数量徽章（右上角）
+ *   - more-btn：更多操作按钮（右侧）
+ *
+ * @param d - HierarchyNode
+ * @param ctx - TreeContext
+ * @returns HTML 字符串
+ */
 function buildNodeCardHtml(d: d3.HierarchyNode<TreeData>, ctx: TreeContext): string {
     const acc = ctx.accessors;
     const data = d.data;
@@ -622,6 +679,25 @@ function buildNodeCardHtml(d: d3.HierarchyNode<TreeData>, ctx: TreeContext): str
     `;
 }
 
+/**
+ * 绑定节点拖拽事件
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 清除旧的拖拽监听（防止 renderTree 重复绑定时事件叠加）
+ *   2. 创建新的 d3.drag() 行为
+ *   3. 绑定 dragstart → dragStarted：记录拖拽开始状态、创建占位符
+ *   4. 绑定 drag → dragged：实时更新节点位置、画布边缘自动平移、落点检测
+ *   5. 绑定 dragend → dragEnded：清除拖拽状态、判定是否触发合并
+ *
+ * 关键设计：
+ *   - 使用 instance.currentDraggingNodeId 追踪拖拽状态（支持多实例）
+ *   - 拖拽过程只更新视觉位置，不修改 d.x/d.y（避免污染层级数据）
+ *   - dragEnded 时通过 DOM 命中检测落点节点
+ *
+ * @param nodeSelection - 节点 g 元素的 D3 selection
+ * @param instance - D3TreeInstance 实例（存储拖拽状态）
+ * @param onDropToTarget - 命中同级节点时的回调
+ */
 function bindNodeDrag(
     nodeSelection: d3.Selection<
         SVGGElement,
@@ -637,7 +713,7 @@ function bindNodeDrag(
         targetData: TreeData
     ) => void
 ) {
-    // 清除旧拖拽监听，避免 renderTree 重复绑定导致错乱
+    // 步骤 1：清除旧拖拽监听，避免 renderTree 重复绑定导致事件叠加错乱
     nodeSelection.call(
         d3
             .drag<SVGGElement, d3.HierarchyNode<TreeData>>()
@@ -677,6 +753,32 @@ function bindNodeDrag(
     );
 }
 
+/**
+ * 拖拽开始处理函数
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 参数校验：检查节点数据是否有效
+ *   2. 获取节点 ID
+ *   3. 将被拖拽节点提升到最上层（避免被其他节点遮挡）
+ *   4. 记录原始坐标到 dataset（origX, origY）
+ *   5. 设置实例级拖拽状态（currentDraggingNodeId）
+ *   6. 记录节点起始屏幕坐标（nodeStartX, nodeStartY）
+ *   7. 记录鼠标起始局部坐标（pointerStartX, pointerStartY）
+ *   8. 禁用节点的指针事件（避免 self-hit 问题）
+ *   9. 添加 dragging CSS 类
+ *  10. 记录拖拽日志
+ *  11. 创建占位符矩形（显示在原位置）
+ *
+ * 关键数据存储：
+ *   - dataset.origX/origY: 原始 d.x/d.y（用于重置）
+ *   - dataset.nodeStartX/nodeStartY: 节点起始屏幕坐标
+ *   - dataset.pointerStartX/pointerStartY: 鼠标起始局部坐标
+ *
+ * @param instance - D3TreeInstance 的部分属性
+ * @param d - 当前 HierarchyNode
+ * @param gEl - 节点的 SVG g 元素
+ * @param event - d3 drag 事件
+ */
 function dragStarted(
     instance: Pick<
         D3TreeInstance,
@@ -686,16 +788,23 @@ function dragStarted(
     gEl: SVGGElement,
     event: d3.D3DragEvent<SVGGElement, d3.HierarchyNode<TreeData>, d3.HierarchyNode<TreeData>>
 ) {
+    // 步骤 1：参数校验
     if (!d?.data) return;
     const ctx = instance.treeContext;
     const acc = ctx.accessors;
     const nodeId = hNodeId(ctx, d);
 
+    // 步骤 2：将节点提升到最上层，避免拖动时被遮挡
     d3.select(gEl).raise();
+
+    // 步骤 3：记录原始坐标（用于拖拽结束时重置）
     gEl.dataset.origX = String(Number(d.x ?? 0));
     gEl.dataset.origY = String(Number(d.y ?? 0));
+
+    // 步骤 4：设置实例级拖拽状态
     instance.currentDraggingNodeId = nodeId;
 
+    // 步骤 5：记录节点和鼠标的起始位置（用于计算位移）
     const graphG = instance.g?.node() as SVGGElement | null;
     const { tx, ty } = nodeScreenPosition(d, instance.orientation);
     gEl.dataset.nodeStartX = String(tx);
@@ -709,12 +818,13 @@ function dragStarted(
         }
     }
 
-    // 拖拽中禁用命中，避免 elementsFromPoint 被自身遮挡
+    // 步骤 6：禁用节点的指针事件，避免 elementsFromPoint 被自身遮挡
     setNodePointerEvents(gEl, false);
 
+    // 步骤 7：添加 dragging CSS 类（用于样式区分）
     gEl.classList.add('dragging');
 
-    // 记录拖拽开始日志
+    // 步骤 8：记录拖拽日志
     logDragState({
         nodeId: nodeId,
         nodeLabel: acc.getLabel(d.data),
@@ -722,7 +832,7 @@ function dragStarted(
         sourceY: d.y
     });
 
-    // 创建占位背景矩形（添加到父容器，保持在原位置）
+    // 步骤 9：创建占位背景矩形（添加到父容器，保持在原位置，提示用户节点原来的位置）
     const parentEl = gEl.parentElement;
     if (parentEl) {
         const parentG = parentEl as unknown as SVGGElement;
@@ -751,21 +861,28 @@ function dragStarted(
 }
 
 /**
- * 拖拽中：实时更新节点视觉位置（不修改 d.x / d.y）+ 画布边缘自动平移
+ * 拖拽中处理函数：实时更新节点视觉位置 + 画布边缘自动平移 + 落点检测
  * ----------------------------------------------------------------------------
- * 关键设计：
- *   - 不再把坐标写回 d.x / d.y（避免污染 d3.hierarchy 的层级结构）
- *   - 用 clientToGraphLocal 将鼠标位置映射到 zoom 容器局部坐标，再计算位移
- *     （自动适配 zoom scale / translate / viewBox，不依赖 dx/k 估算）
- *   - 命中检测：DOM 命中 + 坐标回退（同级节点卡片矩形）
- *   - 拖拽到画布边缘时自动平移画布
+ * 步骤：
+ *   1. 参数校验：获取节点 ID 和当前节点数据
+ *   2. 获取拖拽起始状态（节点起始坐标、鼠标起始坐标）
+ *   3. 获取当前鼠标位置（clientX, clientY）
+ *   4. 计算当前节点位置：节点起始位置 + 鼠标位移（自动适配 zoom）
+ *   5. 更新节点 transform 属性（只修改视觉位置，不修改 d.x/d.y）
+ *   6. 画布边缘自动平移：当鼠标靠近边缘时自动平移画布
+ *   7. 清除之前的落点高亮
+ *   8. 检测鼠标下方的同级节点，添加 drop-target 高亮
  *
- * @param gEl   节点 g 元素（this）
- * @param event d3 drag 事件
- * @param d     被拖拽的 HierarchyNode
- * @param root  当前 HierarchyNode 根（用于找鼠标下方的同级节点）
- * @param svg   D3 选中的 SVG 元素（用于自动平移）
- * @param zoom  D3 zoom 行为（用于自动平移）
+ * 关键设计：
+ *   - 使用 clientToGraphLocal 映射坐标（自动适配 zoom scale/translate）
+ *   - 不修改 d.x/d.y，避免污染 d3.hierarchy 层级结构
+ *   - 边缘自动平移支持拖拽最后一个节点到第一个节点
+ *
+ * @param gEl - 节点的 SVG g 元素
+ * @param event - d3 drag 事件
+ * @param instance - D3TreeInstance 实例
+ * @param svg - D3 SVG selection
+ * @param zoom - D3 zoom 行为
  */
 function dragged(
     gEl: SVGGElement,
@@ -1009,12 +1126,35 @@ function dragEnded(
 
 /**
  * 通过 DOM 命中查找"与源节点同级"的节点
- * ----------------------------------------------------------------------------
  * 命中规则：
  *   1. DOM：elementsFromPoint + 卡片 getBoundingClientRect
  *   2. 回退：clientToGraphLocal + 同级节点卡片矩形（适配 zoom 缩放）
  *
  * @param graphG  zoom 容器 g（坐标回退时使用）
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 参数校验：获取源节点 ID，检查有效性
+ *   2. 从 root 中查找当前源节点（解决快照问题）
+ *   3. 获取源节点的父节点 ID
+ *   4. 使用 document.elementsFromPoint 获取鼠标下方所有元素
+ *   5. 遍历元素，查找 g.node[data-id] 节点
+ *   6. 精确检测：检查鼠标是否在节点卡片范围内（getBoundingClientRect）
+ *   7. 验证目标节点与源节点是否同级（同一父节点）
+ *   8. 如果 DOM 命中失败，调用坐标回退方法
+ *
+ * 关键设计：
+ *   - DOM 命中优先（浏览器原生 API，精度高）
+ *   - 坐标计算作为回退（适配 zoom 缩放后的场景）
+ *   - 使用 closest('g.node') 处理 foreignObject 内的点击
+ *
+ * @param root - D3 HierarchyNode 根节点
+ * @param source - 源节点（被拖拽的节点）
+ * @param clientX - 鼠标 X 坐标
+ * @param clientY - 鼠标 Y 坐标
+ * @param ctx - TreeContext
+ * @param orientation - 布局方向
+ * @param graphG - zoom 容器 g（坐标回退时使用）
+ * @returns 命中的同级节点或 null
  */
 function findSameLevelNodeAtDOM(
     root: d3.HierarchyNode<TreeData>,
@@ -1103,6 +1243,30 @@ function findSameLevelNodeAtDOM(
 /**
  * 通过坐标计算查找同级节点（DOM 命中失败时的回退）
  * 将 client 坐标转为 zoom 容器局部坐标，检测是否落在节点卡片矩形内
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 参数校验：获取源节点 ID，检查有效性
+ *   2. 从 root 中查找当前源节点（解决快照问题）
+ *   3. 获取源节点的父节点 ID
+ *   4. 筛选所有同级节点（同一父节点且不是自己）
+ *   5. 将鼠标 client 坐标转为 zoom 容器局部坐标
+ *   6. 获取节点卡片尺寸（考虑布局方向）
+ *   7. 遍历同级节点，检测鼠标是否落在节点卡片矩形内
+ *   8. 返回命中的节点或 null
+ *
+ * 关键设计：
+ *   - 使用 clientToGraphLocal 自动适配 zoom scale/translate
+ *   - 矩形碰撞检测：检查鼠标是否在节点卡片范围内
+ *   - 作为 DOM 命中的回退方案
+ *
+ * @param root - D3 HierarchyNode 根节点
+ * @param source - 源节点（被拖拽的节点）
+ * @param clientX - 鼠标 X 坐标
+ * @param clientY - 鼠标 Y 坐标
+ * @param ctx - TreeContext
+ * @param orientation - 布局方向
+ * @param graphG - zoom 容器 g
+ * @returns 命中的同级节点或 null
  */
 function findSameLevelNodeByCoord(
     root: d3.HierarchyNode<TreeData>,
