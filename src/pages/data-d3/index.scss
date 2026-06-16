@@ -444,8 +444,8 @@
    - cursor: grab → grabbing 在拖拽时由 d3.drag() 触发
 */
 .node-card {
-    width: 160px;
-    height: 40px;
+    width: 100%;
+    height: 100%;
     border-radius: 6px;
     color: white;
     display: flex;
@@ -460,12 +460,12 @@
     font-weight: 500;
     transition: box-shadow 0.2s;
     position: relative;
+    min-width: 50px;
+    min-height: 20px;
 }
 
-/* 纵向布局：竖长节点卡片 40×160 */
+/* 纵向布局：竖长节点卡片 */
 .node-card.vertical {
-    width: 40px;
-    height: 160px;
     flex-direction: column;
     justify-content: center;
     padding: 8px 4px;

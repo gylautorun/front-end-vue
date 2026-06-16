@@ -73,11 +73,37 @@
                     🏷️ 标注整合方式
                 </div>
                 <div class="menu-divider"></div>
+                <div class="menu-item" @click="handleMenuClick('show-resize-modal')">
+                    📐 调整节点尺寸
+                </div>
                 <div class="menu-item danger" @click="handleMenuClick('delete-node')">
                     🗑️ 删除节点
                 </div>
             </div>
         </teleport>
+
+        <!-- 调整节点尺寸模态框 -->
+        <div
+            class="modal-overlay"
+            :class="{ show: showResizeModal }"
+            @click.self="showResizeModal = false"
+        >
+            <div class="modal resize-modal">
+                <h3>📐 调整节点尺寸</h3>
+                <div class="form-group">
+                    <label>宽度（像素）</label>
+                    <input type="number" v-model.number="resizeWidth" min="50" max="500" />
+                </div>
+                <div class="form-group">
+                    <label>高度（像素）</label>
+                    <input type="number" v-model.number="resizeHeight" min="20" max="300" />
+                </div>
+                <div class="modal-actions">
+                    <button @click="showResizeModal = false">取消</button>
+                    <button @click="handleResizeNode">确定</button>
+                </div>
+            </div>
+        </div>
 
         <!-- 下载格式选择模态框 -->
         <div
@@ -122,7 +148,7 @@
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { cloneDeep } from 'lodash-es';
 import type { TreeData, SelectedNode } from '../types';
-import { D3TreeGraph } from '@/lib/d3-tree-sdk';
+import { D3TreeGraph, setDepthNodeDimensions } from '@/lib/d3-tree-sdk';
 import type { TreeLayoutOrientation } from '@/lib/d3-tree-sdk';
 
 /**
@@ -239,6 +265,17 @@ const downloadFileName = ref<string>('tree-diagram');
 /** 当前触发右键菜单的节点 ID（用于后续 emit 时传递给父组件） */
 const contextMenuNodeId = ref<string>('');
 
+// ---------- 调整节点尺寸模态框状态 ----------
+
+/** 调整节点尺寸模态框是否打开 */
+const showResizeModal = ref<boolean>(false);
+
+/** 调整尺寸的宽度 */
+const resizeWidth = ref<number>(200);
+
+/** 调整尺寸的高度 */
+const resizeHeight = ref<number>(50);
+
 /**
  * 处理菜单项点击事件
  * ----------------------------------------------------------------------------
@@ -257,7 +294,11 @@ function handleMenuClick(event: string) {
         'show-bind-relation-modal': (id) => emit('show-bind-relation-modal', id),
         'show-edit-node-modal': (id) => emit('show-edit-node-modal', id),
         'show-integration-modal': (id) => emit('show-integration-modal', id),
-        'delete-node': (id) => emit('delete-node', id)
+        'delete-node': (id) => emit('delete-node', id),
+        'show-resize-modal': (id) => {
+            // 打开调整节点尺寸模态框
+            showResizeModal.value = true;
+        }
     };
     if (emitMap[event]) {
         emitMap[event](nodeId);
@@ -408,6 +449,51 @@ function handleMoreClick(event: MouseEvent, nodeId: string) {
  */
 function handleSvgClick() {
     closeContextMenu();
+}
+
+/**
+ * 处理调整节点尺寸
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 获取当前数据并查找节点
+ *   2. 获取节点深度（depth）
+ *   3. 使用 setDepthNodeDimensions 设置该深度的节点尺寸
+ *   4. 重新渲染树
+ *   5. 关闭模态框
+ */
+function handleResizeNode() {
+    const nodeId = contextMenuNodeId.value;
+    if (!nodeId || !graph) return;
+
+    // 获取当前数据
+    const data = graph.getData();
+
+    // 递归查找节点并计算深度
+    function findNodeWithDepth(node: any, currentDepth = 0): { node: any; depth: number } | null {
+        if (node.id === nodeId) return { node, depth: currentDepth };
+        if (node.children) {
+            for (const child of node.children) {
+                const found = findNodeWithDepth(child, currentDepth + 1);
+                if (found) return found;
+            }
+        }
+        return null;
+    }
+
+    // 获取节点数据和深度
+    const result = findNodeWithDepth(data);
+    if (!result) return;
+
+    const { depth } = result;
+
+    // 设置该深度的节点尺寸
+    setDepthNodeDimensions(depth, resizeWidth.value, resizeHeight.value);
+
+    // 重新渲染树
+    graph.render();
+
+    // 关闭模态框
+    showResizeModal.value = false;
 }
 
 /**

@@ -113,22 +113,28 @@ function linkLabelText(ctx: TreeContext, data: TreeData): string {
     return type ? ctx.config.integrationTypeNames[type] ?? '' : '';
 }
 
-const NODE_WIDTH: number = 160;
-const NODE_HEIGHT: number = 40;
+const NODE_WIDTH: number = 200;
+const NODE_HEIGHT: number = 50;
 const MARGIN = { top: 40, right: 40, bottom: 40, left: 40 };
+
+/** 按节点深度存储节点尺寸配置（depth → 尺寸） */
+const depthNodeDimensions = new Map<number, { width: number; height: number }>();
 
 /** 树形图布局方向：horizontal=左右展开，vertical=上下展开 */
 export type TreeLayoutOrientation = 'horizontal' | 'vertical';
 
 /**
- * 获取节点卡片的尺寸
+ * 获取节点卡片的尺寸（全局默认）
  * @param orientation - 树布局方向
  * @returns 节点尺寸对象 { width, height }
  * @description
- * - 水平布局：宽扁卡片 160×40（宽度大于高度）
- * - 垂直布局：竖长卡片 40×160（高度大于宽度）
+ * - 水平布局：宽扁卡片 200×50（宽度大于高度）
+ * - 垂直布局：竖长卡片 50×200（高度大于宽度）
  */
-function getNodeDimensions(orientation: TreeLayoutOrientation): { width: number; height: number } {
+function getDefaultNodeDimensions(orientation: TreeLayoutOrientation): {
+    width: number;
+    height: number;
+} {
     // 水平布局：节点横向排列，使用宽扁卡片
     if (orientation === 'horizontal') {
         return { width: NODE_WIDTH, height: NODE_HEIGHT };
@@ -138,9 +144,61 @@ function getNodeDimensions(orientation: TreeLayoutOrientation): { width: number;
 }
 
 /**
+ * 获取指定深度的节点卡片尺寸
+ * @param orientation - 树布局方向
+ * @param depth - 节点深度（可选）
+ * @returns 节点尺寸对象 { width, height }
+ * @description
+ * - 如果指定了深度且该深度有自定义尺寸，返回自定义尺寸
+ * - 否则返回全局默认尺寸
+ * - 水平布局：宽扁卡片（宽度大于高度）
+ * - 垂直布局：竖长卡片（高度大于宽度）
+ */
+function getNodeDimensions(
+    orientation: TreeLayoutOrientation,
+    depth?: number
+): { width: number; height: number } {
+    // 如果指定了深度且有自定义尺寸，返回自定义尺寸
+    if (depth !== undefined && depthNodeDimensions.has(depth)) {
+        const dims = depthNodeDimensions.get(depth)!;
+        if (orientation === 'horizontal') {
+            return dims;
+        }
+        // 垂直布局：交换宽高
+        return { width: dims.height, height: dims.width };
+    }
+    // 返回默认尺寸
+    return getDefaultNodeDimensions(orientation);
+}
+
+/**
+ * 设置指定深度的节点卡片尺寸
+ * @param depth - 节点深度（从根节点开始为 0）
+ * @param width - 宽度（水平布局时的宽度）
+ * @param height - 高度（水平布局时的高度）
+ * @description
+ * 设置后，该深度的所有节点将使用新尺寸，其他深度不受影响
+ */
+export function setDepthNodeDimensions(depth: number, width: number, height: number): void {
+    depthNodeDimensions.set(depth, { width, height });
+}
+
+/**
+ * 获取指定深度的当前节点尺寸配置
+ * @param depth - 节点深度
+ * @returns 尺寸配置对象 { width, height }，如果未设置则返回 undefined
+ */
+export function getDepthNodeDimensions(
+    depth: number
+): { width: number; height: number } | undefined {
+    return depthNodeDimensions.get(depth);
+}
+
+/**
  * 计算 SVG foreignObject 元素的尺寸和位置
  * @param orientation - 树布局方向
  * @param scale - 缩放比例（默认为1）
+ * @param level - 节点层级（可选，用于获取该层级的自定义尺寸）
  * @returns 包含宽高和坐标的对象 { width, height, x, y }
  * @description
  * foreignObject 用于在 SVG 中嵌入 HTML 内容（如节点卡片）
@@ -148,10 +206,11 @@ function getNodeDimensions(orientation: TreeLayoutOrientation): { width: number;
  */
 function getForeignObjectMetrics(
     orientation: TreeLayoutOrientation,
-    scale = 1
+    scale = 1,
+    depth?: number
 ): { width: number; height: number; x: number; y: number } {
-    // 获取基础节点尺寸
-    const { width, height } = getNodeDimensions(orientation);
+    // 获取节点尺寸（支持按深度获取）
+    const { width, height } = getNodeDimensions(orientation, depth);
     // 应用缩放比例
     const w = width * scale;
     const h = height * scale;
@@ -164,16 +223,18 @@ function getForeignObjectMetrics(
  * @param el - SVG foreignObject 元素
  * @param orientation - 树布局方向
  * @param scale - 缩放比例（默认为1）
+ * @param depth - 节点深度（可选，用于获取该深度的自定义尺寸）
  * @description
  * 设置 foreignObject 的宽高和位置属性，使其正确显示节点卡片
  */
 function applyForeignObjectAttrs(
     el: SVGForeignObjectElement,
     orientation: TreeLayoutOrientation,
-    scale = 1
+    scale = 1,
+    depth?: number
 ): void {
-    // 计算尺寸和位置
-    const m = getForeignObjectMetrics(orientation, scale);
+    // 计算尺寸和位置（支持按深度获取尺寸）
+    const m = getForeignObjectMetrics(orientation, scale, depth);
     // 设置宽度
     el.setAttribute('width', String(m.width));
     // 设置高度
@@ -196,12 +257,41 @@ function applyForeignObjectAttrs(
  * D3 tree.nodeSize() 的参数格式为 [nodeHeight, nodeWidth]，
  * 其中 nodeHeight 控制同级节点之间的垂直间距，nodeWidth 控制层级之间的水平间距。
  */
+/**
+ * 获取所有层级中最大的节点尺寸
+ * @param orientation - 树布局方向
+ * @returns 最大节点尺寸对象 { width, height }
+ * @description
+ * 遍历所有已配置的层级尺寸，找到最大的宽度和高度，用于树布局计算。
+ * 如果没有任何层级配置，则返回默认尺寸。
+ */
+function getMaxNodeDimensions(orientation: TreeLayoutOrientation): {
+    width: number;
+    height: number;
+} {
+    let maxWidth = NODE_WIDTH;
+    let maxHeight = NODE_HEIGHT;
+
+    // 遍历所有已配置的深度尺寸
+    depthNodeDimensions.forEach((dims) => {
+        if (dims.width > maxWidth) maxWidth = dims.width;
+        if (dims.height > maxHeight) maxHeight = dims.height;
+    });
+
+    // 根据布局方向返回
+    if (orientation === 'horizontal') {
+        return { width: maxWidth, height: maxHeight };
+    }
+    // 垂直布局交换宽高
+    return { width: maxHeight, height: maxWidth };
+}
+
 export function applyTreeLayoutNodeSize(
     treeLayout: d3.TreeLayout<TreeData>,
     orientation: TreeLayoutOrientation
 ): void {
-    // 获取节点尺寸
-    const { width, height } = getNodeDimensions(orientation);
+    // 获取所有层级中的最大节点尺寸
+    const { width, height } = getMaxNodeDimensions(orientation);
     // 水平布局：节点高度+40作为节点大小，节点宽度+180作为层级间距
     if (orientation === 'horizontal') {
         treeLayout.nodeSize([height + 40, width + 180]);
@@ -354,7 +444,7 @@ function setNodePointerEvents(gEl: SVGGElement, enabled: boolean) {
  */
 function createLinkGenerator(orientation: TreeLayoutOrientation) {
     // 获取节点尺寸
-    const { width, height } = getNodeDimensions(orientation);
+    // const { width, height } = getNodeDimensions(orientation); // 在下面单独获取
     // 水平布局：使用 linkHorizontal 生成器
     if (orientation === 'horizontal') {
         return (
@@ -363,40 +453,48 @@ function createLinkGenerator(orientation: TreeLayoutOrientation) {
                 // 水平布局：交换 x 和 y 坐标
                 .x((d) => d.y ?? 0)
                 .y((d) => d.x ?? 0)
-                .source(
-                    (d) =>
-                        ({
-                            x: d.source.x ?? 0,
-                            y: (d.source.y ?? 0) + width / 2
-                        }) as unknown as d3.HierarchyNode<TreeData>
-                )
-                .target(
-                    (d) =>
-                        ({
-                            x: d.target.x ?? 0,
-                            y: (d.target.y ?? 0) - width / 2
-                        }) as unknown as d3.HierarchyNode<TreeData>
-                )
+                .source((d) => {
+                    // 根据源节点深度获取尺寸
+                    const sourceDepth = (d.source as d3.HierarchyNode<TreeData>).depth;
+                    const sourceWidth = getNodeDimensions(orientation, sourceDepth).width;
+                    return {
+                        x: d.source.x ?? 0,
+                        y: (d.source.y ?? 0) + sourceWidth / 2
+                    } as unknown as d3.HierarchyNode<TreeData>;
+                })
+                .target((d) => {
+                    // 根据目标节点深度获取尺寸
+                    const targetDepth = (d.target as d3.HierarchyNode<TreeData>).depth;
+                    const targetWidth = getNodeDimensions(orientation, targetDepth).width;
+                    return {
+                        x: d.target.x ?? 0,
+                        y: (d.target.y ?? 0) - targetWidth / 2
+                    } as unknown as d3.HierarchyNode<TreeData>;
+                })
         );
     }
     return d3
         .linkVertical<d3.HierarchyLink<TreeData>, d3.HierarchyNode<TreeData>>()
         .x((d) => d.x ?? 0)
         .y((d) => d.y ?? 0)
-        .source(
-            (d) =>
-                ({
-                    x: d.source.x ?? 0,
-                    y: (d.source.y ?? 0) + height / 2
-                }) as unknown as d3.HierarchyNode<TreeData>
-        )
-        .target(
-            (d) =>
-                ({
-                    x: d.target.x ?? 0,
-                    y: (d.target.y ?? 0) - height / 2
-                }) as unknown as d3.HierarchyNode<TreeData>
-        );
+        .source((d) => {
+            // 根据源节点深度获取尺寸
+            const sourceDepth = (d.source as d3.HierarchyNode<TreeData>).depth;
+            const sourceHeight = getNodeDimensions(orientation, sourceDepth).height;
+            return {
+                x: d.source.x ?? 0,
+                y: (d.source.y ?? 0) + sourceHeight / 2
+            } as unknown as d3.HierarchyNode<TreeData>;
+        })
+        .target((d) => {
+            // 根据目标节点深度获取尺寸
+            const targetDepth = (d.target as d3.HierarchyNode<TreeData>).depth;
+            const targetHeight = getNodeDimensions(orientation, targetDepth).height;
+            return {
+                x: d.target.x ?? 0,
+                y: (d.target.y ?? 0) - targetHeight / 2
+            } as unknown as d3.HierarchyNode<TreeData>;
+        });
 }
 
 /**
@@ -1185,16 +1283,26 @@ export function initD3(
         .append<SVGGElement>('g')
         .attr('class', 'node')
         .attr('data-id', (d) => acc.getId(d.data))
+        .attr('data-depth', (d) => String(d.depth))
         .attr('transform', (d) => nodeTransformAttr(d, orientation));
 
     // 使用 foreignObject 嵌入 HTML 节点卡片
-    const foMetrics = getForeignObjectMetrics(orientation);
+    // const foMetrics = getForeignObjectMetrics(orientation);
+    // 使用 foreignObject 嵌入 HTML 节点卡片（支持按深度设置尺寸）
     const fo = node
         .append('foreignObject')
-        .attr('width', foMetrics.width)
-        .attr('height', foMetrics.height)
-        .attr('x', foMetrics.x)
-        .attr('y', foMetrics.y);
+        .attr('width', (d) => {
+            return getForeignObjectMetrics(orientation, 1, d.depth).width;
+        })
+        .attr('height', (d) => {
+            return getForeignObjectMetrics(orientation, 1, d.depth).height;
+        })
+        .attr('x', (d) => {
+            return getForeignObjectMetrics(orientation, 1, d.depth).x;
+        })
+        .attr('y', (d) => {
+            return getForeignObjectMetrics(orientation, 1, d.depth).y;
+        });
 
     fo.append('xhtml:div')
         .attr('class', 'node-card')
@@ -1606,7 +1714,9 @@ function dragStarted(
         placeholder.setAttribute('transform', nodeTransformAttr(d, instance.orientation));
 
         // 创建占位矩形
-        const { width, height } = getNodeDimensions(instance.orientation);
+        // const { width, height } = getNodeDimensions(instance.orientation);
+        // 创建占位矩形（使用节点深度获取尺寸）
+        const { width, height } = getNodeDimensions(instance.orientation, d.depth);
         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         rect.setAttribute('x', String(-width / 2));
         rect.setAttribute('y', String(-height / 2));
@@ -2159,15 +2269,19 @@ function clearDropTargetHighlight(
         // 步骤 3：移除 drop-target 类，取消高亮样式
         el.classList.remove('drop-target');
 
-        // 步骤 4：恢复 foreignObject 元素的原始尺寸
+        // 步骤 4：恢复 foreignObject 元素的原始尺寸（包括自定义尺寸）
         const fo = el.querySelector('foreignObject') as SVGForeignObjectElement | null;
         if (fo) {
-            // fo.setAttribute('width', String(NODE_WIDTH));
-            // fo.setAttribute('height', String(NODE_HEIGHT));
-            // fo.setAttribute('x', String(-NODE_WIDTH / 2));
-            // fo.setAttribute('y', String(-NODE_HEIGHT / 2));
-            // 使用 applyForeignObjectAttrs 恢复到默认尺寸
-            applyForeignObjectAttrs(fo, orientation);
+            // // fo.setAttribute('width', String(NODE_WIDTH));
+            // // fo.setAttribute('height', String(NODE_HEIGHT));
+            // // fo.setAttribute('x', String(-NODE_WIDTH / 2));
+            // // fo.setAttribute('y', String(-NODE_HEIGHT / 2));
+            // // 使用 applyForeignObjectAttrs 恢复到默认尺寸
+            // applyForeignObjectAttrs(fo, orientation);
+            // 从节点的 data-depth 属性获取深度
+            const depth = parseInt(el.getAttribute('data-depth') || '0');
+            // 使用 applyForeignObjectAttrs 恢复到该深度的自定义尺寸
+            applyForeignObjectAttrs(fo, orientation, 1, depth);
         }
     });
 }
@@ -2287,7 +2401,10 @@ export function renderTree(
     const ctx = instance.treeContext;
     const acc = ctx.accessors;
 
-    // 步骤 1：重新计算布局
+    // 步骤 1：重新应用树布局节点大小（确保尺寸变化后布局正确）
+    applyTreeLayoutNodeSize(treeLayout, orientation);
+
+    // 步骤 2：重新计算布局
     const root = d3.hierarchy(treeData, (d) => acc.hierarchyChildren(d) as TreeData[] | undefined);
     treeLayout(root);
 
@@ -2377,15 +2494,28 @@ export function renderTree(
                     .append('g')
                     .attr('class', 'node')
                     .attr('data-id', (d) => hNodeId(ctx, d))
+                    .attr('data-depth', (d) => String(d.depth))
                     .attr('transform', (d) => nodeTransformAttr(d, orientation));
 
-                const enterFoMetrics = getForeignObjectMetrics(orientation);
+                // const enterFoMetrics = getForeignObjectMetrics(orientation);
                 nodeGroup
                     .append('foreignObject')
-                    .attr('width', enterFoMetrics.width)
-                    .attr('height', enterFoMetrics.height)
-                    .attr('x', enterFoMetrics.x)
-                    .attr('y', enterFoMetrics.y)
+                    // .attr('width', enterFoMetrics.width)
+                    // .attr('height', enterFoMetrics.height)
+                    // .attr('x', enterFoMetrics.x)
+                    // .attr('y', enterFoMetrics.y)
+                    .attr('width', (d) => {
+                        return getForeignObjectMetrics(orientation, 1, d.depth).width;
+                    })
+                    .attr('height', (d) => {
+                        return getForeignObjectMetrics(orientation, 1, d.depth).height;
+                    })
+                    .attr('x', (d) => {
+                        return getForeignObjectMetrics(orientation, 1, d.depth).x;
+                    })
+                    .attr('y', (d) => {
+                        return getForeignObjectMetrics(orientation, 1, d.depth).y;
+                    })
                     .append('xhtml:div')
                     .attr('class', 'node-card')
                     .classed('vertical', orientation === 'vertical')
@@ -2408,13 +2538,25 @@ export function renderTree(
                         return fallback;
                     });
 
-                const updateFoMetrics = getForeignObjectMetrics(orientation);
-                update
+                // const updateFoMetrics = getForeignObjectMetrics(orientation);
+                    update
                     .select('foreignObject')
-                    .attr('width', updateFoMetrics.width)
-                    .attr('height', updateFoMetrics.height)
-                    .attr('x', updateFoMetrics.x)
-                    .attr('y', updateFoMetrics.y);
+                    // .attr('width', updateFoMetrics.width)
+                    // .attr('height', updateFoMetrics.height)
+                    // .attr('x', updateFoMetrics.x)
+                    // .attr('y', updateFoMetrics.y);
+                    .attr('width', (d) => {
+                        return getForeignObjectMetrics(orientation, 1, d.depth).width;
+                    })
+                    .attr('height', (d) => {
+                        return getForeignObjectMetrics(orientation, 1, d.depth).height;
+                    })
+                    .attr('x', (d) => {
+                        return getForeignObjectMetrics(orientation, 1, d.depth).x;
+                    })
+                    .attr('y', (d) => {
+                        return getForeignObjectMetrics(orientation, 1, d.depth).y;
+                    });
 
                 update
                     .select('.node-card')

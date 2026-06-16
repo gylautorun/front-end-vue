@@ -226,6 +226,8 @@ export {
     downloadTree,
     setTreeOrientation,
     applyTreeLayoutNodeSize,
+    setDepthNodeDimensions,
+    getDepthNodeDimensions,
     type D3TreeInstance,
     type TreeLayoutOrientation
 } from './core/d3Tree';
