@@ -452,6 +452,28 @@ function handleSvgClick() {
 }
 
 /**
+ * 处理展开/收起按钮点击
+ * ----------------------------------------------------------------------------
+ * 步骤：
+ *   1. 获取当前数据
+ *   2. 使用 toggleNodeChildren 切换节点的展开/收起状态
+ *   3. 重新渲染树
+ */
+function handleExpandClick(nodeId: string) {
+    if (!graph) return;
+
+    // 获取当前数据
+    const data = graph.getData();
+
+    // 切换节点的展开/收起状态
+    const ctx = graph.getContext();
+    ctx.toggleNodeChildren(data, nodeId);
+
+    // 重新渲染树
+    graph.render();
+}
+
+/**
  * 处理调整节点尺寸
  * ----------------------------------------------------------------------------
  * 步骤：
@@ -530,6 +552,7 @@ onMounted(() => {
 
     graph.on('node:click', handleNodeClick);
     graph.on('node:dblclick', handleNodeDoubleClick);
+    graph.on('node:expand', handleExpandClick);
     graph.on('node:more', ({ event, nodeId }) => handleMoreClick(event, nodeId));
     graph.on('node:drop-target', (payload) => {
         emit(

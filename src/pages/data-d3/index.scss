@@ -451,7 +451,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 10px;
+    padding: 0 0 0 10px;
     box-sizing: border-box;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     cursor: grab;
@@ -562,6 +562,39 @@ g.node.dragging .node-card {
     align-items: center;
     gap: 2px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.expand-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 4px;
+    flex-shrink: 0;
+    transition: background 0.2s;
+    position: relative;
+    right: 0;
+}
+.expand-btn:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+.expand-icon {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.2s;
+}
+
+/* 垂直布局：展开按钮在节点下方 */
+.node-card.vertical .expand-btn {
+    margin-left: 0;
+    margin-top: 8px;
 }
 
 .more-btn {

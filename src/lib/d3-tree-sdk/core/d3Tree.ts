@@ -1154,6 +1154,11 @@ export function initD3(
     onNodeClick: (data: TreeData) => void,
     onNodeDoubleClick: (data: TreeData) => void,
     onMoreClick: (event: MouseEvent, nodeId: string) => void,
+    /**
+     * 点击展开/收起按钮时触发
+     * @param nodeId 节点 ID
+     */
+    onExpandClick: (nodeId: string) => void,
     isSelected: (nodeId: string) => boolean,
     /**
      * 拖拽到目标节点上（同级）时触发
@@ -1317,6 +1322,15 @@ export function initD3(
             event.stopPropagation();
             onNodeDoubleClick(d.data);
         });
+
+    // 绑定"展开/收起"按钮事件
+    fo.selectAll('.expand-btn').on('click', function (event) {
+        event.stopPropagation();
+        const nodeId = d3.select(this).attr('data-id');
+        if (nodeId) {
+            onExpandClick(nodeId);
+        }
+    });
 
     // 绑定"更多"按钮事件
     fo.selectAll('.more-btn').on('click', function (event) {
@@ -1507,12 +1521,43 @@ function buildNodeCardHtml(d: d3.HierarchyNode<TreeData>, ctx: TreeContext): str
     // 获取节点标签和 ID
     const label = acc.getLabel(data);
     const id = acc.getId(data);
+
+    // 检查节点是否有子节点（包括已加载和待加载的）
+    const hasChildren = acc.hierarchyChildren(data) && acc.hierarchyChildren(data)!.length > 0;
+    const hasCachedChildren = (d as any)._children && (d as any)._children.length > 0;
+    const canExpand = hasChildren || hasCachedChildren;
+    // 检查节点是否已展开（如果有缓存的子节点说明是收起状态）
+    const isExpanded = !hasCachedChildren;
+    // 构建展开/收起按钮
+    const expandBtn = canExpand
+        ? `
+        <button class="expand-btn" data-id="${id}" title="${isExpanded ? '收起' : '展开'}">
+            <svg class="expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                ${
+                    isExpanded
+                        ? `
+                    <!-- MinusCircleOutlined -->
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="8" y1="12" x2="16" y2="12" stroke-linecap="round"/>
+                `
+                        : `
+                    <!-- PlusCircleOutlined -->
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="16" stroke-linecap="round"/>
+                    <line x1="8" y1="12" x2="16" y2="12" stroke-linecap="round"/>
+                `
+                }
+            </svg>
+        </button>`
+        : '';
+
     // 拼接 HTML 模板字符串
     return `
         ${integratedBadge}
         <div class="node-label" title="${label}">${label}</div>
         ${moduleBadge}
         <button class="more-btn" data-id="${id}">⋮</button>
+        ${expandBtn}
     `;
 }
 
@@ -2539,7 +2584,7 @@ export function renderTree(
                     });
 
                 // const updateFoMetrics = getForeignObjectMetrics(orientation);
-                    update
+                update
                     .select('foreignObject')
                     // .attr('width', updateFoMetrics.width)
                     // .attr('height', updateFoMetrics.height)

@@ -150,6 +150,8 @@ export type D3TreeGraphEventMap = {
     'node:click': TreeData;
     /** 节点双击事件 */
     'node:dblclick': TreeData;
+    /** 展开/收起按钮点击事件 */
+    'node:expand': string;
     /** 更多按钮点击事件 */
     'node:more': { event: MouseEvent; nodeId: string };
     /** 节点拖拽放置事件 */
@@ -334,6 +336,7 @@ export class D3TreeGraph {
             (nodeData) => this.events.emit('node:click', nodeData),
             (nodeData) => this.events.emit('node:dblclick', nodeData),
             (event, nodeId) => this.events.emit('node:more', { event, nodeId }),
+            (nodeId) => this.events.emit('node:expand', nodeId),
             (nodeId) => this.selectedNodeIds.has(nodeId),
             (sourceId, targetId, sourceData, targetData) =>
                 this.events.emit('node:drop-target', {

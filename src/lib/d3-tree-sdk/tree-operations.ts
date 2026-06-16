@@ -84,6 +84,60 @@ export function findNodeInTree(
 }
 
 /**
+ * 切换节点的展开/收起状态
+ * ----------------------------------------------------------------------------
+ * @param root - 树根节点
+ * @param nodeId - 要切换状态的节点 ID
+ * @param ctx - 树上下文（可选）
+ * @returns 切换后的节点数据，如果未找到节点则返回 null
+ *
+ * @description
+ * 切换节点的展开/收起状态：
+ * - 如果节点已展开（children 存在），则收起（将 children 移动到 _children）
+ * - 如果节点已收起（_children 存在），则展开（将 _children 恢复到 children）
+ *
+ * @example
+ * // 切换节点状态
+ * const result = toggleNodeChildren(treeData, 'node1');
+ * if (result) {
+ *   console.log('切换成功');
+ * }
+ */
+export function toggleNodeChildren(
+    root: TreeData,
+    nodeId: string,
+    ctx: TreeContext = defaultTreeContext
+): TreeData | null {
+    const meta = findNodeInTree(root, nodeId, null, 0, ctx);
+    if (!meta) return null;
+
+    const node = meta.node;
+    const acc = ctx.accessors;
+    
+    // 获取当前子节点列表
+    const children = acc.getChildren(node);
+    
+    // 检查是否有缓存的子节点（收起状态）
+    const cachedChildren = (node as any)._children || [];
+    
+    if (children.length > 0) {
+        // 当前是展开状态，需要收起
+        // 将 children 移动到 _children
+        (node as any)._children = children;
+        // 清空 children
+        acc.setChildren(node, []);
+    } else if (cachedChildren.length > 0) {
+        // 当前是收起状态，需要展开
+        // 将 _children 恢复到 children
+        acc.setChildren(node, cachedChildren);
+        // 清空 _children
+        delete (node as any)._children;
+    }
+    
+    return node;
+}
+
+/**
  * 收集所有后代节点
  * ----------------------------------------------------------------------------
  * @param root - 树根节点
