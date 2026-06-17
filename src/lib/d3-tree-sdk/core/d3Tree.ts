@@ -33,6 +33,79 @@ import { logDragState } from './treeLogger';
 import { defaultTreeContext, type TreeContext } from '../TreeContext';
 import type { TreeNodeData } from '../schema/TreeAccessors';
 
+/**
+ * 需要排除拖拽的按钮类名
+ * 如果以后需要修改点击行为（比如添加新的排除按钮类型），只需修改：
+ * 1. DRAG_EXCLUDE_BUTTONS 数组（添加新按钮类名）
+ * 2. bindNodeCardClick 函数（修改点击逻辑）
+ * ----------------------------------------------------------------------------
+ * 当点击这些按钮时，不会触发拖拽事件
+ */
+const DRAG_EXCLUDE_BUTTONS = ['more-btn', 'expand-btn'] as const;
+
+/**
+ * 检查点击目标是否是需要排除拖拽的按钮
+ * ----------------------------------------------------------------------------
+ * @param target - 点击目标元素
+ * @returns 如果是排除的按钮则返回 true
+ *
+ * @description
+ * 由于点击按钮内部的子元素（如 SVG 图标）时，event.target 可能是子元素而非按钮本身，
+ * 因此需要向上遍历 DOM 树，检查目标元素及其祖先元素是否包含排除的类名
+ */
+function isDragExcludeButton(target: EventTarget | null): boolean {
+    if (!target) return false;
+    // const element = target as HTMLElement;
+    // return DRAG_EXCLUDE_BUTTONS.some((cls) => element.classList.contains(cls));
+    let element: HTMLElement | null = target as HTMLElement;
+
+    // 向上遍历 DOM 树，检查是否包含排除的按钮类名
+    while (element) {
+        if (DRAG_EXCLUDE_BUTTONS.some((cls) => element!.classList.contains(cls))) {
+            return true;
+        }
+        element = element.parentElement;
+    }
+
+    return false;
+}
+/**
+ * 绑定节点卡片的点击事件
+ * ----------------------------------------------------------------------------
+ * @param selection - 节点卡片的 D3 selection
+ * @param onNodeClick - 单击回调
+ * @param onNodeDoubleClick - 双击回调
+ */
+function bindNodeCardClick<ParentElement extends d3.BaseType, PDatum>(
+    selection: d3.Selection<HTMLElement, d3.HierarchyNode<TreeData>, ParentElement, PDatum>,
+    // selection: d3.Selection<d3.BaseType, d3.HierarchyNode<TreeData>, SVGGElement, null>,
+    onNodeClick: (data: TreeData) => void,
+    onNodeDoubleClick: (data: TreeData) => void
+) {
+    /**
+     * 1. 首次初始化 时绑定节点点击事件
+     * 2. 数据更新后重新渲染 时绑定节点点击事件，节点数据变化（增删改）后重新设置点击行为
+     *
+     * 当用户点击节点卡片时，应该触发 onNodeClick 等回调；
+     * 但如果点击的是卡片内的按钮（展开收起按钮或更多按钮），则 不应该 触发节点点击事件，否则会导致：
+     * - 点击展开按钮时，同时触发展开和节点点击
+     * - 点击更多按钮时，同时弹出菜单和触发节点点击
+     */
+    selection
+        .on('click', function (event, d) {
+            // 排除按钮点击
+            if (isDragExcludeButton(event.target)) return;
+            event.stopPropagation();
+            onNodeClick(d.data);
+        })
+        .on('dblclick', function (event, d) {
+            // 排除按钮点击
+            if (isDragExcludeButton(event.target)) return;
+            event.stopPropagation();
+            onNodeDoubleClick(d.data);
+        });
+}
+
 /** 从树节点 data 读取配置化 id */
 function hDataId(ctx: TreeContext, data: TreeData): string {
     return ctx.accessors.getId(data);
@@ -1309,19 +1382,24 @@ export function initD3(
             return getForeignObjectMetrics(orientation, 1, d.depth).y;
         });
 
-    fo.append('xhtml:div')
+    const nodeCardSelection = fo
+        .append('xhtml:div')
         .attr('class', 'node-card')
         .classed('selected', (d) => isSelected(acc.getId(d.data)))
         .style('background-color', (d) => nodeLevelColor(treeContext, d.data))
-        .html((d) => buildNodeCardHtml(d, treeContext))
-        .on('click', function (event, d) {
-            event.stopPropagation();
-            onNodeClick(d.data);
-        })
-        .on('dblclick', function (event, d) {
-            event.stopPropagation();
-            onNodeDoubleClick(d.data);
-        });
+        .html((d) => buildNodeCardHtml(d, treeContext));
+
+    // 绑定节点卡片点击事件（首次初始化）
+    bindNodeCardClick(
+        nodeCardSelection as unknown as d3.Selection<
+            HTMLElement,
+            d3.HierarchyNode<TreeData>,
+            d3.BaseType,
+            unknown
+        >,
+        onNodeClick,
+        onNodeDoubleClick
+    );
 
     // 绑定"展开/收起"按钮事件
     fo.selectAll('.expand-btn').on('click', function (event) {
@@ -1626,9 +1704,8 @@ function bindNodeDrag(
             .drag<SVGGElement, d3.HierarchyNode<TreeData>>()
             // 步骤 3：绑定 dragstart 事件
             .on('start', function (this: SVGGElement, event) {
-                // 忽略点击 more-btn 的情况
-                const target = event.sourceEvent?.target as HTMLElement;
-                if (target?.classList.contains('more-btn')) return;
+                // 忽略点击按钮的情况（使用统一的排除列表）：检查点击目标是否是排除的按钮，如果是则不触发拖拽
+                if (isDragExcludeButton(event.sourceEvent?.target)) return;
 
                 // 解析当前节点 ID
                 const nodeId = resolveNodeIdFromElement(this, instance.treeContext);
@@ -1701,6 +1778,9 @@ function dragStarted(
 ) {
     // 步骤 1：参数校验 - 检查节点数据是否有效
     if (!d?.data) return;
+
+    // 步骤 1.5：检查点击目标是否是排除的按钮，如果是则不触发拖拽
+    if (isDragExcludeButton(event.sourceEvent?.target)) return;
 
     // 获取树上下文和访问器
     const ctx = instance.treeContext;
@@ -2619,17 +2699,12 @@ export function renderTree(
     // 更新实例中的 node selection
     instance.node = nodeUpdate;
 
-    // 步骤 6：重新绑定节点点击事件
-    nodeUpdate
-        .selectAll<HTMLElement, d3.HierarchyNode<TreeData>>('.node-card')
-        .on('click', function (event, d) {
-            event.stopPropagation();
-            onNodeClick(d.data);
-        })
-        .on('dblclick', function (event, d) {
-            event.stopPropagation();
-            onNodeDoubleClick(d.data);
-        });
+    // 步骤 6：重新绑定节点点击事件（数据更新后）
+    bindNodeCardClick(
+        nodeUpdate.selectAll<HTMLElement, d3.HierarchyNode<TreeData>>('.node-card'),
+        onNodeClick,
+        onNodeDoubleClick
+    );
 
     // 步骤 7：重新绑定"更多"按钮事件
     nodeUpdate.selectAll('.more-btn').on('click', function (event) {
