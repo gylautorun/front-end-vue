@@ -217,6 +217,29 @@ export interface TreeAccessors {
     setRelationName(relation: Record<string, unknown>, name: string): void;
 
     // -------------------------------------------------------------------------
+    // 展开/收起相关（缓存子节点）
+    // -------------------------------------------------------------------------
+
+    /**
+     * 获取缓存的子节点（收起状态下保存的子节点）
+     * @description 用于展开/收起功能，收起时将 children 移到 _children 缓存
+     * @returns 缓存的子节点数组，如果没有缓存则返回 undefined
+     */
+    getCachedChildren(node: TreeNodeData): TreeNodeData[] | undefined;
+
+    /**
+     * 设置缓存的子节点
+     * @description 将子节点缓存到 _children 属性
+     */
+    setCachedChildren(node: TreeNodeData, children: TreeNodeData[]): void;
+
+    /**
+     * 检查节点是否有缓存的子节点
+     * @description 用于判断节点是否处于收起状态
+     */
+    hasCachedChildren(node: TreeNodeData): boolean;
+
+    // -------------------------------------------------------------------------
     // D3 布局相关
     // -------------------------------------------------------------------------
 
@@ -506,6 +529,34 @@ export function createTreeAccessors(config: ResolvedTreeConfig): TreeAccessors {
          */
         setRelationName: (r, name) => {
             r[f.relationName] = name;
+        },
+
+        // =====================================================================
+        // 展开/收起相关（缓存子节点）
+        // =====================================================================
+
+        /**
+         * 获取缓存的子节点
+         * @description 收起时将 children 移到 _children 缓存
+         */
+        getCachedChildren: (node) => {
+            const cache = (node as any)._children;
+            return Array.isArray(cache) ? (cache as TreeNodeData[]) : undefined;
+        },
+
+        /**
+         * 设置缓存的子节点
+         */
+        setCachedChildren: (node, children) => {
+            (node as any)._children = children;
+        },
+
+        /**
+         * 检查节点是否有缓存的子节点
+         */
+        hasCachedChildren: (node) => {
+            const cache = (node as any)._children;
+            return Array.isArray(cache) && cache.length > 0;
         },
 
         // =====================================================================

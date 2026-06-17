@@ -455,22 +455,27 @@ function handleSvgClick() {
  * 处理展开/收起按钮点击
  * ----------------------------------------------------------------------------
  * 步骤：
- *   1. 获取当前数据
+ *   1. 使用 mutateData() 获取数据引用（不是副本）
  *   2. 使用 toggleNodeChildren 切换节点的展开/收起状态
- *   3. 重新渲染树
+ *    - 3. 重新渲染树（旧）
+ *   3. commit() 提交变更并重新渲染树
  */
 function handleExpandClick(nodeId: string) {
     if (!graph) return;
 
-    // 获取当前数据
-    const data = graph.getData();
+    // // 获取当前数据
+    // const data = graph.getData();
+    // 获取数据引用（不是副本）
+    const data = graph.mutateData();
 
     // 切换节点的展开/收起状态
     const ctx = graph.getContext();
     ctx.toggleNodeChildren(data, nodeId);
 
-    // 重新渲染树
-    graph.render();
+    // // 重新渲染树
+    // graph.render();
+    // 提交变更并重新渲染树
+    graph.commit();
 }
 
 /**

@@ -75,6 +75,15 @@ export interface TreeData extends Record<string, unknown> {
     integratedFrom?: string[];
 }
 
+/**
+ * 带有缓存子节点的树数据类型（用于展开/收起功能）
+ * ----------------------------------------------------------------------------
+ * `_children` 是内部实现细节，用于缓存收起状态下的子节点
+ * 展开时：children = 子节点，_children = undefined
+ * 收起时：children = []，_children = 原始子节点
+ */
+export type TreeDataWithCache = TreeData & { _children?: TreeData[] };
+
 /** 根节点默认整合标记（表示顶层已"合并"，其直接子节点所在层级可继续向下合并） */
 export const ROOT_DEFAULT_MERGE_MARKER = '__root__';
 

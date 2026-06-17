@@ -574,6 +574,7 @@ export class D3TreeGraph {
             (nodeData) => this.events.emit('node:click', nodeData),
             (nodeData) => this.events.emit('node:dblclick', nodeData),
             (event, nodeId) => this.events.emit('node:more', { event, nodeId }),
+            (nodeId) => this.events.emit('node:expand', nodeId),
             (nodeId) => this.selectedNodeIds.has(nodeId),
             (sourceId, targetId, sourceData, targetData) =>
                 this.events.emit('node:drop-target', {

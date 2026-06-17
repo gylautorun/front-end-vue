@@ -19,7 +19,7 @@
  *   6. 给节点 .more-btn 绑定 click，调用 onMoreClick(event, nodeId)
  */
 import * as d3 from 'd3';
-import type { TreeData } from '../types';
+import type { TreeData, TreeDataWithCache } from '../types';
 import {
     LEVEL_CONFIG,
     EDGE_STYLES,
@@ -1602,7 +1602,8 @@ function buildNodeCardHtml(d: d3.HierarchyNode<TreeData>, ctx: TreeContext): str
 
     // 检查节点是否有子节点（包括已加载和待加载的）
     const hasChildren = acc.hierarchyChildren(data) && acc.hierarchyChildren(data)!.length > 0;
-    const hasCachedChildren = (d as any)._children && (d as any)._children.length > 0;
+    // 检查节点是否有缓存的子节点（收起状态）
+    const hasCachedChildren = acc.hasCachedChildren(data);
     const canExpand = hasChildren || hasCachedChildren;
     // 检查节点是否已展开（如果有缓存的子节点说明是收起状态）
     const isExpanded = !hasCachedChildren;
@@ -2512,6 +2513,7 @@ export function renderTree(
     onNodeClick: (data: TreeData) => void,
     onNodeDoubleClick: (data: TreeData) => void,
     onMoreClick: (event: MouseEvent, nodeId: string) => void,
+    onExpandClick: (nodeId: string) => void,
     isSelected: (nodeId: string) => boolean,
     onDropToTarget?: (
         sourceId: string,
@@ -2706,7 +2708,16 @@ export function renderTree(
         onNodeDoubleClick
     );
 
-    // 步骤 7：重新绑定"更多"按钮事件
+    // 步骤 7：重新绑定"展开/收起"按钮事件
+    nodeUpdate.selectAll('.expand-btn').on('click', function (event) {
+        event.stopPropagation();
+        const nodeId = d3.select(this).attr('data-id');
+        if (nodeId) {
+            onExpandClick(nodeId);
+        }
+    });
+
+    // 步骤 8：重新绑定"更多"按钮事件
     nodeUpdate.selectAll('.more-btn').on('click', function (event) {
         event.stopPropagation();
         const nodeId = d3.select(this).attr('data-id');
@@ -2715,16 +2726,16 @@ export function renderTree(
         }
     });
 
-    // 步骤 8：关键修复 - 在重新绑定拖拽事件之前更新 instance.root
+    // 步骤 9：关键修复 - 在重新绑定拖拽事件之前更新 instance.root
     // 确保拖拽事件使用最新的层级结构
     instance.root = root;
 
-    // 步骤 9：重新绑定拖拽事件（如果提供了回调）
+    // 步骤 10：重新绑定拖拽事件（如果提供了回调）
     if (onDropToTarget) {
         bindNodeDrag(nodeUpdate, instance, onDropToTarget);
     }
 
-    // 步骤 10：更新关联关系连线（独立图层）
+    // 步骤 11：更新关联关系连线（独立图层）
     updateRelationLinks(instance, root);
 
     return root;
