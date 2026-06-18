@@ -195,6 +195,9 @@ importers:
       '@types/minimatch':
         specifier: ^6.0.0
         version: 6.0.0
+      '@types/mockjs':
+        specifier: ^1.0.10
+        version: 1.0.10
       '@types/node':
         specifier: ^20.14.0
         version: 20.14.0
@@ -267,6 +270,9 @@ importers:
       lodash-es:
         specifier: ^4.17.21
         version: 4.17.21
+      mockjs:
+        specifier: ^1.1.0
+        version: 1.1.0
       motion-v:
         specifier: ^1.9.0
         version: 1.9.0(@vueuse/core@10.10.0(vue@3.4.27(typescript@5.4.5)))(react@18.3.1)(vue@3.4.27(typescript@5.4.5))
@@ -1816,6 +1822,9 @@ packages:
 
   '@types/minimist@1.2.5':
     resolution: {integrity: sha512-hov8bUuiLiyFPGyFPE1lwWhmzYbirOXQNNo40+y3zow8aFVTeyn3VWL0VFFfdNddA8S4Vf0Tc062rzyNr7Paag==}
+
+  '@types/mockjs@1.0.10':
+    resolution: {integrity: sha512-SXgrhajHG7boLv6oU93CcmdDm0HYRiceuz6b+7z+/2lCJPTWDv0V5YiwFHT2ejE4bQqgSXQiVPQYPWv7LGsK1g==}
 
   '@types/ms@0.7.34':
     resolution: {integrity: sha512-nG96G3Wp6acyAgJqGasjODb+acrI7KltPiRxzHPXnP3NgI28bpQDRv53olbqGXbfcgF5aiiHmO3xpwEpS5Ld9g==}
@@ -5079,6 +5088,10 @@ packages:
 
   mlly@1.7.0:
     resolution: {integrity: sha512-U9SDaXGEREBYQgfejV97coK0UL1r+qnF2SyO9A3qcI8MzKnsIFKHNVEkrDyNncQTKQQumsasmeq84eNMdBfsNQ==}
+
+  mockjs@1.1.0:
+    resolution: {integrity: sha512-eQsKcWzIaZzEZ07NuEyO4Nw65g0hdWAyurVol1IPl1gahRwY+svqzfgfey8U8dahLwG44d6/RwEzuK52rSa/JQ==}
+    hasBin: true
 
   motion-dom@12.27.0:
     resolution: {integrity: sha512-oDjl0WoAsWIWKl3GCDxmh7GITrNjmLX+w5+jwk4+pzLu3VnFvsOv2E6+xCXeH72O65xlXsr84/otiOYQKW/nQA==}
@@ -8629,6 +8642,8 @@ snapshots:
       minimatch: 9.0.4
 
   '@types/minimist@1.2.5': {}
+
+  '@types/mockjs@1.0.10': {}
 
   '@types/ms@0.7.34': {}
 
@@ -12449,6 +12464,10 @@ snapshots:
       pathe: 1.1.2
       pkg-types: 1.1.1
       ufo: 1.5.3
+
+  mockjs@1.1.0:
+    dependencies:
+      commander: 13.1.0
 
   motion-dom@12.27.0:
     dependencies:

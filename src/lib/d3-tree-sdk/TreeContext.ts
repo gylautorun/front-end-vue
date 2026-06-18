@@ -45,6 +45,7 @@
 import { cloneDeep } from 'lodash-es';
 // import { INTEGRATION_TYPE_NAME } from './types';
 import type { IntegrationTypeKey, LevelKey, TreeData } from './types';
+import { AsyncLoadStrategy } from './types';
 import {
     resolveTreeConfig,
     resolveRootId,
@@ -320,6 +321,84 @@ export class TreeContext {
         }
 
         return node;
+    }
+
+    /**
+     * 切换节点展开状态（支持异步加载）
+     * ----------------------------------------------------------------------------
+     * @param root - 树根节点
+     * @param nodeId - 要切换的节点 ID
+     * @param asyncConfig - 异步加载配置（可选）
+     * @returns Promise<TreeData | null> - 切换后的节点，失败返回 null
+     *
+     * @description
+     * 支持两种模式：
+     * 1. 缓存模式 (cache-first): 优先使用缓存，不存在时才请求
+     * 2. 实时模式 (realtime): 每次都重新请求，不使用缓存
+     *
+     * @example
+     * // 同步模式（普通展开/收起）
+     * const result = await ctx.toggleNodeExpansion(treeData, 'node1');
+     *
+     * // 异步缓存模式
+     * const result = await ctx.toggleNodeExpansion(treeData, 'node1', {
+     *   loadChildren: (nodeId) => fetch(`/api/children/${nodeId}`).then(res => res.json()),
+     *   strategy: 'cache-first'
+     * });
+     *
+     * // 异步实时模式
+     * const result = await ctx.toggleNodeExpansion(treeData, 'node1', {
+     *   loadChildren: (nodeId) => fetch(`/api/children/${nodeId}`).then(res => res.json()),
+     *   strategy: 'realtime'
+     * });
+     */
+    async toggleNodeExpansion(
+        root: TreeData,
+        nodeId: string,
+        asyncConfig?: {
+            loadChildren: (nodeId: string) => Promise<TreeData[]>;
+            strategy: AsyncLoadStrategy;
+        }
+    ): Promise<TreeData | null> {
+        const meta = this.findNodeInTree(root, nodeId);
+        if (!meta) return null;
+
+        const node = meta.node;
+        const acc = this.accessors;
+
+        // 获取当前子节点列表和缓存的子节点
+        const children = acc.getChildren(node);
+        const cachedChildren = acc.getCachedChildren(node);
+
+        // 检查是否需要异步加载
+        const needsAsyncLoad =
+            asyncConfig &&
+            !acc.isLeaf(node) &&
+            children.length === 0 &&
+            (!cachedChildren || cachedChildren.length === 0);
+
+        if (needsAsyncLoad) {
+            const { loadChildren, strategy } = asyncConfig;
+
+            // 实时模式或缓存模式下未加载过
+            if (strategy === 'realtime' || !acc.hasLoadedChildren(node)) {
+                // 异步加载子节点
+                const newChildren = await loadChildren(nodeId);
+
+                // 设置子节点
+                acc.setChildren(node, newChildren);
+
+                // 缓存模式下标记已加载
+                if (strategy === 'cache-first') {
+                    acc.markChildrenLoaded(node);
+                }
+            }
+
+            return node;
+        }
+
+        // 普通展开/收起逻辑
+        return this.toggleNodeChildren(root, nodeId);
     }
 
     /**

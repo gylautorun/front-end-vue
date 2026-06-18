@@ -1536,6 +1536,47 @@ function findNodeGElementInSvg(svg: SvgSelection, nodeId: string): SVGGElement |
 }
 
 /**
+ * 判断节点是否可以展开（显示展开按钮）
+ * @param data - 节点数据
+ * @param hasChildren - 是否有已加载的子节点
+ * @param hasCachedChildren - 是否有缓存的子节点（收起状态）
+ * @returns 是否可以展开
+ * @description
+ * 根据节点的 isLeaf 属性和 children 状态判断是否显示展开按钮：
+ *
+ * | isLeaf | children | hasCachedChildren | 结果 | 说明 |
+ * |--------|----------|-------------------|------|------|
+ * | true | 任意 | 任意 | false | 叶子节点，不显示展开按钮 |
+ * | false | [...] | 任意 | true | 有子节点，显示展开按钮 |
+ * | false | [] | false | true | 需要异步加载，显示展开按钮 |
+ * | false | [] | true | true | 有缓存子节点（收起），显示展开按钮 |
+ */
+function canNodeExpand(data: TreeData, hasChildren: boolean, hasCachedChildren: boolean): boolean {
+    // 如果是叶子节点，不显示展开按钮
+    if (data.isLeaf === true) {
+        return false;
+    }
+
+    // 有已加载的子节点 → 可以展开
+    if (hasChildren) {
+        return true;
+    }
+
+    // 有缓存的子节点（收起状态）→ 可以展开
+    if (hasCachedChildren) {
+        return true;
+    }
+
+    // isLeaf === false 且 children 为空数组 → 需要异步加载，显示展开按钮
+    if (data.isLeaf === false && data.children !== undefined && data.children.length === 0) {
+        return true;
+    }
+
+    // 默认不显示展开按钮
+    return false;
+}
+
+/**
  * 从 DOM 元素解析节点 ID（优先级：DOM 属性 > 数据快照）
  * @param gEl - SVG g 元素
  * @param ctx - TreeContext（用于从数据快照获取 ID）
@@ -1601,12 +1642,22 @@ function buildNodeCardHtml(d: d3.HierarchyNode<TreeData>, ctx: TreeContext): str
     const id = acc.getId(data);
 
     // 检查节点是否有子节点（包括已加载和待加载的）
-    const hasChildren = acc.hierarchyChildren(data) && acc.hierarchyChildren(data)!.length > 0;
+    const hasChildren = !!(acc.hierarchyChildren(data) && acc.hierarchyChildren(data)!.length > 0);
     // 检查节点是否有缓存的子节点（收起状态）
     const hasCachedChildren = acc.hasCachedChildren(data);
-    const canExpand = hasChildren || hasCachedChildren;
-    // 检查节点是否已展开（如果有缓存的子节点说明是收起状态）
-    const isExpanded = !hasCachedChildren;
+
+    // 展开按钮显示逻辑：
+    // - isLeaf === true → 叶子节点，不显示展开按钮
+    // - isLeaf === false + children.length > 0 → 有子节点，显示展开按钮
+    // - isLeaf === false + children.length === 0 → 需要异步加载，显示展开按钮
+    // - hasCachedChildren → 有缓存的子节点（收起状态），显示展开按钮
+    // 判断是否可以展开（显示展开按钮）
+    const canExpand = canNodeExpand(data, hasChildren, hasCachedChildren);
+    // 检查节点是否已展开：
+    // - 有已加载的子节点（hasChildren）且没有缓存的子节点（!hasCachedChildren）→ 已展开
+    // - 有缓存的子节点（收起状态）→ 未展开
+    // - 异步加载节点（无已加载子节点）→ 未展开
+    const isExpanded = hasChildren && !hasCachedChildren;
     // 构建展开/收起按钮
     const expandBtn = canExpand
         ? `

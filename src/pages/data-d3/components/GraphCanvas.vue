@@ -148,7 +148,7 @@
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { cloneDeep } from 'lodash-es';
 import type { TreeData, SelectedNode } from '../types';
-import { D3TreeGraph, setDepthNodeDimensions } from '@/lib/d3-tree-sdk';
+import { D3TreeGraph, setDepthNodeDimensions, AsyncLoadStrategy } from '@/lib/d3-tree-sdk';
 import type { TreeLayoutOrientation } from '@/lib/d3-tree-sdk';
 
 /**
@@ -164,6 +164,8 @@ const props = defineProps<{
     schema: import('@/lib/d3-tree-sdk').TreeConfigInput;
     selectedNodes: SelectedNode[];
     selectedCount: number;
+    /** 异步加载缓存策略 */
+    asyncLoadStrategy?: AsyncLoadStrategy;
 }>();
 
 /**
@@ -275,6 +277,22 @@ const resizeWidth = ref<number>(200);
 
 /** 调整尺寸的高度 */
 const resizeHeight = ref<number>(50);
+
+// ---------- 全局异步加载策略 ----------
+// 用于控制异步加载子节点的缓存策略
+
+/** 异步加载缓存策略 */
+const asyncLoadStrategy = ref<AsyncLoadStrategy>(
+    props.asyncLoadStrategy ?? AsyncLoadStrategy.CacheFirst
+);
+
+// 监听 props.asyncLoadStrategy 的变化，更新全局变量
+watch(
+    () => props.asyncLoadStrategy,
+    (newVal) => {
+        asyncLoadStrategy.value = newVal ?? AsyncLoadStrategy.CacheFirst;
+    }
+);
 
 /**
  * 处理菜单项点击事件
@@ -455,28 +473,47 @@ function handleSvgClick() {
  * 处理展开/收起按钮点击
  * ----------------------------------------------------------------------------
  * 步骤：
- *   1. 使用 mutateData() 获取数据引用（不是副本）
- *   2. 使用 toggleNodeChildren 切换节点的展开/收起状态
- *    - 3. 重新渲染树（旧）
- *   3. commit() 提交变更并重新渲染树
+ *   1. 调用 graph.toggleNodeExpansion() 切换节点状态
+ *   2. 该方法会自动处理同步/异步模式
+ *   3. 完成后自动重新渲染树
  */
-function handleExpandClick(nodeId: string) {
+async function handleExpandClick(nodeId: string) {
     if (!graph) return;
 
-    // // 获取当前数据
-    // const data = graph.getData();
-    // 获取数据引用（不是副本）
-    const data = graph.mutateData();
-
-    // 切换节点的展开/收起状态
-    const ctx = graph.getContext();
-    ctx.toggleNodeChildren(data, nodeId);
-
-    // // 重新渲染树
-    // graph.render();
-    // 提交变更并重新渲染树
-    graph.commit();
+    try {
+        // 切换节点展开状态（支持异步加载）
+        // 直接使用全局变量 asyncLoadStrategy
+        await graph.toggleNodeExpansion(nodeId, asyncLoadStrategy.value);
+    } catch (error) {
+        console.error('展开/收起节点失败:', error);
+    }
 }
+// /**
+//  * 处理展开/收起按钮点击
+//  * ----------------------------------------------------------------------------
+//  * 步骤：
+//  *   1. 使用 mutateData() 获取数据引用（不是副本）
+//  *   2. 使用 toggleNodeChildren 切换节点的展开/收起状态
+//  *    - 3. 重新渲染树（旧）
+//  *   3. commit() 提交变更并重新渲染树
+//  */
+// function handleExpandClick(nodeId: string) {
+//     if (!graph) return;
+
+//     // // 获取当前数据
+//     // const data = graph.getData();
+//     // 获取数据引用（不是副本）
+//     const data = graph.mutateData();
+
+//     // 切换节点的展开/收起状态
+//     const ctx = graph.getContext();
+//     ctx.toggleNodeChildren(data, nodeId);
+
+//     // // 重新渲染树
+//     // graph.render();
+//     // 提交变更并重新渲染树
+//     graph.commit();
+// }
 
 /**
  * 处理调整节点尺寸

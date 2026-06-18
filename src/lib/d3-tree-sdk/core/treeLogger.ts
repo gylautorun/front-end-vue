@@ -80,7 +80,7 @@ export class TreeLogger {
             根节点: treeData.label,
             层级: treeData.level,
             总节点数: 0,
-            各层级节点数: {} as Record<string, number>,
+            各层级节点数: {} as Record<string, number>
         };
 
         const countNodes = (node: TreeData, depth = 0) => {
@@ -90,7 +90,7 @@ export class TreeLogger {
             (summary['各层级节点数'] as Record<string, number>)[levelKey] = levelCount + 1;
 
             if (node.children) {
-                node.children.forEach(child => countNodes(child, depth + 1));
+                node.children.forEach((child) => countNodes(child, depth + 1));
             }
         };
 
@@ -106,13 +106,15 @@ export class TreeLogger {
 
         const traverse = (node: TreeData, depth = 0, parentId?: string) => {
             const nodeInfo: Record<string, unknown> = {
+                // ...node,
                 id: node.id,
                 label: node.label,
                 level: node.level,
                 depth: depth,
-                parentId: parentId || '根节点',
+                parentId: parentId,
+                isLeaf: node.isLeaf,
                 hasChildren: !!(node.children && node.children.length > 0),
-                childrenCount: node.children?.length || 0,
+                childrenCount: node.children?.length || 0
             };
 
             if (node.integrationType) {
@@ -128,7 +130,7 @@ export class TreeLogger {
             details.push(nodeInfo);
 
             if (node.children) {
-                node.children.forEach(child => traverse(child, depth + 1, node.id));
+                node.children.forEach((child) => traverse(child, depth + 1, node.id));
             }
         };
 

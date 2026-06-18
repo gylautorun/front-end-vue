@@ -73,6 +73,14 @@ export interface TreeData extends Record<string, unknown> {
      * 用于判断子层级是否可以触发下一层级节点之间的合并
      */
     integratedFrom?: string[];
+
+    /**
+     * 标记节点是否为叶子节点（适用于异步加载场景）
+     * @description isXXX 开头的字段应为布尔类型
+     * - true: 叶子节点（无子节点）
+     * - false: 非叶子节点（可能需要异步加载子节点）
+     */
+    isLeaf?: boolean;
 }
 
 /**
@@ -156,6 +164,17 @@ export enum LevelKey {
     OfficeSingle = 'office_single',
     Module = 'module',
     Base = 'base'
+}
+
+/**
+ * 异步加载缓存策略枚举
+ * ----------------------------------------------------------------------------
+ * CacheFirst - 首次加载后缓存，后续使用缓存（适用于数据变化不频繁的场景）
+ * Realtime - 每次都重新请求，不使用缓存（适用于数据实时变化的场景）
+ */
+export enum AsyncLoadStrategy {
+    CacheFirst = 'cache-first',
+    Realtime = 'realtime'
 }
 
 /**

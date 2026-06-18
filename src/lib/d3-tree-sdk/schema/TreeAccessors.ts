@@ -240,6 +240,30 @@ export interface TreeAccessors {
     hasCachedChildren(node: TreeNodeData): boolean;
 
     // -------------------------------------------------------------------------
+    // 异步加载相关
+    // -------------------------------------------------------------------------
+
+    /**
+     * 检查节点是否为叶子节点
+     * @description 通过 isLeaf 字段判断，适用于异步加载场景
+     * @returns true 表示是叶子节点，false 表示有子节点（可能需要异步加载）
+     */
+    isLeaf(node: TreeNodeData): boolean;
+
+    /**
+     * 检查节点是否已加载过子节点
+     * @description 用于判断是否需要重新请求数据
+     * @returns true 表示子节点已加载（或已尝试加载过）
+     */
+    hasLoadedChildren(node: TreeNodeData): boolean;
+
+    /**
+     * 标记节点子节点已加载
+     * @description 设置内部标记，表示该节点的子节点已加载过
+     */
+    markChildrenLoaded(node: TreeNodeData): void;
+
+    // -------------------------------------------------------------------------
     // D3 布局相关
     // -------------------------------------------------------------------------
 
@@ -557,6 +581,52 @@ export function createTreeAccessors(config: ResolvedTreeConfig): TreeAccessors {
         hasCachedChildren: (node) => {
             const cache = (node as any)._children;
             return Array.isArray(cache) && cache.length > 0;
+        },
+
+        // =====================================================================
+        // 异步加载相关
+        // =====================================================================
+
+        /**
+         * 检查节点是否为叶子节点
+         * @description 通过 isLeaf 字段判断，适用于异步加载场景
+         * @returns true 表示是叶子节点（无子节点），false 表示有子节点（可能需要异步加载）
+         * @note 字段值应为 boolean 类型，非 boolean 值会被转换为 boolean
+         */
+        isLeaf: (node) => {
+            const isLeafField = config.asyncLoad?.isLeafField ?? 'isLeaf';
+            const value = (node as any)[isLeafField];
+
+            // 如果字段不存在，默认认为不是叶子节点（可能需要异步加载）
+            if (value === undefined || value === null) {
+                return false;
+            }
+
+            // 如果字段值不是 boolean 类型，发出警告（isXXX 开头的字段应该是布尔值）
+            if (typeof value !== 'boolean') {
+                console.warn(
+                    `TreeAccessors.isLeaf: ${isLeafField} field should be boolean type, but got ${typeof value}.`
+                );
+            }
+
+            // 确保返回 boolean 类型
+            return Boolean(value);
+        },
+
+        /**
+         * 检查节点是否已加载过子节点
+         * @description 用于判断是否需要重新请求数据（cache-first 策略）
+         */
+        hasLoadedChildren: (node) => {
+            return Boolean((node as any)._childrenLoaded);
+        },
+
+        /**
+         * 标记节点子节点已加载
+         * @description 设置内部标记，表示该节点的子节点已加载过
+         */
+        markChildrenLoaded: (node) => {
+            (node as any)._childrenLoaded = true;
         },
 
         // =====================================================================

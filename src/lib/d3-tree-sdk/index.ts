@@ -268,6 +268,12 @@ export { TreeLogger, logDragState } from './core/treeLogger';
 export type { TreeData, SelectedNode, LevelKey, IntegrationTypeOption } from './types';
 
 /**
+ * 异步加载策略枚举
+ * @description CacheFirst=缓存优先, Realtime=实时请求
+ */
+export { AsyncLoadStrategy } from './types';
+
+/**
  * 整合方式 key
  * @description base=基础, interface=接口对接, migrate=迁移, merge=合并
  */

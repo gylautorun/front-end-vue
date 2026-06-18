@@ -58,6 +58,7 @@
 // ============================================================================
 import { cloneDeep } from 'lodash-es';
 import type { TreeData, SelectedNode } from './types';
+import { AsyncLoadStrategy } from './types';
 import { EventEmitter } from './EventEmitter';
 import { HistoryStack } from './HistoryStack';
 import { TreeContext } from './TreeContext';
@@ -902,6 +903,61 @@ export class D3TreeGraph {
      */
     getContext(): TreeContext {
         return this.treeContext;
+    }
+
+    /**
+     * 切换节点展开状态（支持异步加载）
+     * ----------------------------------------------------------------------------
+     * @param nodeId - 要切换的节点 ID
+     * @param strategy - 缓存策略
+     *   - AsyncLoadStrategy.CacheFirst: 首次加载后缓存，后续使用缓存（默认）
+     *   - AsyncLoadStrategy.Realtime: 每次都重新请求，不使用缓存
+     * @returns Promise<boolean> - 是否成功切换
+     *
+     * @description
+     * 此方法根据配置自动选择同步或异步模式：
+     * - 如果配置了 asyncLoad，且节点不是叶子节点且没有子节点，则异步加载
+     * - 否则使用普通展开/收起逻辑
+     *
+     * @example
+     * // 使用缓存策略（默认）
+     * await graph.toggleNodeExpansion('node1', AsyncLoadStrategy.CacheFirst);
+     *
+     * // 使用实时策略
+     * await graph.toggleNodeExpansion('node1', AsyncLoadStrategy.Realtime);
+     */
+    async toggleNodeExpansion(
+        nodeId: string,
+        strategy: AsyncLoadStrategy = AsyncLoadStrategy.CacheFirst
+    ): Promise<boolean> {
+        // 获取异步加载配置
+        const asyncConfig = this.treeContext.config.asyncLoad;
+
+        // 如果没有配置异步加载，使用普通展开/收起逻辑
+        if (!asyncConfig) {
+            // 使用 mutateData() 获取数据引用（不是副本）
+            const data = this.mutateData();
+            // 使用 toggleNodeChildren 切换节点的展开/收起状态
+            const result = this.treeContext.toggleNodeChildren(data, nodeId);
+            if (result) {
+                // commit() 提交变更并重新渲染树
+                this.commit();
+            }
+            return result !== null;
+        }
+
+        // 异步模式
+        const data = this.mutateData();
+        const result = await this.treeContext.toggleNodeExpansion(data, nodeId, {
+            loadChildren: asyncConfig.loadChildren,
+            strategy
+        });
+
+        if (result) {
+            this.commit();
+        }
+
+        return result !== null;
     }
 
     /**

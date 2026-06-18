@@ -32,6 +32,7 @@ import {
     LEVEL_CONFIG
 } from '../types';
 import type { LevelKey, TreeData } from '../types';
+import { AsyncLoadStrategy } from '../types';
 
 // ============================================================================
 // 字段映射接口 - 定义树节点 JSON 字段与逻辑字段的映射关系
@@ -250,6 +251,35 @@ export interface TreeConfigInput {
 
     /** 节点/连线样式映射 */
     styles?: TreeStyleConfig;
+
+    /**
+     * 异步加载配置（可选）
+     * @description 当数据不是一次性返回时，配置此选项实现按需加载子节点
+     */
+    asyncLoad?: {
+        /**
+         * 异步加载函数
+         * @param nodeId - 要加载子节点的父节点 ID
+         * @returns 返回子节点数组的 Promise
+         */
+        loadChildren: (nodeId: string) => Promise<TreeData[]>;
+
+        /**
+         * isLeaf 字段名（默认 'isLeaf'）
+         * @description 用于判断节点是否为叶子节点
+         * @note 该字段对应的值应为 boolean 类型：
+         *       - true: 叶子节点（无子节点）
+         *       - false: 非叶子节点（可能需要异步加载子节点）
+         */
+        isLeafField?: string;
+
+        /**
+         * 缓存策略（默认 'cache-first'）
+         * @description 'cache-first': 首次加载后缓存，后续使用缓存
+         *              'realtime': 每次都重新请求，不使用缓存
+         */
+        strategy?: AsyncLoadStrategy;
+    };
 }
 
 /** @deprecated 使用 schema / TreeConfigInput */
@@ -328,6 +358,13 @@ export interface ResolvedTreeConfig {
 
     /** 整合类型名称映射 */
     integrationTypeNames: Record<string, string>;
+
+    /** 异步加载配置（可选） */
+    asyncLoad?: {
+        loadChildren: (nodeId: string) => Promise<TreeData[]>;
+        isLeafField: string;
+        strategy: AsyncLoadStrategy;
+    };
 }
 
 // ============================================================================
@@ -468,6 +505,15 @@ export function resolveTreeConfig(input?: TreeConfigInput): ResolvedTreeConfig {
     const base = DEFAULT_TREE_CONFIG;
     const styles = input?.styles;
 
+    // 解析异步加载配置
+    const asyncLoadConfig = input?.asyncLoad
+        ? {
+              loadChildren: input.asyncLoad.loadChildren,
+              isLeafField: input.asyncLoad.isLeafField ?? 'isLeaf',
+              strategy: input.asyncLoad.strategy ?? AsyncLoadStrategy.CacheFirst
+          }
+        : undefined;
+
     return {
         // 根节点 ID：优先使用输入值，否则使用默认值
         rootId: input?.rootId ?? base.rootId,
@@ -496,7 +542,10 @@ export function resolveTreeConfig(input?: TreeConfigInput): ResolvedTreeConfig {
         // 样式配置：合并基础样式与用户自定义样式
         levelColors: { ...base.levelColors, ...styles?.levelColors },
         edgeColors: { ...base.edgeColors, ...styles?.edgeColors },
-        integrationTypeNames: { ...base.integrationTypeNames, ...styles?.integrationTypeNames }
+        integrationTypeNames: { ...base.integrationTypeNames, ...styles?.integrationTypeNames },
+
+        // 异步加载配置
+        asyncLoad: asyncLoadConfig
     };
 }
 
