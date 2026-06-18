@@ -1270,10 +1270,20 @@ export function initD3(
     // 防止 unused 警告
     void svgEl;
 
-    // 应用缩放功能
-    const zoom = d3.zoom<SVGSVGElement, null>().on('zoom', (event) => {
-        g.attr('transform', event.transform);
-    });
+    // 应用缩放功能 （没有禁用双击放大行为）
+    // const zoom = d3.zoom<SVGSVGElement, null>().on('zoom', (event) => {
+    //     g.attr('transform', event.transform);
+    // });
+    const zoom = d3
+        .zoom<SVGSVGElement, null>()
+        // 禁用双击放大行为（双击会频繁触发，用户体验不好）
+        .filter(function (event) {
+            // 过滤掉双击事件（event.detail === 2 表示双击）
+            return !event.detail || event.detail !== 2;
+        })
+        .on('zoom', (event) => {
+            g.attr('transform', event.transform);
+        });
     svg.call(zoom);
 
     svg.on('click', () => {
