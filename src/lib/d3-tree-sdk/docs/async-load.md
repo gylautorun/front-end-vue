@@ -680,7 +680,171 @@ importantNodes.forEach(nodeId => {
 
 ---
 
-## 相关文件
+## 事件记录
+
+### 概述
+
+异步加载功能与事件记录器（EventLogger）紧密结合，可以完整记录异步加载的完整过程，便于调试和监控。
+
+### 事件类型
+
+异步加载涉及以下事件类型：
+
+| 事件类型 | 数据结构 | 说明 |
+|---------|---------|------|
+| `node:expand` | `{ nodeId: string }` | 展开/收起按钮点击 |
+| `node:expand:start` | `{ nodeId: string }` | 异步加载开始 |
+| `node:expand:success` | `{ nodeId: string, childCount: number }` | 异步加载成功 |
+| `node:expand:error` | `{ nodeId: string, error: string }` | 异步加载失败 |
+| `node:async-loaded` | `{ nodeId: string, childCount: number }` | 异步加载完成（数据已设置） |
+
+### GraphCanvas 中的事件记录
+
+在 `GraphCanvas.vue` 中，`handleExpandClick` 函数会自动记录展开事件：
+
+```typescript
+// src/pages/data-d3/components/GraphCanvas.vue
+async function handleExpandClick(nodeId: string) {
+    if (!graph) return;
+
+    // 记录展开事件
+    eventLogger.log('node:expand', { nodeId });
+
+    try {
+        // 切换节点展开状态（支持异步加载）
+        await graph.toggleNodeExpansion(nodeId, asyncLoadStrategy.value);
+        
+        // 记录加载结果
+        const data = graph.getData();
+        const node = findNodeById(data, nodeId);
+        if (node && node.children) {
+            eventLogger.log('node:expand:success', {
+                nodeId,
+                childCount: node.children.length
+            });
+        }
+    } catch (error) {
+        console.error('展开/收起节点失败:', error);
+        eventLogger.log('node:expand:error', {
+            nodeId,
+            error: String(error)
+        });
+    }
+}
+```
+
+### SDK 演示页中的事件记录
+
+在 `sdk-demo/index.vue` 中，事件记录器已集成到所有图事件中：
+
+```typescript
+// src/pages/data-d3/sdk-demo/index.vue
+const eventLogger = new EventLogger({
+    maxEvents: 50,
+    enableConsoleLog: false
+});
+
+function bindGraphEvents(instance: D3TreeGraph) {
+    instance.on('node:click', (node) => {
+        eventLogger.log('node:click', { id: node.id, label: node.label });
+    });
+    
+    instance.on('node:expand', (nodeId) => {
+        eventLogger.log('node:expand', { nodeId });
+    });
+    
+    // 其他事件...
+}
+```
+
+### 分析异步加载行为
+
+通过事件记录，可以分析用户的异步加载行为：
+
+```typescript
+// 获取所有展开事件
+const expandEvents = eventLogger.getEventsByType('node:expand');
+
+// 获取异步加载成功事件
+const successEvents = eventLogger.getEventsByType('node:expand:success');
+
+// 统计异步加载次数
+const loadCount = successEvents.length;
+console.log(`用户异步加载了 ${loadCount} 个节点的子节点`);
+
+// 统计加载失败的节点
+const errorEvents = eventLogger.getEventsByType('node:expand:error');
+const failedNodes = errorEvents.map(e => e.data.nodeId);
+console.log(`加载失败的节点: ${failedNodes.join(', ')}`);
+```
+
+### 事件记录配置
+
+事件记录器支持通过配置控制异步加载事件的记录：
+
+```typescript
+// 创建事件记录器
+const eventLogger = new EventLogger({
+    maxEvents: 100,           // 最大记录数量
+    enableTimestamp: true,    // 记录时间戳
+    enableConsoleLog: false   // 不输出到控制台（生产环境）
+});
+
+// 监听异步加载事件
+instance.on('node:expand', (nodeId) => {
+    // 记录展开开始
+    eventLogger.log('node:expand:start', { nodeId });
+});
+
+instance.on('node:async-loaded', (payload) => {
+    // 记录加载完成
+    eventLogger.log('node:async-loaded', {
+        nodeId: payload.nodeId,
+        childCount: payload.children?.length ?? 0
+    });
+});
+```
+
+### 导出异步加载日志
+
+可以将异步加载相关事件导出用于分析：
+
+```typescript
+// 导出所有事件
+const allEvents = eventLogger.exportToJSON();
+
+// 过滤异步加载相关事件
+const asyncEvents = eventLogger.getEvents().filter(e => 
+    e.type.startsWith('node:expand') || 
+    e.type.startsWith('node:async')
+);
+
+// 导出异步加载日志
+const asyncLogs = JSON.stringify(asyncEvents, null, 2);
+console.log('异步加载日志:', asyncLogs);
+```
+
+### 事件时序分析
+
+通过时间戳可以分析异步加载的时序：
+
+```typescript
+// 获取最近的事件
+const recentEvents = eventLogger.getRecentEvents(10);
+
+// 按时间顺序显示
+recentEvents.forEach(event => {
+    console.log(`[${event.timeString}] ${event.type}:`, event.data);
+});
+
+// 输出示例：
+// [14:30:15.123] node:expand:start → { nodeId: 'node-2' }
+// [14:30:15.456] node:expand → { nodeId: 'node-2' }
+// [14:30:16.789] node:expand:success → { nodeId: 'node-2', childCount: 3 }
+// [14:30:16.790] node:async-loaded → { nodeId: 'node-2', childCount: 3 }
+```
+
+### 相关文件
 
 | 文件 | 说明 |
 |------|------|
@@ -689,5 +853,7 @@ importantNodes.forEach(nodeId => {
 | `schema/TreeAccessors.ts` | 数据访问器（isLeaf、hasLoadedChildren 等方法） |
 | `TreeContext.ts` | 树上下文（toggleNodeExpansion 方法） |
 | `D3TreeGraph.ts` | 图实例（toggleNodeExpansion 方法、asyncLoadStrategy） |
-| `components/GraphCanvas.vue` | Vue 组件（asyncLoadStrategy prop） |
+| `components/GraphCanvas.vue` | Vue 组件（asyncLoadStrategy prop、事件记录） |
 | `data/mockData.ts` | Mock 数据（isLeaf 字段示例） |
+| `utils/EventLogger.ts` | 事件记录器类 |
+| `sdk-demo/index.vue` | SDK 演示页（事件记录集成示例） |

@@ -35,6 +35,9 @@
 -->
 <template>
     <div class="irs-tree-container">
+        <!-- 悬浮事件历史面板 -->
+        <EventHistoryPanel :eventLogger="eventLogger" :maxDisplayCount="100" />
+
         <div class="main-container">
             <!-- 左侧边栏 -->
             <SidebarLeft
@@ -53,6 +56,7 @@
                 :schema="DATA_D3_TREE_SCHEMA"
                 :selected-nodes="selectedNodes"
                 :selected-count="selectedNodes.length"
+                :event-logger="eventLogger"
                 @zoom-in="handleZoomIn"
                 @zoom-out="handleZoomOut"
                 @fit-view="handleFitView"
@@ -194,6 +198,8 @@ import SidebarLeft from './components/SidebarLeft.vue';
 import SidebarRight from './components/SidebarRight.vue';
 import GraphCanvas from './components/GraphCanvas.vue';
 import Modals from './components/Modals.vue';
+import EventHistoryPanel from './components/EventHistoryPanel.vue';
+import { EventLogger } from './utils/EventLogger';
 import {
     D3TreeGraph,
     TreeLogger,
@@ -207,6 +213,12 @@ import {
 } from '@/lib/d3-tree-sdk';
 import { initialTreeData } from './data/mockData';
 import { DATA_D3_TREE_SCHEMA, DATA_D3_ROOT_ID } from './config/treeConfig';
+
+/** 事件记录器实例 */
+const eventLogger = new EventLogger({
+    maxEvents: 100,
+    enableConsoleLog: false
+});
 
 /** 与 GraphCanvas 内 D3TreeGraph 使用同一套 schema */
 const pageTreeCtx = new TreeContext(DATA_D3_TREE_SCHEMA);
@@ -357,6 +369,7 @@ onMounted(() => {
 function selectNode(data: TreeData) {
     selectedNodeData.value = data;
     showDrawer.value = true;
+    eventLogger.log('node:select', { id: data.id, label: data.label });
 }
 
 /**
@@ -392,6 +405,7 @@ function toggleSelect(data: TreeData) {
     if (index > -1) {
         // 已选中，移除
         selectedNodes.value.splice(index, 1);
+        eventLogger.log('node:deselect', { id: data.id, label: data.label });
     } else {
         // 未选中，检查是否可以整合
         if (isRoot) {
@@ -403,6 +417,7 @@ function toggleSelect(data: TreeData) {
             return;
         }
         selectedNodes.value.push({ id: data.id, label: data.label, parentId: data.id });
+        eventLogger.log('node:select-multi', { id: data.id, label: data.label });
     }
 }
 
@@ -485,6 +500,7 @@ function handleResetTree() {
     graphCanvasRef.value?.resetZoom();
     selectNode(treeData.value);
     clearSelection();
+    eventLogger.log('tree:reset', {});
     TreeLogger.log('重置整棵树', treeData.value, { action: 'reset' });
 }
 
@@ -499,6 +515,7 @@ function handleResetTree() {
 function handleUndo(data: TreeData) {
     treeData.value = cloneDeep(data);
     selectNode(treeData.value);
+    eventLogger.log('history:undo', {});
     TreeLogger.log('撤销操作', treeData.value, { action: 'undo' });
 }
 
@@ -510,6 +527,7 @@ function handleUndo(data: TreeData) {
 function handleRedo(data: TreeData) {
     treeData.value = cloneDeep(data);
     selectNode(treeData.value);
+    eventLogger.log('history:redo', {});
     TreeLogger.log('重做操作', treeData.value, { action: 'redo' });
 }
 
@@ -558,6 +576,12 @@ function confirmAddNode(data: {
         })
     );
     if (newNode) {
+        eventLogger.log('node:add', {
+            parentId,
+            newNodeId: newNode.id,
+            newNodeLabel: newNode.label,
+            newNodeLevel: newNode.level
+        });
         TreeLogger.log('新增子节点', treeData.value, {
             parentId,
             newNodeId: newNode.id,
@@ -590,6 +614,11 @@ function confirmAddModule(data: { name: string; dept: string }) {
     if (newModule) {
         const parent = getCtx().findNodeInTree(treeData.value, parentId);
         if (parent) selectNode(parent.node);
+        eventLogger.log('module:add', {
+            parentId,
+            newModuleId: newModule.id,
+            newModuleLabel: newModule.label
+        });
         TreeLogger.log('新增功能模块', treeData.value, {
             parentId,
             newModuleId: newModule.id,
@@ -632,6 +661,12 @@ function confirmIntegrateNode(data: { name: string; dept: string; type: Integrat
     if (mergedNode) {
         selectNode(mergedNode);
         clearSelection();
+        eventLogger.log('node:integrate', {
+            newNodeId: mergedNode.id,
+            newNodeLabel: mergedNode.label,
+            selectedCount: selectedNodeIds.length,
+            integrationType: data.type
+        });
         TreeLogger.log('整合选中节点', treeData.value, {
             newNodeId: mergedNode.id,
             newNodeLabel: mergedNode.label,
@@ -903,14 +938,20 @@ function deleteNode() {
     if (!confirm('确定删除该节点及其所有子节点和模块吗？')) return;
 
     const deleted = getCtx().findNodeInTree(treeData.value, nodeId);
+    const deletedNodeLabel = deleted ? getCtx().accessors.getLabel(deleted.node) : '';
     applyTreeChange((root, ctx) => {
         ctx.deleteNodeFromTree(root, nodeId);
         return true;
     });
     if (deleted) {
+        eventLogger.log('node:delete', {
+            deletedNodeId: nodeId,
+            deletedNodeLabel,
+            parentId: deleted.parent ? getCtx().accessors.getId(deleted.parent) : undefined
+        });
         TreeLogger.log('删除节点', treeData.value, {
             deletedNodeId: nodeId,
-            deletedNodeLabel: getCtx().accessors.getLabel(deleted.node),
+            deletedNodeLabel,
             parentId: deleted.parent ? getCtx().accessors.getId(deleted.parent) : undefined
         });
     }

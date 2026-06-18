@@ -242,6 +242,15 @@ export {
  */
 export { TreeLogger, logDragState } from './core/treeLogger';
 
+/**
+ * 事件记录器
+ * @description 用于记录和管理树形图的操作事件，支持事件订阅和响应式更新
+ */
+export { EventLogger } from './core/EventLogger';
+
+/** 事件记录器相关类型 */
+export type { EventLogEntry, EventLoggerOptions, EventLoggerCallback } from './core/EventLogger';
+
 // ============================================================================
 // 类型导出
 // ============================================================================

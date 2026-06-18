@@ -8,6 +8,7 @@
 | [SDK-CORE.md](./SDK-CORE.md)               | 完整设计（架构、schema、集成、可分享） |
 | [async-load.md](./async-load.md)           | **异步加载子节点功能**                 |
 | [expand-collapse.md](./expand-collapse.md) | **展开收起按钮及逻辑**                 |
+| [event-logger.md](./event-logger.md)      | **事件记录器（EventLogger）**          |
 
 ## 演示
 

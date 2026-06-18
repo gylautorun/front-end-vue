@@ -147,9 +147,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { cloneDeep } from 'lodash-es';
+import dayjs from 'dayjs';
 import type { TreeData, SelectedNode } from '../types';
 import { D3TreeGraph, setDepthNodeDimensions, AsyncLoadStrategy } from '@/lib/d3-tree-sdk';
 import type { TreeLayoutOrientation } from '@/lib/d3-tree-sdk';
+import { EventLogger } from '../utils/EventLogger';
 
 /**
  * 父组件传入的属性（只读）
@@ -166,6 +168,8 @@ const props = defineProps<{
     selectedCount: number;
     /** 异步加载缓存策略 */
     asyncLoadStrategy?: AsyncLoadStrategy;
+    /** 事件记录器实例（从父组件传入） */
+    eventLogger?: EventLogger;
 }>();
 
 /**
@@ -232,6 +236,15 @@ const emit = defineEmits<{
 
 /** D3TreeGraph SDK 实例 */
 let graph: D3TreeGraph | null = null;
+
+/** 获取事件记录器（优先使用父组件传入的） */
+function getEventLogger(): EventLogger {
+    if (props.eventLogger) {
+        return props.eventLogger;
+    }
+    // 创建一个空的事件记录器作为 fallback
+    return new EventLogger({ maxEvents: 100, enableConsoleLog: false });
+}
 
 /** 树布局方向：horizontal 左右 / vertical 上下 */
 const layoutOrientation = ref<TreeLayoutOrientation>('horizontal');
@@ -423,6 +436,7 @@ function closeContextMenu() {
  * @param {TreeData} data 节点数据
  */
 function handleNodeClick(data: TreeData) {
+    getEventLogger().log('node:click', { id: data.id, label: data.label });
     emit('select-node', data);
 }
 
@@ -435,6 +449,7 @@ function handleNodeClick(data: TreeData) {
  * @param {TreeData} data 节点数据
  */
 function handleNodeDoubleClick(data: TreeData) {
+    getEventLogger().log('node:dblclick', { id: data.id, label: data.label });
     emit('toggle-select', data);
 }
 
@@ -450,6 +465,7 @@ function handleNodeDoubleClick(data: TreeData) {
  * @param {string}     nodeId 节点 ID
  */
 function handleMoreClick(event: MouseEvent, nodeId: string) {
+    getEventLogger().log('node:more', { nodeId });
     // 阻止事件冒泡到 SVG（避免触发 SVG 的 click 关闭菜单）
     event.stopPropagation();
     event.preventDefault();
@@ -479,6 +495,12 @@ function handleSvgClick() {
  */
 async function handleExpandClick(nodeId: string) {
     if (!graph) return;
+
+    // 查找节点获取名称
+    const node = findNodeById(props.treeData, nodeId);
+    const nodeLabel = node?.label || '未知节点';
+
+    getEventLogger().log('node:expand', { nodeId, label: nodeLabel });
 
     try {
         // 切换节点展开状态（支持异步加载）
@@ -597,6 +619,12 @@ onMounted(() => {
     graph.on('node:expand', handleExpandClick);
     graph.on('node:more', ({ event, nodeId }) => handleMoreClick(event, nodeId));
     graph.on('node:drop-target', (payload) => {
+        getEventLogger().log('node:drop-target', {
+            sourceId: payload.sourceId,
+            targetId: payload.targetId,
+            sourceLabel: payload.sourceData.label,
+            targetLabel: payload.targetData.label
+        });
         emit(
             'drop-to-target',
             payload.sourceId,
@@ -606,6 +634,7 @@ onMounted(() => {
         );
     });
     graph.on('history:change', (state) => {
+        getEventLogger().log('history:change', { canUndo: state.canUndo, canRedo: state.canRedo });
         canUndo.value = state.canUndo;
         canRedo.value = state.canRedo;
     });
@@ -698,6 +727,7 @@ function recordOperation(data: TreeData) {
  */
 function handleZoomIn() {
     graph?.zoomIn();
+    getEventLogger().log('zoom:in', {});
 }
 
 /**
@@ -711,6 +741,7 @@ function handleZoomIn() {
  */
 function handleZoomOut() {
     graph?.zoomOut();
+    getEventLogger().log('zoom:out', {});
 }
 
 /**
@@ -722,16 +753,19 @@ function handleZoomOut() {
  *   1. 检查 d3Instance 和容器是否存在
  *   2. 调用 fitView 工具函数，自动调整 viewBox
  */
+function handleFitView() {
+    graph?.fitView();
+    getEventLogger().log('zoom:fit', {});
+}
+
 /**
  * 切换树布局方向（左右 ↔ 上下）
  */
 function handleToggleLayout() {
     if (!graph) return;
-    layoutOrientation.value = graph.toggleOrientation();
-}
-
-function handleFitView() {
-    graph?.fitView();
+    const newOrientation = graph.toggleOrientation();
+    layoutOrientation.value = newOrientation;
+    getEventLogger().log('layout:toggle', { orientation: newOrientation });
 }
 
 /**
@@ -743,6 +777,7 @@ function handleFitView() {
  */
 function handleResetZoom() {
     graph?.resetZoom();
+    getEventLogger().log('zoom:reset', {});
 }
 
 /**
@@ -766,11 +801,12 @@ async function selectDownloadFormat(format: 'png' | 'svg') {
     const inputFileName = downloadFileName.value.trim();
     const fileName =
         inputFileName === 'tree-diagram'
-            ? `tree-diagram-${Date.now()}`
+            ? `tree-diagram-${dayjs().valueOf()}`
             : inputFileName || 'tree-diagram';
     showDownloadModal.value = false;
     try {
         await graph.download(fileName, format);
+        getEventLogger().log('download', { format, filename: fileName });
     } catch {
         showDownloadModal.value = false;
     }
@@ -817,6 +853,24 @@ function handleRenderTree(newTreeData?: TreeData) {
  * @property {Function} resetZoom       - 重置缩放
  * @property {Function} recordOperation - 记录操作到历史
  */
+
+/**
+ * 递归查找节点
+ * @param node - 根节点
+ * @param id - 要查找的节点 ID
+ * @returns 找到的节点或 null
+ */
+function findNodeById(node: TreeData, id: string): TreeData | null {
+    if (node.id === id) return node;
+    if (node.children) {
+        for (const child of node.children) {
+            const found = findNodeById(child, id);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+
 defineExpose({
     getGraph: () => graph,
     renderTree: handleRenderTree,
