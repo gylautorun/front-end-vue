@@ -100,7 +100,7 @@ function bindNodeCardClick<ParentElement extends d3.BaseType, PDatum>(
         })
         .on('dblclick', function (event, d) {
             // 排除按钮点击
-            if (isDragExcludeButton(event.target)) return;
+            // if (isDragExcludeButton(event.target)) return;
             event.stopPropagation();
             onNodeDoubleClick(d.data);
         });
