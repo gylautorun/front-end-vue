@@ -162,14 +162,18 @@ function formatEventType(type: string): string {
         'node:click': '点击节点',
         'node:dblclick': '双击节点',
         'node:more': '更多操作',
-        'node:expand': '展开/收起',
+        'node:expand': '展开',
+        'node:collapse': '收起',
         'node:drop-target': '拖拽节点',
         'node:select': '选中节点',
         'node:select-multi': '多选节点',
         'node:deselect': '取消选中',
         'node:add': '新增节点',
         'node:delete': '删除节点',
+        'node:edit': '编辑节点',
         'node:integrate': '整合节点',
+        'node:bind-relation': '绑定关系',
+        'node:integration': '标注整合',
         'module:add': '新增模块',
         'tree:reset': '重置树',
         'history:change': '历史变化',
@@ -205,7 +209,10 @@ function formatEventData(event: EventLogEntry): string {
         return '-';
     }
 
-    // 节点相关事件（同时有名称和ID）
+    // 节点相关事件（同时有名称、ID和操作类型）
+    if ('label' in data && 'nodeId' in data && 'action' in data) {
+        return `${data.action}~节点名称:${data.label}, 节点id:${data.nodeId}`;
+    }
     if ('label' in data && 'nodeId' in data) {
         return `节点名称:${data.label}, 节点id:${data.nodeId}`;
     }

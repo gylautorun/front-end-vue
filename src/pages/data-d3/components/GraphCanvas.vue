@@ -496,11 +496,22 @@ function handleSvgClick() {
 async function handleExpandClick(nodeId: string) {
     if (!graph) return;
 
-    // 查找节点获取名称
-    const node = findNodeById(props.treeData, nodeId);
-    const nodeLabel = node?.label || '未知节点';
+    // 使用 SDK 内部的数据来判断节点状态
+    const ctx = graph.getContext();
+    const nodeResult = ctx.findNodeInTree(graph.getData(), nodeId);
+    const nodeInGraph = nodeResult?.node;
 
-    getEventLogger().log('node:expand', { nodeId, label: nodeLabel });
+    // 获取节点名称
+    const nodeLabel = nodeInGraph ? ctx.accessors.getLabel(nodeInGraph) : '未知节点';
+
+    // 判断当前是展开还是收起状态
+    // 如果 _children 存在，说明节点是收起状态，点击后会展开
+    const hasCachedChildren = nodeInGraph ? ctx.accessors.hasCachedChildren(nodeInGraph) : false;
+    const isCurrentlyCollapsed = hasCachedChildren;
+    const action = isCurrentlyCollapsed ? '展开' : '收起';
+    const eventType = isCurrentlyCollapsed ? 'node:expand' : 'node:collapse';
+
+    getEventLogger().log(eventType, { nodeId, label: nodeLabel });
 
     try {
         // 切换节点展开状态（支持异步加载）
@@ -694,11 +705,13 @@ function handleGlobalClick() {
  */
 function handleUndo() {
     if (!graph?.undo()) return;
+    getEventLogger().log('history:undo', {});
     emit('undo', graph.getData());
 }
 
 function handleRedo() {
     if (!graph?.redo()) return;
+    getEventLogger().log('history:redo', {});
     emit('redo', graph.getData());
 }
 

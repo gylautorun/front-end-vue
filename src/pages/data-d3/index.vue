@@ -542,6 +542,7 @@ function handleRefresh(data: TreeData) {
     treeData.value = cloneDeep(data);
     selectNode(treeData.value);
     clearSelection();
+    eventLogger.log('refresh', {});
     TreeLogger.log('刷新操作', treeData.value, { action: 'refresh' });
 }
 
@@ -711,6 +712,13 @@ function confirmEditNode(data: {
     });
     const updated = getCtx().findNodeInTree(treeData.value, nodeId);
     if (updated) selectNode(updated.node);
+    eventLogger.log('node:edit', {
+        nodeId,
+        newName: data.name,
+        newLevel: data.level,
+        newDept: data.dept,
+        newOwner: data.owner
+    });
     TreeLogger.log('编辑节点属性', treeData.value, {
         nodeId,
         newName: data.name,
@@ -799,6 +807,12 @@ function confirmBindRelation(data: { targetId: string; type: IntegrationTypeKey;
     );
     const source = getCtx().findNodeInTree(treeData.value, sourceId);
     if (source) selectNode(source.node);
+    eventLogger.log('node:bind-relation', {
+        sourceId,
+        targetId: data.targetId,
+        relationType: data.type,
+        relationName: data.name
+    });
     TreeLogger.log('绑定关联关系', treeData.value, {
         sourceId,
         targetId: data.targetId,
@@ -827,6 +841,10 @@ function confirmIntegration(data: { type: IntegrationTypeKey }) {
         return;
     }
     applyTreeChange((root, ctx) => ctx.setNodeIntegration(root, nodeId, data.type));
+    eventLogger.log('node:integration', {
+        nodeId,
+        integrationType: data.type
+    });
     TreeLogger.log('标注整合方式', treeData.value, {
         nodeId,
         integrationType: data.type
