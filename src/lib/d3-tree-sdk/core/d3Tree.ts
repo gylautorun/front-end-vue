@@ -99,6 +99,11 @@ function bindNodeCardClick<ParentElement extends d3.BaseType, PDatum>(
             onNodeClick(d.data);
         })
         .on('dblclick', function (event, d) {
+            /**
+             * isDragExcludeButton 函数会向上遍历 DOM 树检查是否包含排除按钮（ more-btn 、 expand-btn ）。
+             * - 由于节点卡片（ .node-card ）内部包含这些按钮，所以双击节点卡片时，
+             * - 即使点击的是卡片区域，也会因为向上遍历找到按钮而被错误拦截。
+             */
             // 排除按钮点击
             // if (isDragExcludeButton(event.target)) return;
             event.stopPropagation();
