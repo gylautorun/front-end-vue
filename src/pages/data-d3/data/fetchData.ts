@@ -45,8 +45,8 @@ function generateMockChildren(parentId: string, count: number = 2): TreeData[] {
                 label: `${Random.pick(['功能', '模块', '组件', '服务'])}${j + 1}`,
                 level: LevelKey.Module,
                 dept: generateDept(),
-                owner: generateOwner(),
-                isLeaf: true
+                owner: generateOwner()
+                // modules 中不添加 isLeaf 字段
             })),
             children: hasChildren
                 ? generateMockChildren(`${parentId}-child-${i + 1}`, Random.integer(1, 2))

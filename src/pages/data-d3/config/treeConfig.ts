@@ -1,4 +1,5 @@
-import { defineTreeConfig } from '@/lib/d3-tree-sdk';
+import { defineTreeConfig, AsyncLoadStrategy } from '@/lib/d3-tree-sdk';
+import { fetchChildrenData } from '../data/fetchData';
 
 /**
  * data-d3 页面 schema（通过参数传入 SDK，不写死在 SDK 内核）
@@ -15,6 +16,10 @@ import { defineTreeConfig } from '@/lib/d3-tree-sdk';
  *     modules: 'funcModules',
  *   },
  *   selection: { parentId: 'pid' },
+ *   asyncLoad: {
+ *     loadChildren: (nodeId) => fetch(`/api/children/${nodeId}`).then(res => res.json()),
+ *     strategy: 'cache-first'
+ *   }
  * });
  * ```
  */
@@ -53,6 +58,19 @@ export const DATA_D3_TREE_SCHEMA = defineTreeConfig({
         module: 'module_',
         merge: 'merge_',
         integrated: 'integrated_'
+    },
+    /**
+     * 异步加载配置
+     * ----------------------------------------------------------------------------
+     * 当节点的 isLeaf=false 且 children=[] 时，点击展开按钮会触发异步加载
+     */
+    asyncLoad: {
+        /** 加载子节点的异步函数 */
+        loadChildren: fetchChildrenData,
+        /** isLeaf 字段名 */
+        isLeafField: 'isLeaf',
+        /** 缓存策略：cache-first（默认）/ realtime */
+        strategy: AsyncLoadStrategy.CacheFirst
     }
 });
 
