@@ -246,6 +246,81 @@ const unsub = graph.onZoom((transform) => {
 unsub();
 ```
 
+### 展开/收起事件
+
+```typescript
+// 展开/收起按钮点击
+graph.on('node:expand', (nodeId: string) => {
+    console.log('展开/收起节点:', nodeId);
+});
+```
+
+### 展开/收起状态判断
+
+节点展开/收起状态通过 `_children` 属性判断：
+
+```typescript
+const ctx = graph.getContext();
+const nodeResult = ctx.findNodeInTree(graph.getData(), nodeId);
+const hasCachedChildren = ctx.accessors.hasCachedChildren(nodeResult.node);
+
+// hasCachedChildren = true → 收起状态
+// hasCachedChildren = false → 展开状态
+```
+
+详见 [docs/expand-collapse.md](./docs/expand-collapse.md)。
+
+## 事件记录系统（EventLogger）
+
+SDK 提供 `EventLogger` 类用于记录所有操作事件，支持事件订阅和响应式更新。
+
+### 基本用法
+
+```typescript
+import { EventLogger } from '@/lib/d3-tree-sdk';
+
+// 创建事件记录器
+const eventLogger = new EventLogger({ maxEvents: 100 });
+
+// 记录事件
+eventLogger.log('node:click', { id: 'node1', label: '节点1' });
+eventLogger.log('node:expand', { nodeId: 'node2', label: '节点2', action: 'expand' });
+
+// 获取所有事件
+const events = eventLogger.getEvents();
+
+// 订阅事件变化（用于 Vue 响应式更新）
+const unsubscribe = eventLogger.subscribe((events) => {
+    console.log(`收到 ${events.length} 个事件`);
+});
+
+// 导出 JSON
+const json = eventLogger.exportEvents();
+
+// 清空
+eventLogger.clear();
+```
+
+### 事件类型
+
+| 事件类型 | 说明 |
+| -------- | ---- |
+| `node:click` | 点击节点 |
+| `node:dblclick` | 双击节点 |
+| `node:expand` | 展开 |
+| `node:collapse` | 收起 |
+| `node:drop-target` | 拖拽放置 |
+| `node:select-multi` | 多选节点 |
+| `node:deselect` | 取消选中 |
+| `history:undo` | 撤销 |
+| `history:redo` | 重做 |
+| `zoom:in` | 放大 |
+| `zoom:out` | 缩小 |
+| `zoom:reset` | 重置缩放 |
+| `zoom:fit` | 适应视图 |
+
+详见 [docs/event-logger.md](./docs/event-logger.md)。
+
 ## 数据操作
 
 ### 添加子节点
