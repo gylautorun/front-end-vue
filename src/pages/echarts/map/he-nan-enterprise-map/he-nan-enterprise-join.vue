@@ -111,7 +111,7 @@ const initChart = async () => {
                             curveness: 0.3 // 尾迹线条曲直度
                         }
                     },
-                    data: convertData(item[1]),
+                    data: Array.isArray(item[1]) ? convertData(item[1]) : [],
                     progressive: 0 // 禁用渐进渲染
                 },
                 {
@@ -148,16 +148,18 @@ const initChart = async () => {
                             color: '#ffffff'
                         }
                     },
-                    data: item[1]
-                        .map((dataItem: any) => {
-                            const coord = chinaGeoCoordMap[dataItem[0].name];
-                            if (!coord) return null;
-                            return {
-                                name: dataItem[0].name,
-                                value: coord.concat([dataItem[0].value])
-                            };
-                        })
-                        .filter(Boolean)
+                    data: Array.isArray(item[1])
+                        ? item[1]
+                              .map((dataItem: any) => {
+                                  const coord = chinaGeoCoordMap[dataItem[0].name];
+                                  if (!coord) return null;
+                                  return {
+                                      name: dataItem[0].name,
+                                      value: coord.concat([dataItem[0].value])
+                                  };
+                              })
+                              .filter(Boolean)
+                        : []
                 }
             );
         });
@@ -177,7 +179,7 @@ const initChart = async () => {
                     itemStyle: {
                         // normal: {
                         areaColor: {
-                            type: 'linear-gradient',
+                            type: 'linear' as const,
                             x: 0,
                             y: 400,
                             x2: 0,
@@ -194,28 +196,9 @@ const initChart = async () => {
                             ]
                         },
                         borderColor: '#4ecee6',
-                        borderWidth: 1,
+                        borderWidth: 1
                         // },
-                        emphasis: {
-                            areaColor: {
-                                type: 'linear-gradient',
-                                x: 0,
-                                y: 300,
-                                x2: 0,
-                                y2: 0,
-                                colorStops: [
-                                    {
-                                        offset: 0,
-                                        color: 'rgba(37,108,190,1)' // 0% 处的颜色
-                                    },
-                                    {
-                                        offset: 1,
-                                        color: 'rgba(15,169,195,1)' // 50% 处的颜色
-                                    }
-                                ]
-                            }
-                        }
-                    },
+                    } as any,
                     emphasis: {
                         itemStyle: {
                             areaColor: '#0160AD'

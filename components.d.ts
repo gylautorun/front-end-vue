@@ -83,13 +83,12 @@ declare module 'vue' {
     ElUpload: typeof import('element-plus/es')['ElUpload']
     FallingStarsBg: typeof import('./src/components/inspira-ui/falling-stars-bg.vue')['default']
     FloatingLayoutController: typeof import('./src/components/floating-layout-controller/index.vue')['default']
+    FloatingNavBar: typeof import('./src/components/floating-layout-controller/FloatingNavBar.vue')['default']
     GlobalControl: typeof import('./src/components/global-control/index.vue')['default']
-    InspiraUi: typeof import('./src/components/inspira-ui/index.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SvgIcon: typeof import('./src/components/svg-icon.vue')['default']
     TabRightMenu: typeof import('./src/components/context-menu/tab-right-menu.vue')['default']
     ThemeColor: typeof import('./src/components/theme-color.vue')['default']
-    XiAnEnterpriseMap: typeof import('./src/components/echarts/xi-an-enterprise-map.vue')['default']
   }
 }
