@@ -1,0 +1,275 @@
+// ========================================
+// Jenkins Pipeline 配置文件
+// 适用于 Vue 3 + TypeScript + Vite 项目
+// 实现完整的 CI/CD 流程：检出→安装→构建→检查→Docker→部署→通知
+// ========================================
+
+pipeline {
+  // agent any: 使用任意可用的Jenkins节点执行Pipeline
+  agent any
+
+  // 环境变量定义
+  environment {
+    // Docker镜像仓库地址，需要替换为实际地址
+    DOCKER_REGISTRY = 'registry.example.com'
+    // Docker镜像名称
+    DOCKER_IMAGE_NAME = 'vue-frontend'
+    // 构建日期时间，用于镜像标签
+    BUILD_DATE = sh(script: 'date +%Y%m%d-%H%M%S', returnStdout: true).trim()
+  }
+
+  // 构建参数定义（手动触发时可修改）
+  parameters {
+    // 构建环境参数，默认production
+    string(name: 'BUILD_ENV', defaultValue: 'production', description: '构建环境: development/staging/production')
+    // 是否跳过代码检查阶段
+    booleanParam(name: 'SKIP_TEST', defaultValue: false, description: '是否跳过测试')
+  }
+
+  // 触发器配置
+  triggers {
+    // pollSCM: 定期检查代码变更（作为Webhook的备选方案）
+    // H/5 * * * *: 每5分钟检查一次
+    pollSCM('H/5 * * * *')
+  }
+
+  // Pipeline阶段定义
+  stages {
+    // 阶段一：检出代码
+    stage('Checkout') {
+      steps {
+        echo "========== 阶段一: 检出代码 =========="
+        // checkout scm: 从Git仓库拉取代码
+        // scm配置在Jenkins任务中定义
+        checkout scm
+
+        script {
+          // 获取当前分支名称
+          BRANCH_NAME = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+          // 获取当前提交的短哈希值
+          COMMIT_HASH = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+
+          echo "当前分支: ${BRANCH_NAME}"
+          echo "当前提交: ${COMMIT_HASH}"
+
+          // 根据分支名称决定目标环境和服务器
+          // main分支 → 生产环境
+          // develop分支 → 测试环境
+          // hotfix/*分支 → 生产环境（紧急修复）
+          // release/*分支 → 测试环境（发布准备）
+          // feature/*分支 → 开发环境（功能开发）
+          if (BRANCH_NAME == 'main') {
+            env.TARGET_ENV = 'production'
+            env.SERVER_IP = env.PROD_SERVER_IP
+          } else if (BRANCH_NAME == 'develop') {
+            env.TARGET_ENV = 'staging'
+            env.SERVER_IP = env.TEST_SERVER_IP
+          } else if (BRANCH_NAME.startsWith('hotfix/')) {
+            env.TARGET_ENV = 'production'
+            env.SERVER_IP = env.PROD_SERVER_IP
+          } else if (BRANCH_NAME.startsWith('release/')) {
+            env.TARGET_ENV = 'staging'
+            env.SERVER_IP = env.TEST_SERVER_IP
+          } else if (BRANCH_NAME.startsWith('feature/')) {
+            env.TARGET_ENV = 'development'
+            env.SERVER_IP = env.DEV_SERVER_IP
+          } else {
+            // 默认使用构建参数指定的环境
+            env.TARGET_ENV = params.BUILD_ENV
+            env.SERVER_IP = env.DEV_SERVER_IP
+          }
+
+          // 生成镜像标签：分支名-构建号-提交哈希-日期
+          // 替换斜杠为连字符，避免Docker标签命名问题
+          IMAGE_TAG = "${BRANCH_NAME}-${BUILD_NUMBER}-${COMMIT_HASH}-${BUILD_DATE}"
+          IMAGE_TAG = IMAGE_TAG.replaceAll('/', '-')
+
+          echo "目标环境: ${TARGET_ENV}"
+          echo "目标服务器: ${SERVER_IP}"
+          echo "镜像标签: ${IMAGE_TAG}"
+        }
+      }
+    }
+
+    // 阶段二：安装依赖
+    stage('Install Dependencies') {
+      steps {
+        echo "========== 阶段二: 安装依赖 =========="
+        // 使用pnpm安装依赖
+        sh 'pnpm install'
+      }
+      // post: 阶段执行后的操作
+      post {
+        success {
+          echo "依赖安装成功"
+        }
+        failure {
+          error "依赖安装失败"
+        }
+      }
+    }
+
+    // 阶段三：构建项目
+    stage('Build') {
+      steps {
+        echo "========== 阶段三: 构建项目 =========="
+        script {
+          // 根据目标环境执行不同的构建命令
+          // 实际项目中可能需要传递不同的环境变量
+          if (TARGET_ENV == 'production') {
+            sh 'pnpm run build'
+          } else if (TARGET_ENV == 'staging') {
+            sh 'pnpm run build'
+          } else {
+            sh 'pnpm run build'
+          }
+        }
+      }
+      post {
+        success {
+          echo "项目构建成功"
+        }
+        failure {
+          error "项目构建失败"
+        }
+      }
+    }
+
+    // 阶段四：代码检查（可选）
+    stage('Lint & Type Check') {
+      // when: 条件判断，只有SKIP_TEST为false时才执行
+      when {
+        expression { !params.SKIP_TEST }
+      }
+      steps {
+        echo "========== 阶段四: 代码检查 =========="
+        // 执行TypeScript类型检查
+        sh 'pnpm run lint:tsc'
+      }
+      post {
+        success {
+          echo "代码检查通过"
+        }
+        failure {
+          error "代码检查失败"
+        }
+      }
+    }
+
+    // 阶段五：Docker构建与推送
+    stage('Docker Build') {
+      steps {
+        echo "========== 阶段五: Docker构建 =========="
+        script {
+          // docker.withRegistry: 使用指定的镜像仓库
+          // DOCKER_CREDENTIAL_ID是在Jenkins凭证中配置的ID
+          docker.withRegistry("https://${DOCKER_REGISTRY}", DOCKER_CREDENTIAL_ID) {
+            // 构建Docker镜像，传递BUILD_ENV参数
+            def image = docker.build("${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${IMAGE_TAG}", "--build-arg BUILD_ENV=${TARGET_ENV} .")
+            // 推送镜像到仓库
+            image.push()
+            // 同时推送latest标签，便于快速访问最新版本
+            image.push("latest-${TARGET_ENV}")
+          }
+        }
+      }
+      post {
+        success {
+          echo "Docker镜像构建并推送成功"
+        }
+        failure {
+          error "Docker镜像构建失败"
+        }
+      }
+    }
+
+    // 阶段六：部署到服务器
+    stage('Deploy') {
+      // when: 只有特定分支才执行部署
+      // feature分支需要手动触发部署
+      when {
+        expression { 
+          BRANCH_NAME == 'main' || 
+          BRANCH_NAME == 'develop' || 
+          BRANCH_NAME.startsWith('hotfix/') ||
+          BRANCH_NAME.startsWith('release/')
+        }
+      }
+      steps {
+        echo "========== 阶段六: 部署到 ${TARGET_ENV} 环境 =========="
+        script {
+          // 检查服务器IP是否配置
+          if (!SERVER_IP) {
+            error "未配置目标服务器IP"
+          }
+
+          // sshPublisher: 通过SSH连接到服务器并执行部署命令
+          // 需要在Jenkins中配置SSH服务器连接
+          sshPublisher(publishers: [sshPublisherDesc(
+            configName: '服务器SSH配置',
+            transfers: [sshTransfer(
+              // 要上传到服务器的文件
+              sourceFiles: 'docker-compose.yml,nginx.conf',
+              removePrefix: '',
+              // 服务器上的目标目录
+              remoteDirectory: '/opt/app',
+              // 在服务器上执行的命令
+              execCommand: """
+                cd /opt/app && \
+                docker-compose pull && \
+                docker-compose up -d --remove-orphans
+              """
+            )]
+          )])
+        }
+      }
+      post {
+        success {
+          echo "部署成功! 目标环境: ${TARGET_ENV}, 服务器: ${SERVER_IP}"
+        }
+        failure {
+          error "部署失败"
+        }
+      }
+    }
+
+    // 阶段七：通知
+    stage('Notify') {
+      steps {
+        echo "========== 阶段七: 通知 =========="
+        script {
+          // 获取构建结果状态
+          def status = currentBuild.result ?: 'SUCCESS'
+          // 构建通知消息
+          def message = """
+            CI/CD Pipeline 执行结果
+            
+            项目: ${JOB_NAME}
+            构建: #${BUILD_NUMBER}
+            状态: ${status}
+            分支: ${BRANCH_NAME}
+            环境: ${TARGET_ENV}
+            提交: ${COMMIT_HASH}
+            链接: ${BUILD_URL}
+          """.stripIndent()
+
+          echo message
+          // 这里可以添加邮件通知、Slack通知等
+        }
+      }
+    }
+  }
+
+  // post: Pipeline执行完毕后的操作
+  post {
+    success {
+      echo "Pipeline 执行成功"
+    }
+    failure {
+      echo "Pipeline 执行失败"
+    }
+    cleanup {
+      echo "清理构建环境"
+    }
+  }
+}

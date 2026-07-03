@@ -1,0 +1,54 @@
+# ========================================
+# Docker Compose配置文件
+# 用于编排Vue前端项目的Docker容器
+# ========================================
+
+# version: 指定Compose文件格式版本
+# 3.8是较新的版本，支持更多特性
+version: '3.8'
+
+# services: 定义服务（容器）
+services:
+  # nginx服务：提供前端静态资源服务
+  nginx:
+    # image: 使用的Docker镜像
+    # 格式: 仓库地址/镜像名:标签
+    # 需要替换为实际的镜像仓库地址
+    image: registry.example.com/vue-frontend:latest-production
+    
+    # container_name: 容器名称，方便管理
+    container_name: vue-frontend
+    
+    # ports: 端口映射
+    # 格式: "宿主机端口:容器端口"
+    # 将宿主机的80端口映射到容器的80端口
+    ports:
+      - "80:80"
+    
+    # volumes: 数据卷挂载
+    # 将宿主机的文件或目录挂载到容器内部
+    volumes:
+      # 将当前目录的nginx.conf挂载到容器的/etc/nginx/nginx.conf
+      # 实现配置文件的热更新，无需重新构建镜像
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      # 将当前目录的dist目录挂载到容器的静态资源目录
+      # 开发时可以直接修改dist目录，容器内立即生效
+      - ./dist:/usr/share/nginx/html
+    
+    # restart: 容器重启策略
+    # unless-stopped: 除非手动停止，否则容器退出时自动重启
+    # 保证服务的高可用性
+    restart: unless-stopped
+    
+    # networks: 指定容器使用的网络
+    # 将容器加入frontend-network网络
+    networks:
+      - frontend-network
+
+# networks: 定义网络
+networks:
+  # frontend-network: 前端网络
+  # driver: bridge表示使用桥接网络模式
+  # 桥接网络允许容器之间通过容器名互相访问
+  frontend-network:
+    driver: bridge

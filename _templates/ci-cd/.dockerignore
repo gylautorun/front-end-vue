@@ -1,0 +1,15 @@
+node_modules
+dist
+.git
+.gitignore
+.npmrc
+.eslintrc.js
+.prettierrc.js
+.stylelintrc.js
+*.md
+.env
+.env.*
+tests
+.vscode
+.idea
+.husky
