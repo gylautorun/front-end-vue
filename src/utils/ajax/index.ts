@@ -52,3 +52,8 @@ request.interceptors.response.use((response: AxiosResponse) => {
 }, errorHandler);
 
 export default request;
+
+// 请求取消能力统一从 ajax 模块导出，业务组件不需要依赖内部文件路径。
+export {ConsecutiveRequestManager} from './consecutive-request-manager';
+export type {ManagedRequest} from './consecutive-request-manager';
+export {useConsecutiveRequests} from './use-consecutive-requests';

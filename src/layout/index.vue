@@ -1,6 +1,10 @@
 <!-- 一次性加载 LayoutComponents -->
 <template>
-    <div :class="{ 'fullscreen-mode': isFullscreenMode }">
+    <div
+        class="module-wrapper"
+        :class="{ 'fullscreen-mode': isFullscreenMode }"
+        style="height: 100%"
+    >
         <!-- 非 antd 看 _templates/vite-ts-vue -->
         <component :is="LayoutComponents[layout]">
             <!-- <router-view /> 在 main 里面 -->
@@ -47,9 +51,12 @@ const isFullscreenMode = computed(() => {
     if (globalStore.layoutModified) {
         return !globalStore.showSider && !globalStore.showHeader && !globalStore.showFooter;
     }
-    const showSider = route.meta?.showSider !== undefined ? route.meta.showSider : globalStore.showSider;
-    const showHeader = route.meta?.showHeader !== undefined ? route.meta.showHeader : globalStore.showHeader;
-    const showFooter = route.meta?.showFooter !== undefined ? route.meta.showFooter : globalStore.showFooter;
+    const showSider =
+        route.meta?.showSider !== undefined ? route.meta.showSider : globalStore.showSider;
+    const showHeader =
+        route.meta?.showHeader !== undefined ? route.meta.showHeader : globalStore.showHeader;
+    const showFooter =
+        route.meta?.showFooter !== undefined ? route.meta.showFooter : globalStore.showFooter;
     return !showSider && !showHeader && !showFooter;
 });
 </script>
