@@ -1,4 +1,5 @@
-.long-list-ui-lag-page {
+/* 页面采用标题、工具栏、滚动列表三行网格结构。 */
+.fixed-list-page {
     display: grid;
     grid-template-rows: auto auto minmax(0, 1fr);
     width: 100%;
@@ -8,6 +9,7 @@
     background: #f4f6f8;
 }
 
+/* 标题栏与工具栏共用水平布局和基础视觉样式。 */
 .page-header,
 .toolbar {
     display: flex;
@@ -19,18 +21,21 @@
     background: #ffffff;
 }
 
+/* 页面标题使用紧凑字号，避免占用过多列表空间。 */
 .page-header h2 {
     margin: 0 0 4px;
     font-size: 22px;
     letter-spacing: 0;
 }
 
+/* 标题下方说明文字使用次要颜色。 */
 .page-header p {
     margin: 0;
     color: #637083;
     font-size: 13px;
 }
 
+/* 状态指标横向展示总量、DOM 数量和缓冲数量。 */
 .metrics {
     display: flex;
     gap: 24px;
@@ -38,18 +43,22 @@
     font-size: 13px;
 }
 
+/* 指标数值使用深色等宽数字。 */
 .metrics strong {
     color: #111827;
     font-variant-numeric: tabular-nums;
 }
 
+/* 工具栏靠左排列交互控件。 */
 .toolbar {
     justify-content: flex-start;
     padding-block: 10px;
     font-size: 13px;
 }
 
+/* 页面内原生选择框和按钮使用一致尺寸。 */
 .toolbar select,
+/* 操作按钮显示可点击鼠标样式。 */
 .toolbar button {
     min-height: 34px;
     padding: 0 12px;
@@ -63,11 +72,13 @@
     cursor: pointer;
 }
 
+/* 选择计数推到工具栏最右侧。 */
 .selection-count {
     margin-left: auto;
     color: #526071;
 }
 
+/* 固定高列表的唯一滚动容器。 */
 .list-viewport {
     position: relative;
     min-height: 0;
@@ -80,17 +91,20 @@
     overflow-anchor: none;
 }
 
+/* 用完整逻辑高度撑开滚动条。 */
 .list-spacer {
     position: relative;
     width: 100%;
 }
 
+/* 实际可见节点块绝对定位，并使用 transform 更新位置。 */
 .visible-list {
     position: absolute;
     inset: 0 0 auto;
     will-change: transform;
 }
 
+/* 每个固定高项目严格保持 72px，并使用三列网格。 */
 .list-row {
     display: grid;
     grid-template-columns: 96px minmax(0, 1fr) 72px;
@@ -106,15 +120,18 @@
     cursor: pointer;
 }
 
+/* 鼠标经过时提供轻量背景反馈。 */
 .list-row:hover {
     background: #f7fafc;
 }
 
+/* 被选择项目使用绿色背景和左侧标记。 */
 .list-row.selected {
     background: #edf7f2;
     box-shadow: inset 3px 0 #16805b;
 }
 
+/* 编号和状态使用统一次要文字样式。 */
 .row-index,
 .row-status {
     color: #677386;
@@ -122,10 +139,12 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* 中间正文列允许收缩，确保省略号生效。 */
 .row-content {
     min-width: 0;
 }
 
+/* 标题与摘要都限制为单行并溢出省略。 */
 .row-content strong,
 .row-content small {
     display: block;
@@ -134,19 +153,23 @@
     white-space: nowrap;
 }
 
+/* 主标题与摘要之间保留垂直间距。 */
 .row-content strong {
     margin-bottom: 5px;
     font-size: 14px;
 }
 
+/* 摘要使用更弱的文字颜色。 */
 .row-content small {
     color: #758195;
 }
 
+/* 选择状态文字右对齐。 */
 .row-status {
     text-align: right;
 }
 
+/* 窄屏下调整标题布局、页面边距和列表列宽。 */
 @media (max-width: 720px) {
     .page-header {
         align-items: flex-start;

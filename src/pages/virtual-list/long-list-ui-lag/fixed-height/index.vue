@@ -1,5 +1,5 @@
 <template>
-    <main class="long-list-ui-lag-page">
+    <main class="fixed-list-page">
         <!-- 步骤 1：展示当前数据量、实际 DOM 数量和缓冲数量，方便观察虚拟列表效果。 -->
         <header class="page-header">
             <div>
@@ -21,13 +21,11 @@
 
         <!-- 步骤 2：切换测试数据规模，并提供列表交互入口。 -->
         <section class="toolbar" aria-label="列表工具栏">
-            <label for="data-size">数据规模</label>
-            <select id="data-size" v-model.number="selectedSize" @change="changeDataSize">
-                <option :value="10_000">10,000</option>
-                <option :value="100_000">100,000</option>
-                <option :value="500_000">500,000</option>
-                <option :value="1_000_000">1,000,000</option>
-            </select>
+            <DataSizeSelect
+                v-model="selectedSize"
+                input-id="fixed-data-size"
+                @change="changeDataSize"
+            />
             <button type="button" title="回到列表顶部" @click="scrollToTop">回到顶部</button>
             <span class="selection-count">已选择 {{ selectedIds.size }} 条</span>
         </section>
@@ -70,15 +68,9 @@
 
 <script setup lang="ts" name="longListKadun">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue';
-
-interface ListItem {
-    // 列表项唯一编号，同时作为 Vue 渲染时的 key。
-    id: number;
-    // 列表项主标题。
-    title: string;
-    // 列表项的辅助描述文本。
-    summary: string;
-}
+import { FixedHeightVirtualizer } from '../core/fixed-height-virtualizer';
+import DataSizeSelect from '../shared/data-size-select.vue';
+import { createFixedData, DEFAULT_DATA_SIZE } from '../shared/demo-data';
 
 // 步骤 1：固定行高后，可以直接通过除法计算索引，不需要逐项测量 DOM。
 const ITEM_HEIGHT = 72;
@@ -86,20 +78,14 @@ const ITEM_HEIGHT = 72;
 const MIN_OVERSCAN = 6;
 // 视口前后最多额外渲染的条数，用于限制高速滚动时创建的 DOM 数量。
 const MAX_OVERSCAN = 28;
-
-// 步骤 2：生成演示数据。每条数据只保存渲染所需字段，避免额外内存开销。
-const createData = (count: number): ListItem[] =>
-    Array.from({ length: count }, (_, index) => ({
-        id: index + 1,
-        title: `业务记录 ${String(index + 1).padStart(6, '0')}`,
-        summary: `稳定行高与按需渲染，当前数据索引为 ${index}`
-    }));
+// 固定高度算法实例；页面只负责提供滚动状态和渲染计算结果。
+const virtualizer = new FixedHeightVirtualizer(ITEM_HEIGHT);
 
 // 步骤 3：初始化数据源。shallowRef 不会把几十万个对象递归转换为响应式代理。
 // 下拉框当前选择的数据规模，默认生成 100,000 条。
-const selectedSize = ref(100_000);
+const selectedSize = ref(DEFAULT_DATA_SIZE);
 // 完整列表数据源，只监听数组引用是否被替换，不深度代理内部对象。
-const listData = shallowRef(createData(selectedSize.value));
+const listData = shallowRef(createFixedData(selectedSize.value));
 
 // 步骤 4：记录滚动容器尺寸和当前位置，它们决定需要渲染哪一段数据。
 // 滚动容器的 DOM 引用，用于读取尺寸和主动修改滚动位置。
@@ -124,28 +110,31 @@ let previousScrollTop = 0;
 // 视口尺寸观察器实例，组件卸载时需要断开连接。
 let resizeObserver: ResizeObserver | undefined;
 
-// 步骤 6：计算完整列表的基础信息，用总高度生成与真实列表一致的滚动范围。
-// 完整数据源的项目总数。
+// 步骤 6：把页面状态交给固定高度模型，一次得到渲染区间、偏移和总高度。
+const virtualRange = computed(() =>
+    virtualizer.getRange({
+        scrollTop: scrollTop.value,
+        viewportHeight: viewportHeight.value,
+        itemCount: listData.value.length,
+        overscan: overscan.value
+    })
+);
+
+// 从数据源提供模板状态栏需要的列表总数。
 const totalCount = computed(() => listData.value.length);
 // 完整列表理论高度，用于撑开滚动容器的滚动条。
-const totalHeight = computed(() => totalCount.value * ITEM_HEIGHT);
-// 当前视口至少需要显示的行数，向上取整以覆盖底部不足一整行的区域。
-const visibleCount = computed(() => Math.ceil(viewportHeight.value / ITEM_HEIGHT));
+const totalHeight = computed(() => virtualRange.value.totalHeight);
 
-// 步骤 7：由滚动位置计算可见索引，再向前、向后加入动态缓冲区。
-// 当前位于视口顶部的第一条数据索引，不包含缓冲区。
-const firstVisibleIndex = computed(() => Math.floor(scrollTop.value / ITEM_HEIGHT));
+// 步骤 7：直接读取核心模型算出的起止索引。
 // 实际渲染起始索引：从首条可见数据向前加入缓冲，并保证不小于 0。
-const startIndex = computed(() => Math.max(0, firstVisibleIndex.value - overscan.value));
+const startIndex = computed(() => virtualRange.value.startIndex);
 // 实际渲染结束索引：包含可见行和尾部缓冲，并保证不超过数据总数。
-const endIndex = computed(() =>
-    Math.min(totalCount.value, firstVisibleIndex.value + visibleCount.value + overscan.value)
-);
+const endIndex = computed(() => virtualRange.value.endIndex);
 // 步骤 8：截取真正要创建 DOM 的数据，并计算这一段内容相对列表顶部的偏移量。
 // 当前真正交给 v-for 创建 DOM 的小段数据。
 const renderedItems = computed(() => listData.value.slice(startIndex.value, endIndex.value));
 // 已渲染数据块距离完整列表顶部的像素值，用于 translate3d 定位。
-const offsetY = computed(() => startIndex.value * ITEM_HEIGHT);
+const offsetY = computed(() => virtualRange.value.offsetY);
 
 // 步骤 9：在浏览器准备绘制下一帧前提交最新滚动位置。
 const commitScroll = () => {
@@ -180,8 +169,8 @@ const toggleSelected = (id: number) => {
 const scrollToTop = () => viewportRef.value?.scrollTo({ top: 0, behavior: 'smooth' });
 
 // 步骤 13：切换规模时重建数据、清空状态，并把 DOM 和内部滚动状态一起复位。
-const changeDataSize = async () => {
-    listData.value = createData(selectedSize.value);
+const changeDataSize = async (size: number) => {
+    listData.value = createFixedData(size);
     selectedIds.value = new Set();
 
     // 等待占位层按新总高度完成更新后，再设置滚动位置。

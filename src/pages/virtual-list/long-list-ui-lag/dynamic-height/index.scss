@@ -1,0 +1,159 @@
+/* 页面采用三行网格：标题、工具栏、占满剩余空间的滚动列表。 */
+.dynamic-list-page {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    width: 100%;
+    height: 100%;
+    min-height: 520px;
+    color: #172033;
+    background: #f4f6f8;
+}
+
+/* 标题栏和工具栏共用水平排列、间距与白色背景。 */
+.page-header,
+.toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 16px 24px;
+    border-bottom: 1px solid #dfe3e8;
+    background: #fff;
+}
+
+/* 清除标题和正文的浏览器默认外边距，保持布局高度可预测。 */
+.page-header h2,
+.list-row h3,
+.list-row p {
+    margin: 0;
+    letter-spacing: 0;
+}
+
+/* 页面主标题字号与下方说明间距。 */
+.page-header h2 {
+    margin-bottom: 4px;
+    font-size: 22px;
+}
+
+/* 次要信息统一使用较弱的文字颜色和紧凑字号。 */
+.page-header p,
+.toolbar,
+.metrics,
+.row-index {
+    color: #637083;
+    font-size: 13px;
+}
+
+/* 指标区域横向排列数据量、DOM 数量、测量数量和压缩倍数。 */
+.metrics {
+    display: flex;
+    gap: 20px;
+}
+
+/* 指标数值使用深色和等宽数字，滚动时宽度更稳定。 */
+.metrics strong {
+    color: #172033;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 工具栏使用较小的垂直内边距，提高可用列表高度。 */
+.toolbar {
+    padding-block: 10px;
+}
+
+/* 回到顶部按钮的尺寸与公共选择框保持一致。 */
+.toolbar button {
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid #cbd2da;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+}
+
+/* 唯一滚动容器，占据网格剩余空间并隔离边界滚动。 */
+.list-viewport {
+    position: relative;
+    min-height: 0;
+    margin: 16px 24px 24px;
+    overflow: auto;
+    border: 1px solid #d8dde4;
+    border-radius: 6px;
+    background: #fff;
+    overflow-anchor: none;
+    overscroll-behavior: contain;
+}
+
+/* 占位层只负责产生物理滚动高度，不直接承载全部项目。 */
+.list-spacer {
+    position: relative;
+    width: 100%;
+}
+
+/* 实际渲染的小段列表绝对定位，并通过 transform 跟随虚拟区间。 */
+.visible-list {
+    position: absolute;
+    inset: 0 0 auto;
+    will-change: transform;
+}
+
+/* 不定高项目由索引列和可伸缩正文列组成，高度由内容自然撑开。 */
+.list-row {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e8ebef;
+    background: #fff;
+}
+
+/* 相邻项目使用交替背景，提高长列表行辨识度。 */
+.list-row:nth-child(even) {
+    background: #f9fafb;
+}
+
+/* 项目标题与正文之间保留固定间距。 */
+.list-row h3 {
+    margin-bottom: 7px;
+    font-size: 14px;
+}
+
+/* 正文使用固定行高，使预估高度更接近真实高度。 */
+.list-row p {
+    color: #647184;
+    line-height: 22px;
+}
+
+/* 每段正文显式占一行，确保演示数据确实产生 3 到 10 行。 */
+.list-row p span {
+    display: block;
+}
+
+/* 左侧项目编号使用等宽数字，避免位数变化导致视觉晃动。 */
+.row-index {
+    padding-top: 2px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 窄屏下将标题指标改为纵向布局，并缩小列表边距和索引列。 */
+@media (max-width: 720px) {
+    .page-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .metrics {
+        width: 100%;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .list-viewport {
+        margin: 10px 12px 16px;
+    }
+
+    .list-row {
+        grid-template-columns: 68px minmax(0, 1fr);
+        padding-inline: 12px;
+    }
+}
