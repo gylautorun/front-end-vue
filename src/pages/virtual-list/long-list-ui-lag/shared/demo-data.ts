@@ -1,5 +1,8 @@
 /** 两种演示页面共用的数据规模选项。 */
-export const DATA_SIZE_OPTIONS = [10_000, 100_000, 500_000, 1_000_000] as const;
+export const DATA_SIZE_OPTIONS = [
+    10_000, 100_000, 500_000, 1_000_000, 5_000_000, 10_000_000, 20_000_000, 50_000_000, 100_000_000,
+    1_000_000_000
+] as const;
 /** 页面首次打开时默认生成的数据量。 */
 export const DEFAULT_DATA_SIZE = 100_000;
 
@@ -23,19 +26,17 @@ export interface DynamicDemoItem extends BaseDemoItem {
     lineCount: number;
 }
 
-/** 根据指定数量生成固定高度演示数据。 */
-export const createFixedData = (count: number): FixedDemoItem[] =>
-    Array.from({ length: count }, (_, index) => ({
-        id: index + 1,
-        title: `业务记录 ${String(index + 1).padStart(6, '0')}`,
-        summary: `稳定行高与按需渲染，当前数据索引为 ${index}`
-    }));
+/** 按索引生成单条固定高度演示数据，不为完整数据规模分配内存。 */
+export const createFixedItem = (index: number): FixedDemoItem => ({
+    id: index + 1,
+    title: `业务记录 ${String(index + 1).padStart(6, '0')}`,
+    summary: `稳定行高与按需渲染，当前数据索引为 ${index}`
+});
 
-/** 根据指定数量生成不定高度演示数据。 */
-export const createDynamicData = (count: number): DynamicDemoItem[] =>
-    Array.from({ length: count }, (_, index) => ({
-        id: index + 1,
-        title: `动态高度记录 ${String(index + 1).padStart(6, '0')}`,
-        // 5 与 8 互质，因此序列会均匀覆盖 3 到 10 行。
-        lineCount: 3 + ((index * 5) % 8)
-    }));
+/** 按索引生成单条不定高度演示数据，不为完整数据规模分配内存。 */
+export const createDynamicItem = (index: number): DynamicDemoItem => ({
+    id: index + 1,
+    title: `动态高度记录 ${String(index + 1).padStart(6, '0')}`,
+    // 5 与 8 互质，因此序列会均匀覆盖 3 到 10 行。
+    lineCount: 3 + ((index * 5) % 8)
+});

@@ -97,10 +97,11 @@
     will-change: transform;
 }
 
-/* 不定高项目由索引列和可伸缩正文列组成，高度由内容自然撑开。 */
+/* 不定高项目由索引、正文和行尾选择操作组成，高度由正文自然撑开。 */
 .list-row {
     display: grid;
-    grid-template-columns: 92px minmax(0, 1fr);
+    grid-template-columns: 92px minmax(0, 1fr) 72px;
+    align-items: start;
     gap: 16px;
     padding: 16px 20px;
     border-bottom: 1px solid #e8ebef;
@@ -110,6 +111,40 @@
 /* 相邻项目使用交替背景，提高长列表行辨识度。 */
 .list-row:nth-child(even) {
     background: #f9fafb;
+}
+
+/* 选择状态跟随数据 id，虚拟节点销毁并重建后仍可恢复。 */
+.list-row.selected {
+    background: #e8f5ed;
+    box-shadow: inset 4px 0 #238636;
+}
+
+.row-select {
+    width: 72px;
+    min-height: 32px;
+    padding: 0 8px;
+    border: 1px solid #aeb8c4;
+    border-radius: 4px;
+    color: #344054;
+    background: #fff;
+    cursor: pointer;
+}
+
+.row-select[aria-pressed='true'] {
+    border-color: #238636;
+    color: #fff;
+    background: #238636;
+}
+
+.row-select:focus-visible {
+    outline: 2px solid #238636;
+    outline-offset: 2px;
+}
+
+.selection-status {
+    margin-left: auto;
+    color: #238636;
+    font-variant-numeric: tabular-nums;
 }
 
 /* 项目标题与正文之间保留固定间距。 */
@@ -153,7 +188,11 @@
     }
 
     .list-row {
-        grid-template-columns: 68px minmax(0, 1fr);
+        grid-template-columns: 68px minmax(0, 1fr) 64px;
         padding-inline: 12px;
+    }
+
+    .row-select {
+        width: 64px;
     }
 }
