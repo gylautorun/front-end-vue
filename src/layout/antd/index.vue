@@ -98,6 +98,10 @@ const shouldShowFooter = computed(() => {
 });
 
 const clearLayoutGap = computed(() => {
+    if (route.meta?.layoutPreset === 'fullscreen') {
+        return true;
+    }
+
     if (route.meta?.isClearLayoutGap !== undefined) {
         return route.meta?.isClearLayoutGap;
     }

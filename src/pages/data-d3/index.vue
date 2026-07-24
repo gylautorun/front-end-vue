@@ -38,14 +38,14 @@
         <!-- 悬浮事件历史面板 -->
         <EventHistoryPanel :eventLogger="eventLogger" :maxDisplayCount="100" />
 
-        <div class="main-container">
+        <div class="irs-tree-main">
             <!-- 左侧边栏 -->
             <SidebarLeft
                 :selected-nodes="selectedNodes"
                 :selected-count="selectedNodes.length"
                 @reset-tree="handleResetTree"
                 @fit-view="handleFitView"
-                @show-integrate-modal="showIntegrateModal = true"
+                @show-integrate-modal="handleShowIntegrateModal"
                 @remove-selected="removeSelected"
             />
 
@@ -57,48 +57,15 @@
                 :selected-nodes="selectedNodes"
                 :selected-count="selectedNodes.length"
                 :event-logger="eventLogger"
-                @zoom-in="handleZoomIn"
-                @zoom-out="handleZoomOut"
-                @fit-view="handleFitView"
                 @clear-selection="clearSelection"
                 @select-node="selectNode"
                 @toggle-select="toggleSelect"
-                @show-add-node-modal="
-                    (nodeId) => {
-                        contextMenuNodeId = nodeId;
-                        showAddModal = true;
-                    }
-                "
-                @show-add-module-modal="
-                    (nodeId) => {
-                        contextMenuNodeId = nodeId;
-                        showAddModuleModal = true;
-                    }
-                "
-                @show-bind-relation-modal="
-                    (nodeId) => {
-                        contextMenuNodeId = nodeId;
-                        showBindRelationModal = true;
-                    }
-                "
-                @show-edit-node-modal="
-                    (nodeId) => {
-                        contextMenuNodeId = nodeId;
-                        showEditModal = true;
-                    }
-                "
-                @show-integration-modal="
-                    (nodeId) => {
-                        contextMenuNodeId = nodeId;
-                        showIntegrationModal = true;
-                    }
-                "
-                @delete-node="
-                    (nodeId) => {
-                        contextMenuNodeId = nodeId;
-                        deleteNode();
-                    }
-                "
+                @show-add-node-modal="handleShowAddNodeModal"
+                @show-add-module-modal="handleShowAddModuleModal"
+                @show-bind-relation-modal="handleShowBindRelationModal"
+                @show-edit-node-modal="handleShowEditNodeModal"
+                @show-integration-modal="handleShowIntegrationModal"
+                @delete-node="handleDeleteNode"
                 @drop-to-target="handleDropToTarget"
                 @undo="handleUndo"
                 @redo="handleRedo"
@@ -106,32 +73,25 @@
             />
         </div>
 
-        <!-- 右侧详情 Drawer -->
-        <a-drawer
+        <NodeDetailDrawer
             v-model:open="showDrawer"
-            title="节点详情"
-            placement="right"
-            :width="320"
-            @close="closeDrawer"
-        >
-            <SidebarRight
-                :selected-node="selectedNodeData"
-                @update-owner="updateOwner"
-                @show-module-detail="handleShowModuleDetail"
-                @edit-relation="editRelation"
-                @delete-relation="deleteRelation"
-            />
-        </a-drawer>
+            :selected-node="selectedNodeData"
+            @update-owner="updateOwner"
+            @show-module-detail="handleShowModuleDetail"
+            @edit-relation="editRelation"
+            @delete-relation="deleteRelation"
+        />
 
         <!-- 模态框 -->
         <Modals
-            :show-add-modal="showAddModal"
-            :show-add-module-modal="showAddModuleModal"
-            :show-integrate-modal="showIntegrateModal"
-            :show-edit-modal="showEditModal"
-            :show-bind-relation-modal="showBindRelationModal"
-            :show-integration-modal="showIntegrationModal"
-            :show-merge-nodes-modal="showMergeNodesModal"
+            v-model:show-add-modal="showAddModal"
+            v-model:show-add-module-modal="showAddModuleModal"
+            v-model:show-integrate-modal="showIntegrateModal"
+            v-model:show-edit-modal="showEditModal"
+            v-model:show-bind-relation-modal="showBindRelationModal"
+            v-model:show-integration-modal="showIntegrationModal"
+            v-model:show-merge-nodes-modal="showMergeNodesModal"
+            v-model:show-module-detail-modal="showModuleDetailModal"
             :selected-nodes="selectedNodes"
             :available-apps="availableApps"
             :context-menu-node-id="contextMenuNodeId"
@@ -141,16 +101,7 @@
             :merge-source-label="mergeSourceLabel"
             :merge-target-label="mergeTargetLabel"
             :bind-relation-source-label="bindRelationSourceLabel"
-            :show-module-detail-modal="showModuleDetailModal"
             :selected-module-detail="selectedModuleDetail"
-            @close-add-modal="showAddModal = false"
-            @close-add-module-modal="showAddModuleModal = false"
-            @close-integrate-modal="showIntegrateModal = false"
-            @close-edit-modal="showEditModal = false"
-            @close-bind-relation-modal="showBindRelationModal = false"
-            @close-integration-modal="showIntegrationModal = false"
-            @close-merge-nodes-modal="showMergeNodesModal = false"
-            @close-module-detail-modal="showModuleDetailModal = false"
             @confirm-add-node="confirmAddNode"
             @confirm-add-module="confirmAddModule"
             @confirm-integrate-module="confirmIntegrateNode"
@@ -174,7 +125,7 @@
  *   - selectedNodeData     当前打开 Drawer 的节点详情
  *   - contextMenuNodeId    右键菜单触发的节点 ID
  *   - graphCanvasRef       GraphCanvas 组件引用（用于调用 renderTree/zoomIn 等）
- *   - 6 个 showXxxModal    控制各业务模态框的显隐
+ *   - 8 个 showXxxModal    控制各业务模态框的显隐
  *   - showDrawer           控制右侧详情 Drawer 显隐
  *
  * D3 集成（SDK）：
@@ -184,7 +135,7 @@
  *
  * 主要业务方法：
  *   1. 选择相关：selectNode / toggleSelect / toggleSelectModule / clearSelection
- *   2. 工具栏：handleZoomIn / handleZoomOut / handleFitView / handleResetTree
+ *   2. 工具栏：handleFitView / handleResetTree
  *   3. 节点操作：confirmAddNode / confirmAddModule / confirmEditNode / deleteNode
  *   4. 关系操作：confirmBindRelation / deleteRelation / editRelation
  *   5. 整合操作：confirmIntegrateModule / confirmIntegration
@@ -195,10 +146,10 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { cloneDeep } from 'lodash-es';
 import { message } from 'ant-design-vue';
 import SidebarLeft from './components/SidebarLeft.vue';
-import SidebarRight from './components/SidebarRight.vue';
 import GraphCanvas from './components/GraphCanvas.vue';
 import Modals from './components/Modals.vue';
 import EventHistoryPanel from './components/EventHistoryPanel.vue';
+import NodeDetailDrawer from './components/NodeDetailDrawer.vue';
 import { EventLogger } from './utils/EventLogger';
 import {
     D3TreeGraph,
@@ -373,17 +324,6 @@ function selectNode(data: TreeData) {
 }
 
 /**
- * 关闭 Drawer
- * ----------------------------------------------------------------------------
- * 步骤：
- *   1. showDrawer = false
- *   2. Drawer 关闭动画结束后会自动从 DOM 卸载
- */
-function closeDrawer() {
-    showDrawer.value = false;
-}
-
-/**
  * 单击节点：切换多选状态
  * ----------------------------------------------------------------------------
  * 步骤：
@@ -435,6 +375,44 @@ function handleShowModuleDetail(module: TreeData) {
     showModuleDetailModal.value = true;
 }
 
+function setContextMenuNode(nodeId: string) {
+    contextMenuNodeId.value = nodeId;
+}
+
+function handleShowAddNodeModal(nodeId: string) {
+    setContextMenuNode(nodeId);
+    showAddModal.value = true;
+}
+
+function handleShowAddModuleModal(nodeId: string) {
+    setContextMenuNode(nodeId);
+    showAddModuleModal.value = true;
+}
+
+function handleShowBindRelationModal(nodeId: string) {
+    setContextMenuNode(nodeId);
+    showBindRelationModal.value = true;
+}
+
+function handleShowEditNodeModal(nodeId: string) {
+    setContextMenuNode(nodeId);
+    showEditModal.value = true;
+}
+
+function handleShowIntegrationModal(nodeId: string) {
+    setContextMenuNode(nodeId);
+    showIntegrationModal.value = true;
+}
+
+function handleShowIntegrateModal() {
+    showIntegrateModal.value = true;
+}
+
+function handleDeleteNode(nodeId: string) {
+    setContextMenuNode(nodeId);
+    deleteNode();
+}
+
 /**
  * SidebarLeft 移除单个选中项
  * ----------------------------------------------------------------------------
@@ -456,23 +434,6 @@ function removeSelected(nodeId: string) {
  */
 function clearSelection() {
     selectedNodes.value = [];
-}
-
-// 工具栏功能
-/**
- * 放大（GraphCanvas 内部已直接处理工具栏点击，这里保留作为父组件调用入口）
- * 步骤：调用 GraphCanvas 实例的 zoomIn() 方法
- */
-function handleZoomIn() {
-    graphCanvasRef.value?.zoomIn();
-}
-
-/**
- * 缩小（父组件调用入口）
- * 步骤：调用 GraphCanvas 实例的 zoomOut() 方法
- */
-function handleZoomOut() {
-    graphCanvasRef.value?.zoomOut();
 }
 
 /**
@@ -1027,7 +988,7 @@ function deleteRelation(relation: { targetId: string; targetName: string; type: 
     syncFromGraph();
 }
 </script>
-
-<style lang="scss">
-@import url('./index.scss');
-</style>
+<!-- data-d3 页面不能整体使用 scoped，因为 D3 动态创建的 DOM 没有 Vue 的 data-v-* 属性。该页面现在采用 .irs-tree-container 命名空间隔离 -->
+<!-- 这里不使用 scoped 是有意的，样式隔离由 .irs-tree-container 完成 -->
+<!-- <style src="./index.scss" lang="scss" scoped></style> -->
+<style src="./index.scss" lang="scss"></style>

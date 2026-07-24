@@ -129,9 +129,7 @@
         "vite-plugin-html": "^3.2.2",
         "vite-plugin-imagemin": "^0.6.1",
         "vite-plugin-lazy-import": "^1.0.7",
-        "vite-plugin-pages": "^0.32.2",
         "vite-plugin-svg-icons": "^2.0.1",
-        "vite-plugin-vue-layouts": "^0.11.0",
         "vue-tsc": "^2.2.8",
         "worker-loader": "^3.0.8"
     }

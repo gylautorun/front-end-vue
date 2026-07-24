@@ -12,9 +12,7 @@
       7. merge-nodes-modal    拖拽合并节点（拖到同级节点时弹出）
       8. module-detail-modal  模块详情
 
-    Props 形式受控（每个 :visible 控制显隐 + @cancel 关闭事件 + 确认事件）：
-      :visible="showAddModal"     @cancel="emit('close-add-modal')"
-      @confirm="confirmAddNode"   提交后由父组件修改 treeData
+    显隐状态通过多个 v-model 与父组件同步；确认事件仍由父组件处理业务数据。
 
     ========================================================================
 -->
@@ -24,7 +22,7 @@
         :visible="showAddModal"
         :title="'➕ 新增子节点'"
         :footer="false"
-        @cancel="$emit('close-add-modal')"
+        @cancel="showAddModal = false"
     >
         <a-form layout="vertical">
             <a-form-item label="节点名称">
@@ -51,7 +49,7 @@
             </a-form-item>
         </a-form>
         <div class="modal-actions">
-            <a-button @click="$emit('close-add-modal')">取消</a-button>
+            <a-button @click="showAddModal = false">取消</a-button>
             <a-button type="primary" @click="handleConfirmAddNode">确定</a-button>
         </div>
     </a-modal>
@@ -61,7 +59,7 @@
         :visible="showAddModuleModal"
         :title="'📦 新增功能模块'"
         :footer="false"
-        @cancel="$emit('close-add-module-modal')"
+        @cancel="showAddModuleModal = false"
     >
         <a-form layout="vertical">
             <a-form-item label="模块名称">
@@ -72,7 +70,7 @@
             </a-form-item>
         </a-form>
         <div class="modal-actions">
-            <a-button @click="$emit('close-add-module-modal')">取消</a-button>
+            <a-button @click="showAddModuleModal = false">取消</a-button>
             <a-button type="primary" @click="handleConfirmAddModule">确定</a-button>
         </div>
     </a-modal>
@@ -83,7 +81,7 @@
         :title="'🔗 整合选中节点'"
         :footer="false"
         :width="450"
-        @cancel="$emit('close-integrate-modal')"
+        @cancel="showIntegrateModal = false"
     >
         <a-form layout="vertical">
             <a-form-item label="已选择的节点">
@@ -112,7 +110,7 @@
             </a-form-item>
         </a-form>
         <div class="modal-actions">
-            <a-button @click="$emit('close-integrate-modal')">取消</a-button>
+            <a-button @click="showIntegrateModal = false">取消</a-button>
             <a-button type="primary" @click="handleConfirmIntegrateModule">确定整合</a-button>
         </div>
     </a-modal>
@@ -122,7 +120,7 @@
         :visible="showEditModal"
         :title="'✏️ 编辑属性'"
         :footer="false"
-        @cancel="$emit('close-edit-modal')"
+        @cancel="showEditModal = false"
     >
         <a-form layout="vertical">
             <a-form-item label="名称">
@@ -145,7 +143,7 @@
             </a-form-item>
         </a-form>
         <div class="modal-actions">
-            <a-button @click="$emit('close-edit-modal')">取消</a-button>
+            <a-button @click="showEditModal = false">取消</a-button>
             <a-button type="primary" @click="handleConfirmEditNode">保存</a-button>
         </div>
     </a-modal>
@@ -155,7 +153,7 @@
         :visible="showBindRelationModal"
         :title="'🔗 绑定关联关系'"
         :footer="false"
-        @cancel="$emit('close-bind-relation-modal')"
+        @cancel="showBindRelationModal = false"
     >
         <p style="color: #666; font-size: 12px; margin-bottom: 12px">
             为节点
@@ -190,7 +188,7 @@
             </a-form-item>
         </a-form>
         <div class="modal-actions">
-            <a-button @click="$emit('close-bind-relation-modal')">取消</a-button>
+            <a-button @click="showBindRelationModal = false">取消</a-button>
             <a-button type="primary" @click="handleConfirmBindRelation">确定</a-button>
         </div>
     </a-modal>
@@ -200,7 +198,7 @@
         :visible="showIntegrationModal"
         :title="'🏷️ 标注整合方式'"
         :footer="false"
-        @cancel="$emit('close-integration-modal')"
+        @cancel="showIntegrationModal = false"
     >
         <a-form layout="vertical">
             <a-form-item label="整合方式">
@@ -216,7 +214,7 @@
             </a-form-item>
         </a-form>
         <div class="modal-actions">
-            <a-button @click="$emit('close-integration-modal')">取消</a-button>
+            <a-button @click="showIntegrationModal = false">取消</a-button>
             <a-button type="primary" @click="handleConfirmIntegration">确定</a-button>
         </div>
     </a-modal>
@@ -231,7 +229,7 @@
         :visible="showMergeNodesModal"
         :title="'🔗 拖拽合并节点'"
         :footer="false"
-        @cancel="$emit('close-merge-nodes-modal')"
+        @cancel="showMergeNodesModal = false"
     >
         <p style="color: #666; font-size: 12px; margin-bottom: 12px">
             将节点
@@ -261,7 +259,7 @@
             </a-form-item>
         </a-form>
         <div class="modal-actions">
-            <a-button @click="$emit('close-merge-nodes-modal')">取消</a-button>
+            <a-button @click="showMergeNodesModal = false">取消</a-button>
             <a-button type="primary" @click="handleConfirmMergeNodes">确定合并</a-button>
         </div>
     </a-modal>
@@ -271,7 +269,7 @@
         :visible="showModuleDetailModal"
         :title="'📦 模块详情'"
         :footer="false"
-        @cancel="$emit('close-module-detail-modal')"
+        @cancel="showModuleDetailModal = false"
     >
         <div class="detail-info" v-if="selectedModuleDetail">
             <div class="form-group">
@@ -296,7 +294,7 @@
             </div>
         </div>
         <div class="modal-actions">
-            <a-button type="primary" @click="$emit('close-module-detail-modal')">关闭</a-button>
+            <a-button type="primary" @click="showModuleDetailModal = false">关闭</a-button>
         </div>
     </a-modal>
 </template>
@@ -307,7 +305,7 @@
  * Modals.vue 业务模态框组件
  * ========================================================================
  *
- * 包含 7 个模态框，对应 7 个 showXxxModal ref：
+ * 包含 8 个模态框，对应 8 个 showXxxModal model：
  *   1. add-node-modal       新增子节点
  *   2. add-module-modal     新增功能模块
  *   3. integrate-modal      整合选中模块
@@ -315,9 +313,10 @@
  *   5. bind-relation-modal  绑定关联关系
  *   6. integration-modal    标注整合方式
  *   7. merge-nodes-modal    拖拽合并节点
+ *   8. module-detail-modal  模块详情
  *
  * 数据流：
- *   - Props 传入 showXxxModal（控制显隐）+ treeData / contextMenuNodeId 等
+ *   - 多个 v-model 控制显隐，Props 传入 treeData / contextMenuNodeId 等业务数据
  *   - watch 监听 show* 变化时初始化表单字段（清空/预填充）
  *   - 用户点击"确定" → handleConfirm* 校验 → emit('confirm-*')
  *   - 父组件 index.vue 收到事件后修改 treeData → 重新 d3.hierarchy + renderTree
@@ -338,16 +337,17 @@ import { message } from 'ant-design-vue';
 import type { TreeData, SelectedNode } from '../types';
 import { INTEGRATION_TYPE_OPTIONS, IntegrationTypeKey, LEVEL_CONFIG, LevelKey } from '../types';
 
-/** 父组件传入的 props：模态框显隐 + 选中状态 + 树数据 */
+const showAddModal = defineModel<boolean>('showAddModal', { required: true });
+const showAddModuleModal = defineModel<boolean>('showAddModuleModal', { required: true });
+const showIntegrateModal = defineModel<boolean>('showIntegrateModal', { required: true });
+const showEditModal = defineModel<boolean>('showEditModal', { required: true });
+const showBindRelationModal = defineModel<boolean>('showBindRelationModal', { required: true });
+const showIntegrationModal = defineModel<boolean>('showIntegrationModal', { required: true });
+const showMergeNodesModal = defineModel<boolean>('showMergeNodesModal', { required: true });
+const showModuleDetailModal = defineModel<boolean>('showModuleDetailModal', { required: true });
+
+/** 父组件传入的选中状态与树数据 */
 const props = defineProps<{
-    showAddModal: boolean;
-    showAddModuleModal: boolean;
-    showIntegrateModal: boolean;
-    showEditModal: boolean;
-    showBindRelationModal: boolean;
-    showIntegrationModal: boolean;
-    /** 拖拽合并节点弹框显隐（由 d3 dragend 命中同级节点时打开） */
-    showMergeNodesModal: boolean;
     selectedNodes: SelectedNode[];
     availableApps: TreeData[];
     contextMenuNodeId: string | null;
@@ -359,22 +359,12 @@ const props = defineProps<{
     mergeTargetLabel: string;
     /** 绑定关系弹框内：源节点名称（用于显示） */
     bindRelationSourceLabel: string;
-    /** 模块详情弹框显隐 */
-    showModuleDetailModal: boolean;
     /** 选中的模块详情数据 */
     selectedModuleDetail: TreeData | null;
 }>();
 
-/** 父组件监听的事件：关闭模态框 + 确认提交表单数据 */
+/** 父组件监听的确认提交事件 */
 const emit = defineEmits<{
-    (e: 'close-add-modal'): void;
-    (e: 'close-add-module-modal'): void;
-    (e: 'close-integrate-modal'): void;
-    (e: 'close-module-detail-modal'): void;
-    (e: 'close-edit-modal'): void;
-    (e: 'close-bind-relation-modal'): void;
-    (e: 'close-integration-modal'): void;
-    (e: 'close-merge-nodes-modal'): void;
     (
         e: 'confirm-add-node',
         data: { name: string; level: LevelKey; integrationType: IntegrationTypeKey }
@@ -431,45 +421,36 @@ const mergeNodeIntegrationType = ref<IntegrationTypeKey>(IntegrationTypeKey.merg
  *   1. 清空所有表单字段
  *   2. 把默认值重置（level / integrationType）
  */
-watch(
-    () => props.showAddModal,
-    (val) => {
-        if (val) {
-            newNodeName.value = '';
-            newNodeLevel.value = LevelKey.OfficeSingle;
-            newNodeIntegrationType.value = IntegrationTypeKey.base;
-        }
+watch(showAddModal, (val) => {
+    if (val) {
+        newNodeName.value = '';
+        newNodeLevel.value = LevelKey.OfficeSingle;
+        newNodeIntegrationType.value = IntegrationTypeKey.base;
     }
-);
+});
 
 /**
  * 监听"新增模块"模态框打开
  * 步骤：清空名称和部门
  */
-watch(
-    () => props.showAddModuleModal,
-    (val) => {
-        if (val) {
-            newModuleName.value = '';
-            newModuleDept.value = '';
-        }
+watch(showAddModuleModal, (val) => {
+    if (val) {
+        newModuleName.value = '';
+        newModuleDept.value = '';
     }
-);
+});
 
 /**
  * 监听"整合节点"模态框打开
  * 步骤：清空新名称/部门 + 整合方式默认"合并"
  */
-watch(
-    () => props.showIntegrateModal,
-    (val) => {
-        if (val) {
-            newIntegratedNodeName.value = '';
-            newIntegratedNodeDept.value = '';
-            integrateType.value = IntegrationTypeKey.merge;
-        }
+watch(showIntegrateModal, (val) => {
+    if (val) {
+        newIntegratedNodeName.value = '';
+        newIntegratedNodeDept.value = '';
+        integrateType.value = IntegrationTypeKey.merge;
     }
-);
+});
 
 /**
  * 监听"编辑属性"模态框打开
@@ -477,35 +458,29 @@ watch(
  *   1. 根据 contextMenuNodeId 在 treeData 中找到目标节点
  *   2. 把节点现有值预填到表单
  */
-watch(
-    () => props.showEditModal,
-    (val) => {
-        if (val && props.contextMenuNodeId) {
-            const node = findNodeById(props.treeData, props.contextMenuNodeId);
-            if (node) {
-                editNodeName.value = node.label;
-                editNodeDept.value = node.dept;
-                editNodeLevel.value = node.level;
-                editNodeOwner.value = node.owner;
-            }
+watch(showEditModal, (val) => {
+    if (val && props.contextMenuNodeId) {
+        const node = findNodeById(props.treeData, props.contextMenuNodeId);
+        if (node) {
+            editNodeName.value = node.label;
+            editNodeDept.value = node.dept;
+            editNodeLevel.value = node.level;
+            editNodeOwner.value = node.owner;
         }
     }
-);
+});
 
 /**
  * 监听"绑定关系"模态框打开
  * 步骤：清空目标 + 重置关系类型 + 清空整合名称
  */
-watch(
-    () => props.showBindRelationModal,
-    (val) => {
-        if (val) {
-            relationTarget.value = '';
-            relationType.value = IntegrationTypeKey.integration;
-            relationName.value = '';
-        }
+watch(showBindRelationModal, (val) => {
+    if (val) {
+        relationTarget.value = '';
+        relationType.value = IntegrationTypeKey.integration;
+        relationName.value = '';
     }
-);
+});
 
 /**
  * 监听关联对象选择变化，自动填充整合名称
@@ -528,17 +503,14 @@ watch(relationTarget, (targetId) => {
  *   1. 找到目标节点
  *   2. 预填当前的 integrationType
  */
-watch(
-    () => props.showIntegrationModal,
-    (val) => {
-        if (val && props.contextMenuNodeId) {
-            const node = findNodeById(props.treeData, props.contextMenuNodeId);
-            if (node?.integrationType) {
-                integrationType.value = node.integrationType;
-            }
+watch(showIntegrationModal, (val) => {
+    if (val && props.contextMenuNodeId) {
+        const node = findNodeById(props.treeData, props.contextMenuNodeId);
+        if (node?.integrationType) {
+            integrationType.value = node.integrationType;
         }
     }
-);
+});
 
 /**
  * 监听"拖拽合并节点"模态框打开
@@ -547,15 +519,12 @@ watch(
  *   2. 重置整合方式默认值 = "merge"（合并）
  *   3. （源/目标节点信息由父组件传 props 提供，模板直接展示）
  */
-watch(
-    () => props.showMergeNodesModal,
-    (val) => {
-        if (val) {
-            mergeNodeName.value = `${props.mergeSourceLabel} 与 ${props.mergeTargetLabel}`;
-            mergeNodeIntegrationType.value = IntegrationTypeKey.merge;
-        }
+watch(showMergeNodesModal, (val) => {
+    if (val) {
+        mergeNodeName.value = `${props.mergeSourceLabel} 与 ${props.mergeTargetLabel}`;
+        mergeNodeIntegrationType.value = IntegrationTypeKey.merge;
     }
-);
+});
 
 /**
  * 在树中根据 ID 查找节点

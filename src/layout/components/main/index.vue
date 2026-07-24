@@ -1,10 +1,10 @@
 <template>
 	<Maximize v-if="maximize" />
 	<Tabs v-if="tabs" />
-	<a-layout-content>
+	<a-layout-content :class="{ 'fullscreen-content': isFullscreenPage }">
 		<router-view v-slot="{ Component, route }">
 			<transition appear name="fade-transform" mode="out-in">
-				<div class="main-container">
+				<div class="main-container" :class="{ 'fullscreen-container': isFullscreenPage }">
 					<keep-alive :include="keepAliveName">
 						<component :is="Component" :key="route.fullPath" v-if="isRouterShow"></component>
 					</keep-alive>
@@ -36,6 +36,8 @@ const route = useRoute();
 const globalStore = useGlobalStore();
 const { maximize, tabs, footer } = storeToRefs(globalStore);
 
+const isFullscreenPage = computed(() => route.meta?.layoutPreset === 'fullscreen');
+
 // 根据路由元数据控制布局组件显示
 const shouldHideFooter = computed(() => {
     return route.meta?.hideFooter || false;
@@ -64,5 +66,12 @@ watch(
 .main-container {
 	width: 100%;
 	height: 100%;
+
+	&.fullscreen-container {
+		flex: 1;
+		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
+	}
 }
 </style>

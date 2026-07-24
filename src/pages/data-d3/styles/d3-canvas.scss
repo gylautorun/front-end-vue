@@ -1,0 +1,5 @@
+@use './d3' as d3;
+
+#graph-container {
+    @include d3.styles;
+}

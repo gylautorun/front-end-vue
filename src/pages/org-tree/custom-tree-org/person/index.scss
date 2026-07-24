@@ -1,4 +1,4 @@
-@import '../style/variable.scss';
+@use '../style/variable.scss' as *;
 
 .placeholder-info-wrap {
     margin: 0 10px;

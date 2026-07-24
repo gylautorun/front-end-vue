@@ -3,6 +3,16 @@
 	padding: 10px 12px;
 	overflow-x: hidden;
 	background-color: #f0f2f5;
+
+	&.fullscreen-content {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		min-height: 0;
+		padding: 0;
+		overflow: hidden;
+	}
+
 	&::-webkit-scrollbar {
 		background-color: #f0f2f5;
 	}

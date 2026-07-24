@@ -3,8 +3,7 @@
     ========================================================================
 
     旧版本：作为固定右侧栏显示当前选中节点详情
-    新版本：详情改用 <a-drawer> 弹框，点击节点时弹出
-           （详见 index.vue 的 <a-drawer> 标签）
+    新版本：详情由 NodeDetailDrawer 包装为抽屉，点击节点时弹出
 
     保留原因：作为组件备份，方便对比固定栏 vs 弹框两种方案
 
@@ -154,3 +153,70 @@ function handleOwnerChange(event: Event) {
     emit('update-owner', target.value);
 }
 </script>
+
+<style lang="scss" scoped>
+.sidebar-right {
+    h3 {
+        font-size: 14px;
+        color: #333;
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e8e8e8;
+    }
+
+    .detail-form .form-item {
+        margin-bottom: 12px;
+    }
+
+    .detail-form label {
+        display: block;
+        font-size: 12px;
+        color: #999;
+        margin-bottom: 4px;
+    }
+
+    .detail-form .value {
+        font-size: 13px;
+        color: #333;
+        padding: 6px 0;
+    }
+
+    .detail-form select,
+    .detail-form input {
+        width: 100%;
+        padding: 6px 8px;
+        border: 1px solid #d9d9d9;
+        border-radius: 4px;
+        font-size: 13px;
+    }
+
+    .relation-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+
+    .relation-table th,
+    .relation-table td {
+        padding: 8px;
+        text-align: left;
+        border-bottom: 1px solid #e8e8e8;
+    }
+
+    .relation-table th {
+        background: #fafafa;
+        color: #666;
+        font-weight: normal;
+    }
+
+    .relation-table .action-link {
+        color: #1890ff;
+        cursor: pointer;
+        margin-right: 8px;
+    }
+
+    .relation-table .action-link.danger {
+        color: #f5222d;
+    }
+}
+</style>

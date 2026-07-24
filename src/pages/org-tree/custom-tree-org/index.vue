@@ -27,9 +27,4 @@ onMounted(async () => {
 </script>
 
 
-<style scoped lang="scss">
-	@import url('./index.scss');
-</style>
-
-
-	
+<style src="./index.scss" lang="scss" scoped></style>

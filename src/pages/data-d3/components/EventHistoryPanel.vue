@@ -251,7 +251,7 @@ function formatEventData(event: EventLogEntry): string {
     // top: 80px;
     // left: 20px;
     top: 0;
-    left: 0;
+    right: 0;
     width: 450px;
     max-height: 500px;
     background: #fff;

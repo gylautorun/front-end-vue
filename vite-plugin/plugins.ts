@@ -23,12 +23,16 @@ import { lazyImport, VxeResolver } from 'vite-plugin-lazy-import';
 import tailwindcss from '@tailwindcss/vite';
 
 // px-vw
-// import {postcssPxToViewportConfig} from './vite-plugin/postcss-px-to-viewport-config';
+// import {postcssPxToViewportConfig} from './vite-plugin/postcss-px-to-viewport-config';// 路由自动导入和布局组件自动合成
 
+/**
+ * 移除项目未使用的 vite-plugin-pages/vite-plugin-vue-layouts，避免它们和自定义 import.meta.glob 同时监听页面并重复触发整页刷新。
+ * 把所有懒加载页面入口加入 optimizeDeps.entries，让 Vite 启动时预构建页面依赖，避免第一次进入某页面才发现新依赖并强制刷新。
+ */
 // 路由自动导入和布局组件自动合成
-import { resolve } from 'path';
-import Pages from 'vite-plugin-pages';
-import Layouts from 'vite-plugin-vue-layouts';
+// import { resolve } from 'path';
+// import Pages from 'vite-plugin-pages';
+// import Layouts from 'vite-plugin-vue-layouts';
 
 // 导入 vite-plugin-html 根据环境变量修改标题
 import { createHtmlPlugin } from 'vite-plugin-html';
@@ -96,17 +100,17 @@ export const createVitePlugins = (): (PluginOption | PluginOption[])[] => {
             // dirs: ['src/components', 'src/**/components'], // 自定义的组件位置
             // dts: mode === 'development' ? 'src/typings/components.d.ts' : false, // 生成声明文件位置
         }),
-        Pages({
-            pagesDir: 'src/pages', //需要生成路由的文件目录，默认就是识别src下面的pages文件
-            extensions: ['vue'],
-            exclude: ['**/components/*.vue'], // 忽略的文件夹
-            importMode: 'async' // 是否是异步路由
-        }),
-        Layouts({
-            // 如果是默认 layouts文件夹，默认 default.vue文件，则不需要配置
-            layoutsDirs: 'src/layout', // 布局文件存放目录
-            defaultLayout: 'default' // 对应 src/layout/default.vue
-        }),
+        // Pages({
+        //     pagesDir: 'src/pages', //需要生成路由的文件目录，默认就是识别src下面的pages文件
+        //     extensions: ['vue'],
+        //     exclude: ['**/components/*.vue'], // 忽略的文件夹
+        //     importMode: 'async' // 是否是异步路由
+        // }),
+        // Layouts({
+        //     // 如果是默认 layouts文件夹，默认 default.vue文件，则不需要配置
+        //     layoutsDirs: 'src/layout', // 布局文件存放目录
+        //     defaultLayout: 'default' // 对应 src/layout/default.vue
+        // }),
         createHtmlPlugin({
             minify: true,
             /**

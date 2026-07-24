@@ -31,6 +31,7 @@ export default defineConfig({
     publicDir: path.resolve(process.cwd(), 'public'), // 静态资源服务的文件夹
     cacheDir: 'temp/.vite', // 存储缓存文件的目录
     optimizeDeps: {
-        entries: ['/index.html']
+        // 提前扫描懒加载页面的依赖，避免首次进入路由时重新预构建并刷新页面
+        entries: ['index.html', 'src/pages/**/index.vue', 'src/pages/**/index.tsx']
     }
 } as UserConfig);

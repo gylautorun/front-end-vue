@@ -1,4 +1,4 @@
-@import url('../style/variable.scss');
+@use '../style/variable.scss' as *;
 
 .tree-wrap {
     * {
@@ -43,7 +43,7 @@
                 top: 50%;
                 margin-top: -12px;
                 &:hover svg {
-                    path {
+                    :deep(path) {
                         fill: $blue;
                     }
                 }
@@ -73,7 +73,7 @@
         margin-top: $connect-line-height * 2;
         .person-info-wrap {
             &:first-of-type {
-                .connect-line {
+                :deep(.connect-line) {
                     .tree-vertical-line,
                     .tree-horizontal-line {
                         border-top-left-radius: 8px;
@@ -81,7 +81,7 @@
                 }
             }
             &:nth-last-of-type(2) {
-                .connect-line {
+                :deep(.connect-line) {
                     .tree-horizontal-line {
                         width: calc(100% + 21px);
                         border-top-right-radius: 8px;
@@ -90,7 +90,7 @@
                 }
             }
             &:last-of-type {
-                .connect-line {
+                :deep(.connect-line) {
                     display: none;
                 }
             }
@@ -99,7 +99,7 @@
     .second-wrap {
         .person-info-wrap {
             &.last-person-info-wrap {
-                .show-btn {
+                :deep(.show-btn) {
                     left: calc(50% - 1px);
                 }
             }

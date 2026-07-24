@@ -146,3 +146,5 @@ defineEmits<{
     (e: 'remove-selected', nodeId: string): void;
 }>();
 </script>
+
+<style src="../styles/sidebar-left.scss" lang="scss" scoped></style>

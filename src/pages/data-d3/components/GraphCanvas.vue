@@ -82,65 +82,15 @@
             </div>
         </teleport>
 
-        <!-- 调整节点尺寸模态框 -->
-        <div
-            class="modal-overlay"
-            :class="{ show: showResizeModal }"
-            @click.self="showResizeModal = false"
-        >
-            <div class="modal resize-modal">
-                <h3>📐 调整节点尺寸</h3>
-                <div class="form-group">
-                    <label>宽度（像素）</label>
-                    <input type="number" v-model.number="resizeWidth" min="50" max="500" />
-                </div>
-                <div class="form-group">
-                    <label>高度（像素）</label>
-                    <input type="number" v-model.number="resizeHeight" min="20" max="300" />
-                </div>
-                <div class="modal-actions">
-                    <button @click="showResizeModal = false">取消</button>
-                    <button @click="handleResizeNode">确定</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 下载格式选择模态框 -->
-        <div
-            class="modal-overlay"
-            :class="{ show: showDownloadModal }"
-            @click.self="showDownloadModal = false"
-        >
-            <div class="modal download-modal">
-                <h3>📥 选择下载格式</h3>
-
-                <!-- 文件名输入 -->
-                <div class="form-group">
-                    <label>文件名称</label>
-                    <input type="text" v-model="downloadFileName" placeholder="请输入文件名" />
-                </div>
-
-                <div class="download-options">
-                    <div class="download-option" @click="selectDownloadFormat('png')">
-                        <div class="option-icon">🖼️</div>
-                        <div class="option-info">
-                            <div class="option-title">PNG 图片</div>
-                            <div class="option-desc">适合分享和打印</div>
-                        </div>
-                    </div>
-                    <div class="download-option" @click="selectDownloadFormat('svg')">
-                        <div class="option-icon">📐</div>
-                        <div class="option-info">
-                            <div class="option-title">SVG 矢量图</div>
-                            <div class="option-desc">适合编辑和缩放</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-actions">
-                    <button @click="showDownloadModal = false">取消</button>
-                </div>
-            </div>
-        </div>
+        <GraphCanvasDialogs
+            v-model:resize-open="showResizeModal"
+            v-model:resize-width="resizeWidth"
+            v-model:resize-height="resizeHeight"
+            v-model:download-open="showDownloadModal"
+            v-model:download-file-name="downloadFileName"
+            @confirm-resize="handleResizeNode"
+            @select-download-format="selectDownloadFormat"
+        />
     </div>
 </template>
 
@@ -152,6 +102,7 @@ import type { TreeData, SelectedNode } from '../types';
 import { D3TreeGraph, setDepthNodeDimensions, AsyncLoadStrategy } from '@/lib/d3-tree-sdk';
 import type { TreeLayoutOrientation } from '@/lib/d3-tree-sdk';
 import { EventLogger } from '../utils/EventLogger';
+import GraphCanvasDialogs from './GraphCanvasDialogs.vue';
 
 /**
  * 父组件传入的属性（只读）
@@ -175,9 +126,6 @@ const props = defineProps<{
 /**
  * 父组件监听的自定义事件列表
  * ----------------------------------------------------------------------------
- * @event zoom-in                  用户点击 ➕ 放大按钮
- * @event zoom-out                 用户点击 ➖ 缩小按钮
- * @event fit-view                 用户点击 🎯 适应屏幕按钮
  * @event clear-selection          用户点击 ✖️ 清除选择
  * @event select-node              单击节点（打开 Drawer 详情）
  * @event toggle-select            双击节点（加入/移除多选）
@@ -190,9 +138,6 @@ const props = defineProps<{
  * @event delete-node              请求删除当前节点
  */
 const emit = defineEmits<{
-    (e: 'zoom-in'): void;
-    (e: 'zoom-out'): void;
-    (e: 'fit-view'): void;
     (e: 'clear-selection'): void;
     (e: 'select-node', data: TreeData): void;
     (e: 'toggle-select', data: TreeData): void;
@@ -894,3 +839,6 @@ defineExpose({
     recordOperation: recordOperation
 });
 </script>
+
+<style src="../styles/graph-canvas.scss" lang="scss" scoped></style>
+<style src="../styles/d3-canvas.scss" lang="scss"></style>

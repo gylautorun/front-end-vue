@@ -1,0 +1,14 @@
+allowBuilds:
+  core-js: false
+  cwebp-bin: true
+  esbuild: true
+  gifsicle: true
+  jpegtran-bin: true
+  mozjpeg: true
+  node-sass: false
+  optipng-bin: true
+  pngquant-bin: true
+  protobufjs: false
+  sharp: false
+  vue-demi: true
+  vue-echarts: true
